@@ -2,27 +2,30 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AdminLayout from "../layouts/AdminLayout";
 import Dashboard from "../pages/Dashboard";
 import AccountInformation from "../pages/AccountInformation";
+import GradeSections from "../pages/GradeSections";
+import Teachers from "../pages/Teachers";
+import Students from "../pages/Students";
 
 const ComingSoon = ({ title }) => {
   return (
     <div data-aos="fade-up">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+          <h1 className="text-2xl font-black text-slate-900">{title}</h1>
           <p className="mt-1 text-sm text-slate-500">
             This module will be added later.
           </p>
         </div>
 
-        <div className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+        <div className="rounded-md bg-orange-50 px-4 py-2 text-sm font-bold text-orange-600">
           Coming Soon
         </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-dashed bg-white p-10 text-center shadow-sm">
-        <h2 className="text-xl font-bold text-slate-900">{title} Module</h2>
+      <div className="mt-6 rounded-md border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+        <h2 className="text-xl font-black text-slate-900">{title} Module</h2>
         <p className="mt-2 text-sm text-slate-500">
-          Dashboard first. We will build this page next.
+          We will build this page next.
         </p>
       </div>
     </div>
@@ -38,10 +41,23 @@ const AppRoutes = () => {
 
         <Route path="/account-information" element={<AccountInformation />} />
 
-        <Route path="/students" element={<ComingSoon title="Students" />} />
-        <Route path="/teachers" element={<ComingSoon title="Teachers" />} />
-        <Route path="/classes" element={<ComingSoon title="Classes" />} />
-        <Route path="/enrollment" element={<ComingSoon title="Enrollment" />} />
+        <Route path="/students" element={<Students />} />
+        <Route path="/teachers" element={<Teachers />} />
+        <Route path="/classes" element={<GradeSections />} />
+
+        <Route
+          path="/enrollment"
+          element={<Navigate to="/enrollment/application" replace />}
+        />
+        <Route
+          path="/enrollment/application"
+          element={<ComingSoon title="Enrollment Application" />}
+        />
+        <Route
+          path="/enrollment/verification"
+          element={<ComingSoon title="Enrollment Verification" />}
+        />
+
         <Route path="/attendance" element={<ComingSoon title="Attendance" />} />
         <Route path="/grades" element={<ComingSoon title="Grades" />} />
         <Route path="/payments" element={<ComingSoon title="Payments" />} />

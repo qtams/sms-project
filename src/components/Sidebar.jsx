@@ -7,11 +7,11 @@ import {
   ClipboardList,
   CreditCard,
   FileBarChart,
+  GraduationCap,
   LayoutDashboard,
   School,
   Settings,
   Users,
-  GraduationCap,
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -20,6 +20,12 @@ const Sidebar = () => {
 
   const toggleDropdown = (key) => {
     setOpenDropdown((current) => (current === key ? "" : key));
+  };
+
+  const isPathActive = (path) => {
+    return (
+      location.pathname === path || location.pathname.startsWith(`${path}/`)
+    );
   };
 
   const menuSections = [
@@ -52,7 +58,7 @@ const Sidebar = () => {
               path: "/teachers",
             },
             {
-              label: "Classes",
+              label: "Grade & Sections",
               path: "/classes",
             },
           ],
@@ -162,8 +168,8 @@ const Sidebar = () => {
   const renderDropdown = (section) => {
     const Icon = section.icon;
 
-    const isDropdownActive = section.items.some(
-      (item) => item.path === location.pathname,
+    const isDropdownActive = section.items.some((item) =>
+      isPathActive(item.path),
     );
 
     const isOpen = openDropdown === section.key || isDropdownActive;
@@ -212,7 +218,7 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 text-slate-900 lg:block">
+    <aside className="no-scrollbar hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 text-slate-900 lg:block">
       <nav className="space-y-7">
         {menuSections.map((group) => (
           <div key={group.title}>

@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
+import Breadcrumbs from "../components/Breadcrumbs";
 
 const AdminLayout = () => {
   return (
@@ -11,6 +12,8 @@ const AdminLayout = () => {
         <Sidebar />
 
         <main className="no-scrollbar flex-1 overflow-y-auto px-4 py-5 sm:px-6 md:px-8 md:py-8">
+          <Breadcrumbs />
+
           <Outlet />
         </main>
       </div>
