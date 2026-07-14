@@ -25,8 +25,6 @@ const gradeLevelOptions = [
 
 const sectionOptions = ["A", "B", "C", "STEM A", "STEM B", "ABM A", "HUMSS A"];
 
-const genderOptions = ["Male", "Female"];
-
 const createImage = (url) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -329,7 +327,7 @@ const StudentModal = ({
             )}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Student ID
@@ -349,37 +347,17 @@ const StudentModal = ({
 
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
-                LRN
+                RFID
               </label>
 
               <input
                 type="text"
-                value={formData.lrn}
-                onChange={(event) => handleChange("lrn", event.target.value)}
-                placeholder="Optional"
+                value={formData.rfid}
+                onChange={(event) => handleChange("rfid", event.target.value)}
+                placeholder="RFID-000001"
+                required
                 className="h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-700">
-                Gender
-              </label>
-
-              <select
-                value={formData.gender}
-                onChange={(event) => handleChange("gender", event.target.value)}
-                required
-                className="h-12 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-              >
-                <option value="">Select gender</option>
-
-                {genderOptions.map((gender) => (
-                  <option key={gender} value={gender}>
-                    {gender}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
 
