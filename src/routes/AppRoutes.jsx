@@ -5,6 +5,7 @@ import AccountInformation from "../pages/AccountInformation";
 import GradeSections from "../pages/GradeSections";
 import Teachers from "../pages/Teachers";
 import Students from "../pages/Students";
+import Application from "../pages/Application";
 import Login from "../pages/Login";
 
 const ComingSoon = ({ title }) => {
@@ -59,6 +60,17 @@ const AppRoutes = () => {
           <Route path="/teachers" element={<Teachers />} />
           <Route path="/classes" element={<GradeSections />} />
 
+        <Route
+          path="/enrollment"
+          element={<Navigate to="/enrollment/application" replace />}
+        />
+
+        <Route path="/enrollment/application" element={<Application />} />
+
+        <Route
+          path="/enrollment/verification"
+          element={<ComingSoon title="Enrollment Verification" />}
+        />
           <Route
             path="/enrollment"
             element={<Navigate to="/enrollment/application" replace />}

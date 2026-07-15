@@ -1,34 +1,37 @@
 import { useMemo, useState } from "react";
 import {
+  FiBookOpen,
+  FiCreditCard,
   FiEdit2,
+  FiEye,
   FiGrid,
+  FiHash,
   FiList,
-  FiMapPin,
-  FiPhone,
-  FiPlus,
   FiSearch,
   FiTrash2,
-  FiUser,
+  FiUploadCloud,
 } from "react-icons/fi";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import StudentModal from "../components/modals/StudentModal";
+import ImportStudentModal from "../components/modals/ImportStudentModal";
 import { apiDebugRequest } from "../utils/apiDebugger";
+
+const studentStatusOptions = ["Enrolled", "Unenrolled", "Inactive"];
 
 const defaultStudentForm = {
   studentId: "",
-  lrn: "",
+  rfid: "",
   firstName: "",
   middleName: "",
   lastName: "",
-  gender: "",
   gradeLevel: "",
   section: "",
   birthDate: "",
   guardianName: "",
   guardianContact: "",
   address: "",
-  status: "Active",
+  status: "Enrolled",
   photoFile: null,
   photoPreview: "",
   photoRemoved: false,
@@ -38,18 +41,17 @@ const initialStudents = [
   {
     id: 1,
     studentId: "STD-0001",
-    lrn: "123456789012",
+    rfid: "RFID-000001",
     firstName: "Juan",
     middleName: "",
     lastName: "Dela Cruz",
-    gender: "Male",
     gradeLevel: "Grade 7",
     section: "A",
     birthDate: "2013-05-10",
     guardianName: "Maria Dela Cruz",
     guardianContact: "09123456789",
     address: "Cagayan de Oro City",
-    status: "Active",
+    status: "Enrolled",
     photoFile: null,
     photoPreview: "",
     photoRemoved: false,
@@ -57,18 +59,17 @@ const initialStudents = [
   {
     id: 2,
     studentId: "STD-0002",
-    lrn: "987654321012",
+    rfid: "RFID-000002",
     firstName: "Ana",
     middleName: "",
     lastName: "Santos",
-    gender: "Female",
     gradeLevel: "Grade 8",
     section: "B",
     birthDate: "2012-03-18",
     guardianName: "Pedro Santos",
     guardianContact: "09987654321",
     address: "Misamis Oriental",
-    status: "Active",
+    status: "Enrolled",
     photoFile: null,
     photoPreview: "",
     photoRemoved: false,
@@ -76,14 +77,31 @@ const initialStudents = [
   {
     id: 3,
     studentId: "STD-0003",
-    lrn: "",
+    rfid: "RFID-000003",
     firstName: "Carlo",
     middleName: "",
     lastName: "Reyes",
-    gender: "Male",
     gradeLevel: "Grade 11",
     section: "STEM A",
     birthDate: "2010-08-22",
+    guardianName: "",
+    guardianContact: "",
+    address: "",
+    status: "Unenrolled",
+    photoFile: null,
+    photoPreview: "",
+    photoRemoved: false,
+  },
+  {
+    id: 4,
+    studentId: "STD-0004",
+    rfid: "RFID-000004",
+    firstName: "Mark",
+    middleName: "",
+    lastName: "Villanueva",
+    gradeLevel: "Grade 9",
+    section: "C",
+    birthDate: "2011-11-14",
     guardianName: "",
     guardianContact: "",
     address: "",
@@ -117,13 +135,49 @@ const getAvatarStyle = (studentId) => {
   return avatarStyles[studentId % avatarStyles.length];
 };
 
+const getNextStatus = (currentStatus) => {
+  if (currentStatus === "Enrolled") return "Unenrolled";
+  if (currentStatus === "Unenrolled") return "Inactive";
+  return "Enrolled";
+};
+
+const getStatusRank = (status) => {
+  if (status === "Enrolled") return 1;
+  if (status === "Unenrolled") return 2;
+  return 3;
+};
+
+const formatFileSize = (file) => {
+  const sizeInMb = file.size / 1024 / 1024;
+
+  if (sizeInMb >= 1) {
+    return `${sizeInMb.toFixed(2)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(file.size / 1024))} KB`;
+};
+
+const isExcelFile = (file) => {
+  const validExtensions = [".xlsx", ".xls"];
+
+  return validExtensions.some((extension) =>
+    file.name.toLowerCase().endsWith(extension),
+  );
+};
+
 const Students = () => {
   const [students, setStudents] = useState(initialStudents);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [viewMode, setViewMode] = useState("grid");
+  const [viewMode, setViewMode] = useState("table");
   const [movingStudentId, setMovingStudentId] = useState(null);
   const [poppedStudentId, setPoppedStudentId] = useState(null);
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFiles, setImportFiles] = useState([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
 
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
@@ -136,7 +190,7 @@ const Students = () => {
       const matchesSearch =
         getStudentDisplayName(student).toLowerCase().includes(searchValue) ||
         student.studentId.toLowerCase().includes(searchValue) ||
-        student.lrn.toLowerCase().includes(searchValue) ||
+        student.rfid.toLowerCase().includes(searchValue) ||
         student.gradeLevel.toLowerCase().includes(searchValue) ||
         student.section.toLowerCase().includes(searchValue) ||
         student.guardianName.toLowerCase().includes(searchValue) ||
@@ -151,30 +205,132 @@ const Students = () => {
 
   const displayedStudents = useMemo(() => {
     return [...filteredStudents].sort((a, b) => {
-      if (a.status !== b.status) {
-        return a.status === "Active" ? -1 : 1;
-      }
+      const statusSort = getStatusRank(a.status) - getStatusRank(b.status);
+
+      if (statusSort !== 0) return statusSort;
 
       return getStudentDisplayName(a).localeCompare(getStudentDisplayName(b));
     });
   }, [filteredStudents]);
 
-  const activeStudents = students.filter(
-    (student) => student.status === "Active",
+  const enrolledStudents = students.filter(
+    (student) => student.status === "Enrolled",
+  ).length;
+
+  const unenrolledStudents = students.filter(
+    (student) => student.status === "Unenrolled",
   ).length;
 
   const inactiveStudents = students.filter(
     (student) => student.status === "Inactive",
   ).length;
 
-  const gradeLevelCount = new Set(
-    students.map((student) => student.gradeLevel).filter(Boolean),
-  ).size;
+  const allDisplayedSelected =
+    displayedStudents.length > 0 &&
+    displayedStudents.every((student) =>
+      selectedStudentIds.includes(student.id),
+    );
 
-  const openAddStudentModal = () => {
-    setEditingStudent(null);
-    setStudentForm(defaultStudentForm);
-    setIsStudentModalOpen(true);
+  const openImportModal = () => {
+    setIsImportModalOpen(true);
+  };
+
+  const closeImportModal = () => {
+    if (isImporting) return;
+
+    setIsImportModalOpen(false);
+    setImportFiles([]);
+    setImportProgress(0);
+  };
+
+  const handleChooseImportFiles = (fileList) => {
+    const selectedFiles = Array.from(fileList || []);
+
+    if (selectedFiles.length === 0) return;
+
+    const validFiles = [];
+    const invalidFiles = [];
+
+    selectedFiles.forEach((file) => {
+      if (isExcelFile(file)) {
+        validFiles.push({
+          tempId: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
+          file,
+          name: file.name,
+          size: formatFileSize(file),
+          type: file.type || "Excel File",
+        });
+      } else {
+        invalidFiles.push(file.name);
+      }
+    });
+
+    if (invalidFiles.length > 0) {
+      toast.error("Only .xlsx and .xls files are allowed.");
+    }
+
+    if (validFiles.length === 0) return;
+
+    setImportFiles((current) => {
+      const existingKeys = new Set(
+        current.map((item) => `${item.name}-${item.file.size}`),
+      );
+
+      const newFiles = validFiles.filter(
+        (item) => !existingKeys.has(`${item.name}-${item.file.size}`),
+      );
+
+      return [...current, ...newFiles];
+    });
+  };
+
+  const handleRemoveImportFile = (tempId) => {
+    setImportFiles((current) =>
+      current.filter((item) => item.tempId !== tempId),
+    );
+  };
+
+  const handleImportStudents = async () => {
+    if (importFiles.length === 0) {
+      toast.error("Please select at least one Excel file.");
+      return;
+    }
+
+    setIsImporting(true);
+    setImportProgress(10);
+
+    const progressTimer = window.setInterval(() => {
+      setImportProgress((current) => {
+        if (current >= 90) return current;
+        return current + 10;
+      });
+    }, 250);
+
+    await apiDebugRequest({
+      module: "student",
+      action: "import-excel",
+      method: "POST",
+      payload: {
+        files: importFiles.map((item) => ({
+          fileName: item.name,
+          fileSize: item.size,
+          fileType: item.type,
+        })),
+        totalFiles: importFiles.length,
+        note: "Backend should replace this debug request with FormData upload. Append each file using the field name studentsExcelFiles.",
+      },
+    });
+
+    window.clearInterval(progressTimer);
+    setImportProgress(100);
+
+    window.setTimeout(() => {
+      setIsImporting(false);
+      setIsImportModalOpen(false);
+      setImportFiles([]);
+      setImportProgress(0);
+      toast.success("Student Excel import request sent.");
+    }, 500);
   };
 
   const openEditStudentModal = (student) => {
@@ -182,11 +338,10 @@ const Students = () => {
 
     setStudentForm({
       studentId: student.studentId,
-      lrn: student.lrn,
+      rfid: student.rfid,
       firstName: student.firstName,
       middleName: student.middleName,
       lastName: student.lastName,
-      gender: student.gender,
       gradeLevel: student.gradeLevel,
       section: student.section,
       birthDate: student.birthDate,
@@ -208,17 +363,123 @@ const Students = () => {
     setStudentForm(defaultStudentForm);
   };
 
+  const handleViewStudent = async (student) => {
+    await apiDebugRequest({
+      module: "student",
+      action: "view",
+      method: "GET",
+      payload: {
+        id: student.id,
+        studentId: student.studentId,
+      },
+    });
+
+    Swal.fire({
+      title: getStudentDisplayName(student),
+      html: `
+        <div style="text-align:left; font-size:14px; line-height:1.8;">
+          <p><b>Student ID:</b> ${student.studentId}</p>
+          <p><b>RFID:</b> ${student.rfid || "-"}</p>
+          <p><b>Class:</b> ${student.gradeLevel} - ${student.section}</p>
+          <p><b>Birth Date:</b> ${student.birthDate || "-"}</p>
+          <p><b>Guardian:</b> ${student.guardianName || "-"}</p>
+          <p><b>Guardian Contact:</b> ${student.guardianContact || "-"}</p>
+          <p><b>Address:</b> ${student.address || "-"}</p>
+          <p><b>Status:</b> ${student.status}</p>
+        </div>
+      `,
+      confirmButtonColor: "#0891b2",
+    });
+  };
+
+  const handleToggleSelect = (studentId) => {
+    setSelectedStudentIds((current) => {
+      if (current.includes(studentId)) {
+        return current.filter((id) => id !== studentId);
+      }
+
+      return [...current, studentId];
+    });
+  };
+
+  const handleSelectAllDisplayed = () => {
+    if (allDisplayedSelected) {
+      const displayedIds = displayedStudents.map((student) => student.id);
+
+      setSelectedStudentIds((current) =>
+        current.filter((id) => !displayedIds.includes(id)),
+      );
+
+      return;
+    }
+
+    setSelectedStudentIds((current) => {
+      const nextIds = [...current];
+
+      displayedStudents.forEach((student) => {
+        if (!nextIds.includes(student.id)) {
+          nextIds.push(student.id);
+        }
+      });
+
+      return nextIds;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedStudentIds.length === 0) {
+      toast.error("Please select at least one student.");
+      return;
+    }
+
+    const selectedStudents = students.filter((student) =>
+      selectedStudentIds.includes(student.id),
+    );
+
+    const result = await Swal.fire({
+      title: "Delete selected students?",
+      text: `${selectedStudents.length} student record(s) will be removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#ef4444",
+    });
+
+    if (!result.isConfirmed) return;
+
+    await apiDebugRequest({
+      module: "student",
+      action: "bulk-delete",
+      method: "DELETE",
+      payload: {
+        ids: selectedStudentIds,
+        students: selectedStudents.map((student) => ({
+          id: student.id,
+          studentId: student.studentId,
+          displayName: getStudentDisplayName(student),
+        })),
+      },
+    });
+
+    setStudents((current) =>
+      current.filter((student) => !selectedStudentIds.includes(student.id)),
+    );
+
+    setSelectedStudentIds([]);
+    toast.success("Selected students deleted successfully.");
+  };
+
   const handleStudentSubmit = async (event) => {
     event.preventDefault();
 
     const cleanedData = {
       ...studentForm,
       studentId: studentForm.studentId.trim(),
-      lrn: studentForm.lrn.trim(),
+      rfid: studentForm.rfid.trim(),
       firstName: studentForm.firstName.trim(),
       middleName: studentForm.middleName.trim(),
       lastName: studentForm.lastName.trim(),
-      gender: studentForm.gender.trim(),
       gradeLevel: studentForm.gradeLevel.trim(),
       section: studentForm.section.trim(),
       birthDate: studentForm.birthDate,
@@ -229,9 +490,9 @@ const Students = () => {
 
     if (
       !cleanedData.studentId ||
+      !cleanedData.rfid ||
       !cleanedData.firstName ||
       !cleanedData.lastName ||
-      !cleanedData.gender ||
       !cleanedData.gradeLevel ||
       !cleanedData.section
     ) {
@@ -255,14 +516,29 @@ const Students = () => {
       return;
     }
 
+    const duplicateRfid = students.some((student) => {
+      const sameRfid =
+        student.rfid.toLowerCase() === cleanedData.rfid.toLowerCase();
+
+      if (editingStudent) {
+        return sameRfid && student.id !== editingStudent.id;
+      }
+
+      return sameRfid;
+    });
+
+    if (duplicateRfid) {
+      toast.error("RFID already exists.");
+      return;
+    }
+
     const apiPayload = {
       studentId: cleanedData.studentId,
-      lrn: cleanedData.lrn,
+      rfid: cleanedData.rfid,
       firstName: cleanedData.firstName,
       middleName: cleanedData.middleName,
       lastName: cleanedData.lastName,
       displayName: `${cleanedData.lastName}, ${cleanedData.firstName}`,
-      gender: cleanedData.gender,
       gradeLevel: cleanedData.gradeLevel,
       section: cleanedData.section,
       birthDate: cleanedData.birthDate,
@@ -300,27 +576,7 @@ const Students = () => {
 
       toast.success("Student updated successfully.");
       closeStudentModal();
-      return;
     }
-
-    const newStudent = {
-      id: Date.now(),
-      ...cleanedData,
-    };
-
-    await apiDebugRequest({
-      module: "student",
-      action: "create",
-      method: "POST",
-      payload: {
-        id: newStudent.id,
-        ...apiPayload,
-      },
-    });
-
-    setStudents((current) => [newStudent, ...current]);
-    toast.success("Student added successfully.");
-    closeStudentModal();
   };
 
   const handleDeleteStudent = async (student) => {
@@ -351,17 +607,21 @@ const Students = () => {
       current.filter((currentStudent) => currentStudent.id !== student.id),
     );
 
+    setSelectedStudentIds((current) =>
+      current.filter((id) => id !== student.id),
+    );
+
     toast.success("Student deleted successfully.");
   };
 
   const handleToggleStudentStatus = async (student) => {
     if (movingStudentId) return;
 
-    const nextStatus = student.status === "Active" ? "Inactive" : "Active";
+    const nextStatus = getNextStatus(student.status);
 
     await apiDebugRequest({
       module: "student",
-      action: "toggle-status",
+      action: "change-status",
       method: "PATCH",
       payload: {
         id: student.id,
@@ -393,7 +653,7 @@ const Students = () => {
       }, 450);
     }, 260);
 
-    toast.success(`Student marked as ${nextStatus}.`);
+    toast.success(`Student status changed to ${nextStatus}.`);
   };
 
   return (
@@ -403,26 +663,39 @@ const Students = () => {
           <h1 className="text-2xl font-black text-slate-900">Students</h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Manage student profiles and connect them to grade levels and
-            sections.
+            Manage imported students, enrollment status, RFID, and class
+            details.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openAddStudentModal}
-          className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-cyan-700"
-        >
-          <FiPlus />
-          Add Student
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {selectedStudentIds.length > 0 && (
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              className="flex w-fit items-center gap-2 rounded-md bg-red-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
+            >
+              <FiTrash2 />
+              Delete Selected ({selectedStudentIds.length})
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={openImportModal}
+            className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-cyan-700"
+          >
+            <FiUploadCloud />
+            Import Student
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
         <SummaryCard label="Total Students" value={students.length} />
-        <SummaryCard label="Active Students" value={activeStudents} />
-        <SummaryCard label="Inactive Students" value={inactiveStudents} />
-        <SummaryCard label="Grade Levels" value={gradeLevelCount} />
+        <SummaryCard label="Enrolled" value={enrolledStudents} />
+        <SummaryCard label="Unenrolled" value={unenrolledStudents} />
+        <SummaryCard label="Inactive" value={inactiveStudents} />
       </div>
 
       <div className="rounded-md bg-white shadow-sm">
@@ -430,7 +703,8 @@ const Students = () => {
           <div>
             <h2 className="text-lg font-black text-slate-900">Student List</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Active students stay first. Inactive students move to the bottom.
+              Student ID is under the name. RFID and class have separate
+              columns.
             </p>
           </div>
 
@@ -442,7 +716,7 @@ const Students = () => {
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search student, ID, grade..."
+                placeholder="Search student, ID, RFID..."
                 className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
@@ -453,8 +727,11 @@ const Students = () => {
               className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
             >
               <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              {studentStatusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
             </select>
 
             <div className="flex h-11 rounded-md border border-slate-200 bg-white p-1">
@@ -490,8 +767,11 @@ const Students = () => {
         {viewMode === "grid" ? (
           <StudentGrid
             students={displayedStudents}
+            selectedStudentIds={selectedStudentIds}
             movingStudentId={movingStudentId}
             poppedStudentId={poppedStudentId}
+            onSelect={handleToggleSelect}
+            onView={handleViewStudent}
             onEdit={openEditStudentModal}
             onDelete={handleDeleteStudent}
             onToggleStatus={handleToggleStudentStatus}
@@ -499,14 +779,30 @@ const Students = () => {
         ) : (
           <StudentTable
             students={displayedStudents}
+            selectedStudentIds={selectedStudentIds}
             movingStudentId={movingStudentId}
             poppedStudentId={poppedStudentId}
+            allDisplayedSelected={allDisplayedSelected}
+            onSelect={handleToggleSelect}
+            onSelectAll={handleSelectAllDisplayed}
+            onView={handleViewStudent}
             onEdit={openEditStudentModal}
             onDelete={handleDeleteStudent}
             onToggleStatus={handleToggleStudentStatus}
           />
         )}
       </div>
+
+      <ImportStudentModal
+        isOpen={isImportModalOpen}
+        importFiles={importFiles}
+        isImporting={isImporting}
+        importProgress={importProgress}
+        onClose={closeImportModal}
+        onChooseFiles={handleChooseImportFiles}
+        onRemoveImportFile={handleRemoveImportFile}
+        onImport={handleImportStudents}
+      />
 
       <StudentModal
         isOpen={isStudentModalOpen}
@@ -558,10 +854,52 @@ const Students = () => {
   );
 };
 
+const StudentNameBlock = ({ student, inactive = false }) => {
+  return (
+    <div>
+      <p
+        className={`text-sm font-black ${
+          inactive ? "text-slate-500" : "text-slate-900"
+        }`}
+      >
+        {getStudentDisplayName(student)}
+      </p>
+
+      <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+        <FiHash className="shrink-0" />
+        <span>{student.studentId}</span>
+      </div>
+    </div>
+  );
+};
+
+const RfidInfo = ({ rfid }) => {
+  return (
+    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
+      <FiCreditCard className="shrink-0 text-slate-400" />
+      <span>{rfid || "-"}</span>
+    </div>
+  );
+};
+
+const ClassInfo = ({ student }) => {
+  return (
+    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
+      <FiBookOpen className="shrink-0 text-slate-400" />
+      <span>
+        {student.gradeLevel} - {student.section}
+      </span>
+    </div>
+  );
+};
+
 const StudentGrid = ({
   students,
+  selectedStudentIds,
   movingStudentId,
   poppedStudentId,
+  onSelect,
+  onView,
   onEdit,
   onDelete,
   onToggleStatus,
@@ -576,26 +914,31 @@ const StudentGrid = ({
         const isInactive = student.status === "Inactive";
         const isMoving = movingStudentId === student.id;
         const isPopped = poppedStudentId === student.id;
+        const isSelected = selectedStudentIds.includes(student.id);
 
         return (
           <div
             key={student.id}
             className={`relative overflow-hidden rounded-md border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-              isInactive
-                ? "border-slate-200 bg-slate-50 opacity-75"
-                : "border-slate-200 bg-white"
+              isSelected
+                ? "border-cyan-300 ring-4 ring-cyan-50"
+                : "border-slate-200"
+            } ${
+              isInactive ? "bg-slate-50 opacity-75" : "bg-white"
             } ${isMoving ? "student-pop-out" : ""} ${
               isPopped ? "student-pop-in" : ""
             }`}
           >
             <div className="flex items-center justify-between">
-              <StatusToggle
-                status={student.status}
-                disabled={Boolean(movingStudentId)}
-                onClick={() => onToggleStatus(student)}
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onSelect(student.id)}
+                className="h-4 w-4 cursor-pointer accent-cyan-600"
               />
 
               <div className="flex gap-2">
+                <IconButton type="view" onClick={() => onView(student)} />
                 <IconButton type="edit" onClick={() => onEdit(student)} />
                 <IconButton type="delete" onClick={() => onDelete(student)} />
               </div>
@@ -608,94 +951,33 @@ const StudentGrid = ({
                 inactive={isInactive}
               />
 
-              <h3
-                className={`mt-5 max-w-[280px] text-lg font-black leading-snug ${
-                  isInactive ? "text-slate-500" : "text-slate-950"
-                }`}
-              >
-                {getStudentDisplayName(student)}
-              </h3>
-
-              <p className="mt-1 text-xs font-bold text-slate-400">
-                {student.studentId}
-              </p>
+              <div className="mt-5 text-center">
+                <StudentNameBlock student={student} inactive={isInactive} />
+              </div>
             </div>
 
-            <div
-              className={`mt-5 rounded-md p-4 text-left ${
-                isInactive ? "bg-slate-100" : "bg-slate-50"
-              }`}
-            >
+            <div className="mt-5 space-y-3 rounded-md bg-slate-50 p-4 text-left">
               <div>
-                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-                  Class
+                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                  RFID
                 </p>
-
-                <p
-                  className={`mt-1 text-sm font-black ${
-                    isInactive ? "text-slate-500" : "text-slate-700"
-                  }`}
-                >
-                  {student.gradeLevel} - {student.section}
-                </p>
+                <RfidInfo rfid={student.rfid} />
               </div>
 
-              <div className="mt-4">
-                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
-                  Guardian
+              <div>
+                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                  Class
                 </p>
-
-                <div className="mt-3 space-y-2">
-                  {student.guardianName ? (
-                    <div
-                      className={`flex items-center gap-2 text-sm font-bold ${
-                        isInactive ? "text-slate-500" : "text-slate-600"
-                      }`}
-                    >
-                      <FiUser className="shrink-0 text-slate-400" />
-                      <span className="truncate">{student.guardianName}</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm font-bold text-slate-400">
-                      No guardian
-                    </div>
-                  )}
-
-                  {student.guardianContact ? (
-                    <div
-                      className={`flex items-center gap-2 text-sm font-bold ${
-                        isInactive ? "text-slate-500" : "text-slate-600"
-                      }`}
-                    >
-                      <FiPhone className="shrink-0 text-slate-400" />
-                      <span>{student.guardianContact}</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm font-bold text-slate-400">
-                      No contact
-                    </div>
-                  )}
-
-                  {student.address ? (
-                    <div
-                      className={`flex items-center gap-2 text-sm font-bold ${
-                        isInactive ? "text-slate-500" : "text-slate-600"
-                      }`}
-                    >
-                      <FiMapPin className="shrink-0 text-slate-400" />
-                      <span className="truncate">{student.address}</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm font-bold text-slate-400">
-                      No address
-                    </div>
-                  )}
-                </div>
+                <ClassInfo student={student} />
               </div>
             </div>
 
             <div className="mt-5 flex justify-center">
-              <StatusPill status={student.status} />
+              <StatusToggle
+                status={student.status}
+                disabled={Boolean(movingStudentId)}
+                onClick={() => onToggleStatus(student)}
+              />
             </div>
           </div>
         );
@@ -706,35 +988,47 @@ const StudentGrid = ({
 
 const StudentTable = ({
   students,
+  selectedStudentIds,
   movingStudentId,
   poppedStudentId,
+  allDisplayedSelected,
+  onSelect,
+  onSelectAll,
+  onView,
   onEdit,
   onDelete,
   onToggleStatus,
 }) => {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1100px] border-collapse text-left">
+      <table className="w-full min-w-[1000px] border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50">
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Status
+            <th className="w-14 px-5 py-3">
+              <input
+                type="checkbox"
+                checked={allDisplayedSelected}
+                onChange={onSelectAll}
+                className="h-4 w-4 cursor-pointer accent-cyan-600"
+              />
             </th>
+
             <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
               Student
             </th>
+
             <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Student ID
+              RFID
             </th>
+
             <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
               Class
             </th>
+
             <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Guardian
+              Status
             </th>
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Address
-            </th>
+
             <th className="px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">
               Actions
             </th>
@@ -747,85 +1041,55 @@ const StudentTable = ({
               const isInactive = student.status === "Inactive";
               const isMoving = movingStudentId === student.id;
               const isPopped = poppedStudentId === student.id;
+              const isSelected = selectedStudentIds.includes(student.id);
 
               return (
                 <tr
                   key={student.id}
                   className={`border-b border-slate-100 transition hover:bg-slate-50 ${
-                    isInactive ? "bg-slate-50 opacity-75" : "bg-white"
-                  } ${isMoving ? "student-pop-out" : ""} ${
-                    isPopped ? "student-pop-in" : ""
-                  }`}
+                    isSelected ? "bg-cyan-50/40" : ""
+                  } ${isInactive ? "bg-slate-50 opacity-75" : ""} ${
+                    isMoving ? "student-pop-out" : ""
+                  } ${isPopped ? "student-pop-in" : ""}`}
                 >
-                  <td className="px-5 py-3">
-                    <StatusToggle
+                  <td className="px-5 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onSelect(student.id)}
+                      className="h-4 w-4 cursor-pointer accent-cyan-600"
+                    />
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <StudentAvatar student={student} inactive={isInactive} />
+                      <StudentNameBlock
+                        student={student}
+                        inactive={isInactive}
+                      />
+                    </div>
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <RfidInfo rfid={student.rfid} />
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <ClassInfo student={student} />
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <StatusButton
                       status={student.status}
                       disabled={Boolean(movingStudentId)}
                       onClick={() => onToggleStatus(student)}
                     />
                   </td>
 
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <StudentAvatar student={student} inactive={isInactive} />
-
-                      <div>
-                        <p
-                          className={`text-sm font-black ${
-                            isInactive ? "text-slate-500" : "text-slate-900"
-                          }`}
-                        >
-                          {getStudentDisplayName(student)}
-                        </p>
-
-                        <p className="text-xs font-semibold text-slate-400">
-                          {student.gender}
-                          {student.lrn ? ` • LRN ${student.lrn}` : ""}
-                        </p>
-
-                        <div className="mt-1">
-                          <StatusBadge status={student.status} />
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-3 text-sm font-bold text-slate-700">
-                    {student.studentId}
-                  </td>
-
-                  <td className="px-5 py-3 text-sm font-semibold text-slate-600">
-                    {student.gradeLevel} - {student.section}
-                  </td>
-
-                  <td className="px-5 py-3">
-                    <div className="space-y-1 text-sm font-semibold text-slate-600">
-                      {student.guardianName ? (
-                        <div className="flex items-center gap-2">
-                          <FiUser className="text-slate-400" />
-                          {student.guardianName}
-                        </div>
-                      ) : (
-                        <div className="text-slate-400">No guardian</div>
-                      )}
-
-                      {student.guardianContact ? (
-                        <div className="flex items-center gap-2">
-                          <FiPhone className="text-slate-400" />
-                          {student.guardianContact}
-                        </div>
-                      ) : (
-                        <div className="text-slate-400">No contact</div>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-3 text-sm font-semibold text-slate-600">
-                    {student.address || "-"}
-                  </td>
-
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
+                      <IconButton type="view" onClick={() => onView(student)} />
                       <IconButton type="edit" onClick={() => onEdit(student)} />
                       <IconButton
                         type="delete"
@@ -838,7 +1102,7 @@ const StudentTable = ({
             })
           ) : (
             <tr>
-              <td colSpan="7">
+              <td colSpan="6">
                 <EmptyState />
               </td>
             </tr>
@@ -888,36 +1152,54 @@ const StatusToggle = ({ status, disabled = false, onClick }) => {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      title={status === "Active" ? "Set inactive" : "Set active"}
-      className={`flex h-8 w-14 cursor-pointer items-center rounded-full p-1 transition disabled:cursor-not-allowed disabled:opacity-60 ${
-        status === "Active" ? "bg-emerald-500" : "bg-slate-300"
+      title="Click to change status"
+      className={`flex h-8 w-20 cursor-pointer items-center rounded-full p-1 transition disabled:cursor-not-allowed disabled:opacity-60 ${
+        status === "Enrolled"
+          ? "bg-emerald-500"
+          : status === "Unenrolled"
+            ? "bg-orange-400"
+            : "bg-slate-300"
       }`}
     >
       <span
         className={`h-6 w-6 rounded-full bg-white shadow transition ${
-          status === "Active" ? "translate-x-6" : "translate-x-0"
+          status === "Enrolled"
+            ? "translate-x-12"
+            : status === "Unenrolled"
+              ? "translate-x-6"
+              : "translate-x-0"
         }`}
       />
     </button>
   );
 };
 
-const StatusPill = ({ status }) => {
+const StatusButton = ({ status, disabled = false, onClick }) => {
+  const statusClass =
+    status === "Enrolled"
+      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+      : status === "Unenrolled"
+        ? "bg-orange-50 text-orange-700 hover:bg-orange-100"
+        : "bg-slate-100 text-slate-500 hover:bg-slate-200";
+
+  const dotClass =
+    status === "Enrolled"
+      ? "bg-emerald-500"
+      : status === "Unenrolled"
+        ? "bg-orange-500"
+        : "bg-slate-400";
+
   return (
-    <span
-      className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-black ${
-        status === "Active"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
-      }`}
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title="Click to change status"
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${statusClass}`}
     >
-      <span
-        className={`h-2 w-2 rounded-full ${
-          status === "Active" ? "bg-emerald-500" : "bg-slate-400"
-        }`}
-      />
+      <span className={`h-2 w-2 rounded-full ${dotClass}`} />
       {status}
-    </span>
+    </button>
   );
 };
 
@@ -930,35 +1212,33 @@ const SummaryCard = ({ label, value }) => {
   );
 };
 
-const StatusBadge = ({ status }) => {
-  return (
-    <span
-      className={`rounded-md px-2 py-1 text-[11px] font-black ${
-        status === "Active"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
-      }`}
-    >
-      {status}
-    </span>
-  );
-};
-
 const IconButton = ({ type, onClick }) => {
-  const isDelete = type === "delete";
+  const buttonStyles = {
+    view: "bg-violet-50 text-violet-600 hover:bg-violet-600 hover:text-white",
+    edit: "bg-cyan-50 text-cyan-600 hover:bg-cyan-600 hover:text-white",
+    delete: "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white",
+  };
+
+  const icons = {
+    view: <FiEye />,
+    edit: <FiEdit2 />,
+    delete: <FiTrash2 />,
+  };
+
+  const labels = {
+    view: "View Student",
+    edit: "Edit Student",
+    delete: "Delete Student",
+  };
 
   return (
     <button
       type="button"
       onClick={onClick}
-      title={isDelete ? "Delete Student" : "Edit Student"}
-      className={`flex h-9 w-9 items-center justify-center rounded-md text-sm transition ${
-        isDelete
-          ? "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white"
-          : "bg-cyan-50 text-cyan-600 hover:bg-cyan-600 hover:text-white"
-      }`}
+      title={labels[type]}
+      className={`flex h-9 w-9 items-center justify-center rounded-md text-sm transition ${buttonStyles[type]}`}
     >
-      {isDelete ? <FiTrash2 /> : <FiEdit2 />}
+      {icons[type]}
     </button>
   );
 };
@@ -969,7 +1249,7 @@ const EmptyState = () => {
       <p className="font-black text-slate-900">No students found</p>
 
       <p className="mt-1 text-sm text-slate-500">
-        Try changing your search or add a new student.
+        Try changing your search or import student records.
       </p>
     </div>
   );

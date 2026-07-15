@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import {
+  FiBriefcase,
   FiEdit2,
+  FiEye,
   FiGrid,
+  FiHash,
   FiList,
   FiMail,
   FiPhone,
@@ -84,7 +87,7 @@ const getInitials = (teacher) => {
   return `${firstInitial}${lastInitial}`.toUpperCase();
 };
 
-const teacherAvatarStyles = [
+const avatarStyles = [
   "bg-cyan-50 text-cyan-700 ring-cyan-100",
   "bg-orange-50 text-orange-700 ring-orange-100",
   "bg-emerald-50 text-emerald-700 ring-emerald-100",
@@ -92,15 +95,16 @@ const teacherAvatarStyles = [
   "bg-pink-50 text-pink-700 ring-pink-100",
 ];
 
-const getTeacherAvatarStyle = (teacherId) => {
-  return teacherAvatarStyles[teacherId % teacherAvatarStyles.length];
+const getAvatarStyle = (teacherId) => {
+  return avatarStyles[teacherId % avatarStyles.length];
 };
 
 const Teachers = () => {
   const [teachers, setTeachers] = useState(initialTeachers);
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [viewMode, setViewMode] = useState("grid");
+  const [viewMode, setViewMode] = useState("table");
   const [movingTeacherId, setMovingTeacherId] = useState(null);
   const [poppedTeacherId, setPoppedTeacherId] = useState(null);
 
@@ -148,6 +152,12 @@ const Teachers = () => {
     teachers.map((teacher) => teacher.department).filter(Boolean),
   ).size;
 
+  const allDisplayedSelected =
+    displayedTeachers.length > 0 &&
+    displayedTeachers.every((teacher) =>
+      selectedTeacherIds.includes(teacher.id),
+    );
+
   const openAddTeacherModal = () => {
     setEditingTeacher(null);
     setTeacherForm(defaultTeacherForm);
@@ -178,6 +188,110 @@ const Teachers = () => {
     setIsTeacherModalOpen(false);
     setEditingTeacher(null);
     setTeacherForm(defaultTeacherForm);
+  };
+
+  const handleToggleSelect = (teacherId) => {
+    setSelectedTeacherIds((current) => {
+      if (current.includes(teacherId)) {
+        return current.filter((id) => id !== teacherId);
+      }
+
+      return [...current, teacherId];
+    });
+  };
+
+  const handleSelectAllDisplayed = () => {
+    if (allDisplayedSelected) {
+      const displayedIds = displayedTeachers.map((teacher) => teacher.id);
+
+      setSelectedTeacherIds((current) =>
+        current.filter((id) => !displayedIds.includes(id)),
+      );
+
+      return;
+    }
+
+    setSelectedTeacherIds((current) => {
+      const nextIds = [...current];
+
+      displayedTeachers.forEach((teacher) => {
+        if (!nextIds.includes(teacher.id)) {
+          nextIds.push(teacher.id);
+        }
+      });
+
+      return nextIds;
+    });
+  };
+
+  const handleViewTeacher = async (teacher) => {
+    await apiDebugRequest({
+      module: "teacher",
+      action: "view",
+      method: "GET",
+      payload: {
+        id: teacher.id,
+        teacherId: teacher.teacherId,
+      },
+    });
+
+    Swal.fire({
+      title: getTeacherDisplayName(teacher),
+      html: `
+        <div style="text-align:left; font-size:14px; line-height:1.8;">
+          <p><b>Teacher ID:</b> ${teacher.teacherId}</p>
+          <p><b>Department:</b> ${teacher.department || "-"}</p>
+          <p><b>Email:</b> ${teacher.email || "-"}</p>
+          <p><b>Mobile:</b> ${teacher.mobile || "-"}</p>
+          <p><b>Status:</b> ${teacher.status}</p>
+        </div>
+      `,
+      confirmButtonColor: "#0891b2",
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTeacherIds.length === 0) {
+      toast.error("Please select at least one teacher.");
+      return;
+    }
+
+    const selectedTeachers = teachers.filter((teacher) =>
+      selectedTeacherIds.includes(teacher.id),
+    );
+
+    const result = await Swal.fire({
+      title: "Delete selected teachers?",
+      text: `${selectedTeachers.length} teacher record(s) will be removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#ef4444",
+    });
+
+    if (!result.isConfirmed) return;
+
+    await apiDebugRequest({
+      module: "teacher",
+      action: "bulk-delete",
+      method: "DELETE",
+      payload: {
+        ids: selectedTeacherIds,
+        teachers: selectedTeachers.map((teacher) => ({
+          id: teacher.id,
+          teacherId: teacher.teacherId,
+          displayName: getTeacherDisplayName(teacher),
+        })),
+      },
+    });
+
+    setTeachers((current) =>
+      current.filter((teacher) => !selectedTeacherIds.includes(teacher.id)),
+    );
+
+    setSelectedTeacherIds([]);
+    toast.success("Selected teachers deleted successfully.");
   };
 
   const handleTeacherSubmit = async (event) => {
@@ -311,6 +425,10 @@ const Teachers = () => {
       current.filter((currentTeacher) => currentTeacher.id !== teacher.id),
     );
 
+    setSelectedTeacherIds((current) =>
+      current.filter((id) => id !== teacher.id),
+    );
+
     toast.success("Teacher deleted successfully.");
   };
 
@@ -367,14 +485,27 @@ const Teachers = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openAddTeacherModal}
-          className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-cyan-700"
-        >
-          <FiPlus />
-          Add Teacher
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {selectedTeacherIds.length > 0 && (
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              className="flex w-fit items-center gap-2 rounded-md bg-red-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
+            >
+              <FiTrash2 />
+              Delete Selected ({selectedTeacherIds.length})
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={openAddTeacherModal}
+            className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-cyan-700"
+          >
+            <FiPlus />
+            Add Teacher
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -389,7 +520,8 @@ const Teachers = () => {
           <div>
             <h2 className="text-lg font-black text-slate-900">Teacher List</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Active teachers stay first. Inactive teachers move to the bottom.
+              Teacher ID is under the name. Department and contact have separate
+              columns.
             </p>
           </div>
 
@@ -449,8 +581,11 @@ const Teachers = () => {
         {viewMode === "grid" ? (
           <TeacherGrid
             teachers={displayedTeachers}
+            selectedTeacherIds={selectedTeacherIds}
             movingTeacherId={movingTeacherId}
             poppedTeacherId={poppedTeacherId}
+            onSelect={handleToggleSelect}
+            onView={handleViewTeacher}
             onEdit={openEditTeacherModal}
             onDelete={handleDeleteTeacher}
             onToggleStatus={handleToggleTeacherStatus}
@@ -458,8 +593,13 @@ const Teachers = () => {
         ) : (
           <TeacherTable
             teachers={displayedTeachers}
+            selectedTeacherIds={selectedTeacherIds}
             movingTeacherId={movingTeacherId}
             poppedTeacherId={poppedTeacherId}
+            allDisplayedSelected={allDisplayedSelected}
+            onSelect={handleToggleSelect}
+            onSelectAll={handleSelectAllDisplayed}
+            onView={handleViewTeacher}
             onEdit={openEditTeacherModal}
             onDelete={handleDeleteTeacher}
             onToggleStatus={handleToggleTeacherStatus}
@@ -517,10 +657,65 @@ const Teachers = () => {
   );
 };
 
+const TeacherNameBlock = ({ teacher, inactive = false }) => {
+  return (
+    <div>
+      <p
+        className={`text-sm font-black ${
+          inactive ? "text-slate-500" : "text-slate-900"
+        }`}
+      >
+        {getTeacherDisplayName(teacher)}
+      </p>
+
+      <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+        <FiHash className="shrink-0" />
+        <span>{teacher.teacherId}</span>
+      </div>
+    </div>
+  );
+};
+
+const DepartmentInfo = ({ department }) => {
+  return (
+    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
+      <FiBriefcase className="shrink-0 text-slate-400" />
+      <span>{department || "-"}</span>
+    </div>
+  );
+};
+
+const ContactInfo = ({ teacher }) => {
+  return (
+    <div className="space-y-1 text-sm font-semibold text-slate-600">
+      {teacher.email ? (
+        <div className="flex items-center gap-2">
+          <FiMail className="shrink-0 text-slate-400" />
+          <span className="truncate">{teacher.email}</span>
+        </div>
+      ) : (
+        <div className="text-slate-400">No email</div>
+      )}
+
+      {teacher.mobile ? (
+        <div className="flex items-center gap-2">
+          <FiPhone className="shrink-0 text-slate-400" />
+          <span>{teacher.mobile}</span>
+        </div>
+      ) : (
+        <div className="text-slate-400">No mobile</div>
+      )}
+    </div>
+  );
+};
+
 const TeacherGrid = ({
   teachers,
+  selectedTeacherIds,
   movingTeacherId,
   poppedTeacherId,
+  onSelect,
+  onView,
   onEdit,
   onDelete,
   onToggleStatus,
@@ -535,26 +730,31 @@ const TeacherGrid = ({
         const isInactive = teacher.status === "Inactive";
         const isMoving = movingTeacherId === teacher.id;
         const isPopped = poppedTeacherId === teacher.id;
+        const isSelected = selectedTeacherIds.includes(teacher.id);
 
         return (
           <div
             key={teacher.id}
             className={`relative overflow-hidden rounded-md border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-              isInactive
-                ? "border-slate-200 bg-slate-50 opacity-75"
-                : "border-slate-200 bg-white"
+              isSelected
+                ? "border-cyan-300 ring-4 ring-cyan-50"
+                : "border-slate-200"
+            } ${
+              isInactive ? "bg-slate-50 opacity-75" : "bg-white"
             } ${isMoving ? "teacher-pop-out" : ""} ${
               isPopped ? "teacher-pop-in" : ""
             }`}
           >
             <div className="flex items-center justify-between">
-              <StatusToggle
-                status={teacher.status}
-                disabled={Boolean(movingTeacherId)}
-                onClick={() => onToggleStatus(teacher)}
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onSelect(teacher.id)}
+                className="h-4 w-4 cursor-pointer accent-cyan-600"
               />
 
               <div className="flex gap-2">
+                <IconButton type="view" onClick={() => onView(teacher)} />
                 <IconButton type="edit" onClick={() => onEdit(teacher)} />
                 <IconButton type="delete" onClick={() => onDelete(teacher)} />
               </div>
@@ -567,79 +767,33 @@ const TeacherGrid = ({
                 inactive={isInactive}
               />
 
-              <h3
-                className={`mt-5 max-w-[280px] text-lg font-black leading-snug ${
-                  isInactive ? "text-slate-500" : "text-slate-950"
-                }`}
-              >
-                {getTeacherDisplayName(teacher)}
-              </h3>
-
-              <p className="mt-1 text-xs font-bold text-slate-400">
-                {teacher.teacherId}
-              </p>
+              <div className="mt-5 text-center">
+                <TeacherNameBlock teacher={teacher} inactive={isInactive} />
+              </div>
             </div>
 
-            <div
-              className={`mt-5 rounded-md p-4 text-left ${
-                isInactive ? "bg-slate-100" : "bg-slate-50"
-              }`}
-            >
+            <div className="mt-5 space-y-4 rounded-md bg-slate-50 p-4 text-left">
               <div>
-                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
                   Department
                 </p>
-
-                <p
-                  className={`mt-1 text-sm font-black ${
-                    isInactive ? "text-slate-500" : "text-slate-700"
-                  }`}
-                >
-                  {teacher.department || "-"}
-                </p>
+                <DepartmentInfo department={teacher.department} />
               </div>
 
-              <div className="mt-4">
-                <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+              <div>
+                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
                   Contact
                 </p>
-
-                <div className="mt-3 space-y-2">
-                  {teacher.email ? (
-                    <div
-                      className={`flex items-center gap-2 text-sm font-bold ${
-                        isInactive ? "text-slate-500" : "text-slate-600"
-                      }`}
-                    >
-                      <FiMail className="shrink-0 text-slate-400" />
-                      <span className="truncate">{teacher.email}</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm font-bold text-slate-400">
-                      No email
-                    </div>
-                  )}
-
-                  {teacher.mobile ? (
-                    <div
-                      className={`flex items-center gap-2 text-sm font-bold ${
-                        isInactive ? "text-slate-500" : "text-slate-600"
-                      }`}
-                    >
-                      <FiPhone className="shrink-0 text-slate-400" />
-                      <span>{teacher.mobile}</span>
-                    </div>
-                  ) : (
-                    <div className="text-sm font-bold text-slate-400">
-                      No mobile
-                    </div>
-                  )}
-                </div>
+                <ContactInfo teacher={teacher} />
               </div>
             </div>
 
             <div className="mt-5 flex justify-center">
-              <StatusPill status={teacher.status} />
+              <StatusToggle
+                status={teacher.status}
+                disabled={Boolean(movingTeacherId)}
+                onClick={() => onToggleStatus(teacher)}
+              />
             </div>
           </div>
         );
@@ -650,32 +804,47 @@ const TeacherGrid = ({
 
 const TeacherTable = ({
   teachers,
+  selectedTeacherIds,
   movingTeacherId,
   poppedTeacherId,
+  allDisplayedSelected,
+  onSelect,
+  onSelectAll,
+  onView,
   onEdit,
   onDelete,
   onToggleStatus,
 }) => {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] border-collapse text-left">
+      <table className="w-full min-w-[1040px] border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50">
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Status
+            <th className="w-14 px-5 py-3">
+              <input
+                type="checkbox"
+                checked={allDisplayedSelected}
+                onChange={onSelectAll}
+                className="h-4 w-4 cursor-pointer accent-cyan-600"
+              />
             </th>
+
             <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
               Teacher
             </th>
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Teacher ID
-            </th>
+
             <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
               Department
             </th>
+
             <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
               Contact
             </th>
+
+            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
+              Status
+            </th>
+
             <th className="px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">
               Actions
             </th>
@@ -688,82 +857,55 @@ const TeacherTable = ({
               const isInactive = teacher.status === "Inactive";
               const isMoving = movingTeacherId === teacher.id;
               const isPopped = poppedTeacherId === teacher.id;
+              const isSelected = selectedTeacherIds.includes(teacher.id);
 
               return (
                 <tr
                   key={teacher.id}
                   className={`border-b border-slate-100 transition hover:bg-slate-50 ${
-                    isInactive ? "bg-slate-50 opacity-75" : "bg-white"
-                  } ${isMoving ? "teacher-pop-out" : ""} ${
-                    isPopped ? "teacher-pop-in" : ""
-                  }`}
+                    isSelected ? "bg-cyan-50/40" : ""
+                  } ${isInactive ? "bg-slate-50 opacity-75" : ""} ${
+                    isMoving ? "teacher-pop-out" : ""
+                  } ${isPopped ? "teacher-pop-in" : ""}`}
                 >
-                  <td className="px-5 py-3">
-                    <StatusToggle
+                  <td className="px-5 py-4">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onSelect(teacher.id)}
+                      className="h-4 w-4 cursor-pointer accent-cyan-600"
+                    />
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <TeacherAvatar teacher={teacher} inactive={isInactive} />
+                      <TeacherNameBlock
+                        teacher={teacher}
+                        inactive={isInactive}
+                      />
+                    </div>
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <DepartmentInfo department={teacher.department} />
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <ContactInfo teacher={teacher} />
+                  </td>
+
+                  <td className="px-5 py-4">
+                    <StatusButton
                       status={teacher.status}
                       disabled={Boolean(movingTeacherId)}
                       onClick={() => onToggleStatus(teacher)}
                     />
                   </td>
 
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <TeacherAvatar teacher={teacher} inactive={isInactive} />
-
-                      <div>
-                        <p
-                          className={`text-sm font-black ${
-                            isInactive ? "text-slate-500" : "text-slate-900"
-                          }`}
-                        >
-                          {getTeacherDisplayName(teacher)}
-                        </p>
-
-                        {teacher.middleName && (
-                          <p className="text-xs font-semibold text-slate-400">
-                            {teacher.middleName}
-                          </p>
-                        )}
-
-                        <div className="mt-1">
-                          <StatusBadge status={teacher.status} />
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-3 text-sm font-bold text-slate-700">
-                    {teacher.teacherId}
-                  </td>
-
-                  <td className="px-5 py-3 text-sm font-semibold text-slate-600">
-                    {teacher.department}
-                  </td>
-
-                  <td className="px-5 py-3">
-                    <div className="space-y-1 text-sm font-semibold text-slate-600">
-                      {teacher.email ? (
-                        <div className="flex items-center gap-2">
-                          <FiMail className="text-slate-400" />
-                          {teacher.email}
-                        </div>
-                      ) : (
-                        <div className="text-slate-400">No email</div>
-                      )}
-
-                      {teacher.mobile ? (
-                        <div className="flex items-center gap-2">
-                          <FiPhone className="text-slate-400" />
-                          {teacher.mobile}
-                        </div>
-                      ) : (
-                        <div className="text-slate-400">No mobile</div>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
+                      <IconButton type="view" onClick={() => onView(teacher)} />
                       <IconButton type="edit" onClick={() => onEdit(teacher)} />
                       <IconButton
                         type="delete"
@@ -812,7 +954,7 @@ const TeacherAvatar = ({ teacher, size = "normal", inactive = false }) => {
       className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full font-black ring-4 ${
         inactive
           ? "bg-slate-100 text-slate-400 ring-slate-200"
-          : getTeacherAvatarStyle(teacher.id)
+          : getAvatarStyle(teacher.id)
       }`}
     >
       {getInitials(teacher)}
@@ -840,13 +982,19 @@ const StatusToggle = ({ status, disabled = false, onClick }) => {
   );
 };
 
-const StatusPill = ({ status }) => {
+const StatusButton = ({ status, disabled = false, onClick }) => {
   return (
-    <span
-      className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-black ${
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={
+        status === "Active" ? "Click to set inactive" : "Click to set active"
+      }
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
         status === "Active"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
+          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
       }`}
     >
       <span
@@ -855,7 +1003,7 @@ const StatusPill = ({ status }) => {
         }`}
       />
       {status}
-    </span>
+    </button>
   );
 };
 
@@ -868,35 +1016,33 @@ const SummaryCard = ({ label, value }) => {
   );
 };
 
-const StatusBadge = ({ status }) => {
-  return (
-    <span
-      className={`rounded-md px-2 py-1 text-[11px] font-black ${
-        status === "Active"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-500"
-      }`}
-    >
-      {status}
-    </span>
-  );
-};
-
 const IconButton = ({ type, onClick }) => {
-  const isDelete = type === "delete";
+  const buttonStyles = {
+    view: "bg-violet-50 text-violet-600 hover:bg-violet-600 hover:text-white",
+    edit: "bg-cyan-50 text-cyan-600 hover:bg-cyan-600 hover:text-white",
+    delete: "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white",
+  };
+
+  const icons = {
+    view: <FiEye />,
+    edit: <FiEdit2 />,
+    delete: <FiTrash2 />,
+  };
+
+  const labels = {
+    view: "View Teacher",
+    edit: "Edit Teacher",
+    delete: "Delete Teacher",
+  };
 
   return (
     <button
       type="button"
       onClick={onClick}
-      title={isDelete ? "Delete Teacher" : "Edit Teacher"}
-      className={`flex h-9 w-9 items-center justify-center rounded-md text-sm transition ${
-        isDelete
-          ? "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white"
-          : "bg-cyan-50 text-cyan-600 hover:bg-cyan-600 hover:text-white"
-      }`}
+      title={labels[type]}
+      className={`flex h-9 w-9 items-center justify-center rounded-md text-sm transition ${buttonStyles[type]}`}
     >
-      {isDelete ? <FiTrash2 /> : <FiEdit2 />}
+      {icons[type]}
     </button>
   );
 };
