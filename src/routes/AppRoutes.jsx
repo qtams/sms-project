@@ -6,7 +6,10 @@ import GradeSections from "../pages/GradeSections";
 import Teachers from "../pages/Teachers";
 import Students from "../pages/Students";
 import Application from "../pages/Application";
+import Verification from "../pages/Verification";
+import ApplicantDetails from "../pages/ApplicantDetails";
 import Login from "../pages/Login";
+import StudentDetails from "../pages/StudentDetails";
 
 const ComingSoon = ({ title }) => {
   return (
@@ -57,40 +60,27 @@ const AppRoutes = () => {
           <Route path="/account-information" element={<AccountInformation />} />
 
           <Route path="/students" element={<Students />} />
+          <Route path="/students/:studentId" element={<StudentDetails />} />
           <Route path="/teachers" element={<Teachers />} />
           <Route path="/classes" element={<GradeSections />} />
 
-        <Route
-          path="/enrollment"
-          element={<Navigate to="/enrollment/application" replace />}
-        />
-
-        <Route path="/enrollment/application" element={<Application />} />
-
-        <Route
-          path="/enrollment/verification"
-          element={<ComingSoon title="Enrollment Verification" />}
-        />
           <Route
             path="/enrollment"
             element={<Navigate to="/enrollment/application" replace />}
           />
 
-          <Route
-            path="/enrollment/application"
-            element={<ComingSoon title="Enrollment Application" />}
-          />
+          <Route path="/enrollment/application" element={<Application />} />
+          <Route path="/enrollment/verification" element={<Verification />} />
 
           <Route
-            path="/enrollment/verification"
-            element={<ComingSoon title="Enrollment Verification" />}
+            path="/enrollment/verification/:registrationNumber"
+            element={<ApplicantDetails />}
           />
 
           <Route
             path="/attendance"
             element={<ComingSoon title="Attendance" />}
           />
-
           <Route path="/grades" element={<ComingSoon title="Grades" />} />
           <Route path="/payments" element={<ComingSoon title="Payments" />} />
           <Route path="/reports" element={<ComingSoon title="Reports" />} />
