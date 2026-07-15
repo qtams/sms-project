@@ -1,10 +1,11 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import AdminLayout from "../layouts/AdminLayout";
 import Dashboard from "../pages/Dashboard";
 import AccountInformation from "../pages/AccountInformation";
 import GradeSections from "../pages/GradeSections";
 import Teachers from "../pages/Teachers";
 import Students from "../pages/Students";
+import Login from "../pages/Login";
 
 const ComingSoon = ({ title }) => {
   return (
@@ -32,37 +33,57 @@ const ComingSoon = ({ title }) => {
   );
 };
 
+const ProtectedRoute = () => {
+  const token = localStorage.getItem("spry_auth_token");
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Outlet />;
+};
+
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route element={<AdminLayout />}>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/login" element={<Login />} />
 
-        <Route path="/account-information" element={<AccountInformation />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AdminLayout />}>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
 
-        <Route path="/students" element={<Students />} />
-        <Route path="/teachers" element={<Teachers />} />
-        <Route path="/classes" element={<GradeSections />} />
+          <Route path="/account-information" element={<AccountInformation />} />
 
-        <Route
-          path="/enrollment"
-          element={<Navigate to="/enrollment/application" replace />}
-        />
-        <Route
-          path="/enrollment/application"
-          element={<ComingSoon title="Enrollment Application" />}
-        />
-        <Route
-          path="/enrollment/verification"
-          element={<ComingSoon title="Enrollment Verification" />}
-        />
+          <Route path="/students" element={<Students />} />
+          <Route path="/teachers" element={<Teachers />} />
+          <Route path="/classes" element={<GradeSections />} />
 
-        <Route path="/attendance" element={<ComingSoon title="Attendance" />} />
-        <Route path="/grades" element={<ComingSoon title="Grades" />} />
-        <Route path="/payments" element={<ComingSoon title="Payments" />} />
-        <Route path="/reports" element={<ComingSoon title="Reports" />} />
-        <Route path="/settings" element={<ComingSoon title="Settings" />} />
+          <Route
+            path="/enrollment"
+            element={<Navigate to="/enrollment/application" replace />}
+          />
+
+          <Route
+            path="/enrollment/application"
+            element={<ComingSoon title="Enrollment Application" />}
+          />
+
+          <Route
+            path="/enrollment/verification"
+            element={<ComingSoon title="Enrollment Verification" />}
+          />
+
+          <Route
+            path="/attendance"
+            element={<ComingSoon title="Attendance" />}
+          />
+
+          <Route path="/grades" element={<ComingSoon title="Grades" />} />
+          <Route path="/payments" element={<ComingSoon title="Payments" />} />
+          <Route path="/reports" element={<ComingSoon title="Reports" />} />
+          <Route path="/settings" element={<ComingSoon title="Settings" />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
