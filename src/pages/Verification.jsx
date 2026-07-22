@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   FiCheckCircle,
+  FiChevronLeft,
+  FiChevronRight,
   FiClock,
   FiEye,
   FiHash,
@@ -13,6 +15,8 @@ import {
 } from "react-icons/fi";
 import { toast } from "react-toastify";
 import { apiDebugRequest } from "../utils/apiDebugger";
+
+const rowsPerPageOptions = [5, 10, 25, 50];
 
 const initialVerificationList = [
   {
@@ -101,6 +105,9 @@ const Verification = () => {
   const [statusFilter, setStatusFilter] = useState("All");
   const [openMenu, setOpenMenu] = useState(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
   useEffect(() => {
     const closeMenu = () => setOpenMenu(null);
 
@@ -122,7 +129,9 @@ const Verification = () => {
         item.registrationNumber.toLowerCase().includes(searchValue) ||
         item.verificationStatus.toLowerCase().includes(searchValue) ||
         item.applicationStatus.toLowerCase().includes(searchValue) ||
-        item.levelApplied.toLowerCase().includes(searchValue);
+        item.levelApplied.toLowerCase().includes(searchValue) ||
+        item.email.toLowerCase().includes(searchValue) ||
+        item.mobile.toLowerCase().includes(searchValue);
 
       const matchesStatus =
         statusFilter === "All" || item.applicationStatus === statusFilter;
@@ -142,9 +151,34 @@ const Verification = () => {
     });
   }, [filteredApplications]);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayedApplications.length / rowsPerPage),
+  );
+
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedApplications = displayedApplications.slice(
+    startIndex,
+    endIndex,
+  );
+
+  const showingStart = displayedApplications.length === 0 ? 0 : startIndex + 1;
+  const showingEnd = Math.min(endIndex, displayedApplications.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, rowsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const allDisplayedSelected =
-    displayedApplications.length > 0 &&
-    displayedApplications.every((item) => selectedIds.includes(item.id));
+    paginatedApplications.length > 0 &&
+    paginatedApplications.every((item) => selectedIds.includes(item.id));
 
   const pendingCount = applications.filter(
     (item) => item.applicationStatus === "Pending",
@@ -179,7 +213,7 @@ const Verification = () => {
 
   const handleSelectAll = () => {
     if (allDisplayedSelected) {
-      const displayedIds = displayedApplications.map((item) => item.id);
+      const displayedIds = paginatedApplications.map((item) => item.id);
 
       setSelectedIds((current) =>
         current.filter((id) => !displayedIds.includes(id)),
@@ -191,7 +225,7 @@ const Verification = () => {
     setSelectedIds((current) => {
       const nextIds = [...current];
 
-      displayedApplications.forEach((item) => {
+      paginatedApplications.forEach((item) => {
         if (!nextIds.includes(item.id)) {
           nextIds.push(item.id);
         }
@@ -321,7 +355,7 @@ const Verification = () => {
     <div data-aos="fade-up" className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">
+          <h1 className="text-2xl font-semibold text-slate-950">
             Enrollment Verification
           </h1>
 
@@ -334,7 +368,7 @@ const Verification = () => {
           <button
             type="button"
             onClick={handleBulkVerify}
-            className="flex w-fit items-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700"
+            className="flex w-fit items-center gap-2 rounded-md bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700"
           >
             <FiUserCheck />
             Verify Selected ({selectedIds.length})
@@ -351,7 +385,7 @@ const Verification = () => {
       <div className="rounded-md bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-black text-slate-900">
+            <h2 className="text-lg font-semibold text-slate-950">
               Verification List
             </h2>
 
@@ -369,14 +403,14 @@ const Verification = () => {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search applicant, registration..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
+              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
             >
               <option value="All">All Status</option>
               <option value="Pending">Pending</option>
@@ -386,7 +420,7 @@ const Verification = () => {
         </div>
 
         <VerificationTable
-          applications={displayedApplications}
+          applications={paginatedApplications}
           selectedIds={selectedIds}
           allDisplayedSelected={allDisplayedSelected}
           openMenu={openMenu}
@@ -396,6 +430,17 @@ const Verification = () => {
           onView={handleView}
           onMarkVerified={handleMarkVerified}
           onSetPending={handleSetPending}
+        />
+
+        <PaginationFooter
+          currentPage={currentPage}
+          totalPages={totalPages}
+          rowsPerPage={rowsPerPage}
+          totalRows={displayedApplications.length}
+          showingStart={showingStart}
+          showingEnd={showingEnd}
+          onRowsPerPageChange={setRowsPerPage}
+          onPageChange={setCurrentPage}
         />
       </div>
     </div>
@@ -429,19 +474,13 @@ const VerificationTable = ({
                 />
               </th>
 
-              <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                Applicant
-              </th>
+              <TableHeader label="Applicant" />
+              <TableHeader label="Registration Number" />
+              <TableHeader label="Level" />
+              <TableHeader label="Submitted" />
+              <TableHeader label="Status" />
 
-              <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                Registration Number
-              </th>
-
-              <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                Status
-              </th>
-
-              <th className="px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">
+              <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500">
                 Actions
               </th>
             </tr>
@@ -476,6 +515,14 @@ const VerificationTable = ({
                       <RegistrationNumber value={item.registrationNumber} />
                     </td>
 
+                    <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                      {item.levelApplied || "-"}
+                    </td>
+
+                    <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                      {item.submittedAt || "-"}
+                    </td>
+
                     <td className="px-5 py-4">
                       <ApplicationStatus status={item.applicationStatus} />
                     </td>
@@ -497,7 +544,7 @@ const VerificationTable = ({
                           title="More Actions"
                           className={`flex h-9 w-9 items-center justify-center rounded-md transition ${
                             openMenu?.id === item.id
-                              ? "bg-slate-300 text-slate-700"
+                              ? "bg-slate-200 text-slate-700"
                               : "bg-slate-50 text-slate-500 hover:bg-slate-900 hover:text-white"
                           }`}
                         >
@@ -510,7 +557,7 @@ const VerificationTable = ({
               })
             ) : (
               <tr>
-                <td colSpan="5">
+                <td colSpan="7">
                   <EmptyState />
                 </td>
               </tr>
@@ -543,7 +590,7 @@ const ActionDropdown = ({ menu, onMarkVerified, onSetPending }) => {
       <button
         type="button"
         onClick={() => onMarkVerified(menu.item)}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
+        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
       >
         <FiCheckCircle />
         Mark Verified
@@ -552,7 +599,7 @@ const ActionDropdown = ({ menu, onMarkVerified, onSetPending }) => {
       <button
         type="button"
         onClick={() => onSetPending(menu.item)}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50"
       >
         <FiClock />
         Set Pending
@@ -566,7 +613,7 @@ const ApplicantBlock = ({ applicant }) => {
   return (
     <div className="flex min-w-0 items-center gap-3">
       <div
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-black ring-4 ${getAvatarStyle(
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-4 ${getAvatarStyle(
           applicant.id,
         )}`}
       >
@@ -574,7 +621,7 @@ const ApplicantBlock = ({ applicant }) => {
       </div>
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-black text-slate-900">
+        <p className="truncate text-sm font-semibold text-slate-900">
           {getApplicantName(applicant)}
         </p>
 
@@ -589,7 +636,7 @@ const VerificationBadge = ({ status }) => {
 
   return (
     <span
-      className={`mt-2 inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-black ${
+      className={`mt-2 inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-xs font-medium ${
         isVerified
           ? "bg-emerald-50 text-emerald-700"
           : "bg-slate-100 text-slate-600"
@@ -607,7 +654,7 @@ const VerificationBadge = ({ status }) => {
 
 const RegistrationNumber = ({ value }) => {
   return (
-    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
+    <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
       <FiHash className="shrink-0 text-slate-400" />
       <span>{value}</span>
     </div>
@@ -619,7 +666,7 @@ const ApplicationStatus = ({ status }) => {
 
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-black ${
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${
         isVerified
           ? "bg-emerald-50 text-emerald-700"
           : "bg-orange-50 text-orange-700"
@@ -636,11 +683,86 @@ const ApplicationStatus = ({ status }) => {
   );
 };
 
+const PaginationFooter = ({
+  currentPage,
+  totalPages,
+  rowsPerPage,
+  totalRows,
+  showingStart,
+  showingEnd,
+  onRowsPerPageChange,
+  onPageChange,
+}) => {
+  return (
+    <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-500">Show</span>
+
+          <select
+            value={rowsPerPage}
+            onChange={(event) =>
+              onRowsPerPageChange(Number(event.target.value))
+            }
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+          >
+            {rowsPerPageOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+
+          <span className="text-sm text-slate-500">entries</span>
+        </div>
+
+        <p className="text-sm text-slate-500">
+          Showing {showingStart} to {showingEnd} of {totalRows} applications
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <FiChevronLeft />
+          Prev
+        </button>
+
+        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+          Page {currentPage} of {totalPages}
+        </div>
+
+        <button
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Next
+          <FiChevronRight />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const TableHeader = ({ label }) => {
+  return (
+    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+      {label}
+    </th>
+  );
+};
+
 const SummaryCard = ({ label, value }) => {
   return (
     <div className="rounded-md bg-white p-4 shadow-sm">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <h2 className="mt-2 text-2xl font-black text-slate-950">{value}</h2>
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <h2 className="mt-2 text-2xl font-semibold text-slate-950">{value}</h2>
     </div>
   );
 };
@@ -648,7 +770,7 @@ const SummaryCard = ({ label, value }) => {
 const EmptyState = () => {
   return (
     <div className="px-5 py-12 text-center">
-      <p className="font-black text-slate-900">No applications found</p>
+      <p className="font-semibold text-slate-900">No applications found</p>
 
       <p className="mt-1 text-sm text-slate-500">
         Try changing your search or status filter.

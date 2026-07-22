@@ -75,27 +75,17 @@ const getAutomaticSchoolYear = () => {
 
 const getDepartmentByLevel = (levelApplied) => {
   if (!levelApplied) return "";
-
   if (levelApplied === "College") return "College";
 
-  if (levelApplied === "Grade 11" || levelApplied === "Grade 12") {
+  if (["Grade 11", "Grade 12"].includes(levelApplied)) {
     return "Senior High School";
   }
 
-  if (
-    levelApplied === "Grade 7" ||
-    levelApplied === "Grade 8" ||
-    levelApplied === "Grade 9" ||
-    levelApplied === "Grade 10"
-  ) {
+  if (["Grade 7", "Grade 8", "Grade 9", "Grade 10"].includes(levelApplied)) {
     return "Junior High School";
   }
 
-  if (
-    levelApplied === "Nursery" ||
-    levelApplied === "Kinder 1" ||
-    levelApplied === "Kinder 2"
-  ) {
+  if (["Nursery", "Kinder 1", "Kinder 2"].includes(levelApplied)) {
     return "Preschool";
   }
 
@@ -533,11 +523,11 @@ const Applications = () => {
   };
 
   const cropModal = isCropOpen ? (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
       <div className="w-full max-w-xl rounded-md bg-white p-5 shadow-2xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-xl font-black text-slate-950">
+            <h3 className="text-xl font-semibold text-slate-950">
               Crop 2x2 Photo
             </h3>
             <p className="mt-1 text-sm text-slate-500">
@@ -572,7 +562,7 @@ const Applications = () => {
         </div>
 
         <div className="mt-5">
-          <label className="mb-2 block text-sm font-bold text-slate-700">
+          <label className="mb-2 block text-sm font-medium text-slate-600">
             Zoom
           </label>
 
@@ -591,7 +581,7 @@ const Applications = () => {
           <button
             type="button"
             onClick={handleCancelCrop}
-            className="rounded-md bg-red-500 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-600"
+            className="rounded-md bg-slate-100 px-6 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
           >
             Cancel
           </button>
@@ -599,7 +589,7 @@ const Applications = () => {
           <button
             type="button"
             onClick={handleApplyCrop}
-            className="rounded-md bg-slate-950 px-6 py-3 text-sm font-bold text-white transition hover:bg-cyan-600"
+            className="rounded-md bg-cyan-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-cyan-700"
           >
             Apply Crop
           </button>
@@ -609,19 +599,19 @@ const Applications = () => {
   ) : null;
 
   return (
-    <div data-aos="fade-up" className="mx-auto w-full max-w-7xl space-y-6">
+    <div data-aos="fade-up" className="mx-auto w-full max-w-7xl space-y-5">
       <div className="flex flex-col items-center justify-center text-center">
         <img
           src={spryIcon}
           alt="SPRYtech"
-          className="mb-3 h-14 w-14 object-contain"
+          className="mb-3 h-12 w-12 object-contain"
         />
 
-        <h1 className="text-2xl font-black text-slate-950">
+        <h1 className="text-2xl font-semibold text-slate-950">
           Enrollment Application
         </h1>
 
-        <p className="mt-1 text-sm font-semibold text-slate-500">
+        <p className="mt-1 text-sm text-slate-500">
           Complete the student application form below.
         </p>
       </div>
@@ -680,7 +670,7 @@ const Applications = () => {
           type="button"
           onClick={goBack}
           disabled={currentStep === 1}
-          className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <FiArrowLeft />
           Back
@@ -690,7 +680,7 @@ const Applications = () => {
           <button
             type="button"
             onClick={goNext}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-5 py-3 text-sm font-black text-white transition hover:bg-cyan-700"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-cyan-700"
           >
             Next
             <FiArrowRight />
@@ -700,7 +690,7 @@ const Applications = () => {
             type="button"
             onClick={handleSubmitApplication}
             disabled={isSubmitting || !isReviewed}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-sm font-black text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <FiCheck />
             {isSubmitting ? "Submitting..." : "Submit Application"}
@@ -717,7 +707,7 @@ const ProgressStepper = ({ currentStep, completedSteps, onStepClick }) => {
   return (
     <div className="mx-auto w-full max-w-6xl overflow-x-auto pb-2">
       <div className="relative mx-auto flex min-w-[900px] max-w-6xl items-start justify-between px-8">
-        <div className="absolute left-16 right-16 top-4 h-px bg-slate-300" />
+        <div className="absolute left-16 right-16 top-4 h-px bg-slate-200" />
 
         {steps.map((step) => {
           const isActive = currentStep === step.id;
@@ -733,24 +723,20 @@ const ProgressStepper = ({ currentStep, completedSteps, onStepClick }) => {
               className="relative z-10 flex w-40 flex-col items-center text-center disabled:cursor-not-allowed"
             >
               <span
-                className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-black shadow-sm transition ${
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition ${
                   isCompleted
-                    ? "bg-[#fb920e] text-white"
+                    ? "bg-cyan-600 text-white"
                     : isActive
-                      ? "bg-[#03a4d3] text-white"
-                      : "bg-slate-300 text-white"
+                      ? "bg-cyan-50 text-cyan-700 ring-2 ring-cyan-100"
+                      : "bg-white text-slate-400 ring-1 ring-slate-200"
                 }`}
               >
                 {isCompleted ? <FiCheck /> : step.id}
               </span>
 
               <span
-                className={`mt-3 text-xs font-black ${
-                  isActive
-                    ? "text-[#03a4d3]"
-                    : isCompleted
-                      ? "text-[#fb920e]"
-                      : "text-slate-400"
+                className={`mt-3 text-xs font-medium ${
+                  isActive || isCompleted ? "text-slate-800" : "text-slate-400"
                 }`}
               >
                 {step.title}
@@ -766,7 +752,7 @@ const ProgressStepper = ({ currentStep, completedSteps, onStepClick }) => {
 const SectionHeader = ({ title, description }) => {
   return (
     <div className="mb-6">
-      <h2 className="text-lg font-black text-orange-700">{title}</h2>
+      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
       <p className="mt-1 text-sm text-slate-500">{description}</p>
     </div>
   );
@@ -775,7 +761,7 @@ const SectionHeader = ({ title, description }) => {
 const PersonalDetailsStep = ({ formData, age, handleChange }) => {
   return (
     <div className="grid gap-5 xl:grid-cols-2">
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-md bg-white p-5 shadow-sm">
         <SectionHeader
           title="Basic Information"
           description="Names do not accept numbers or special characters."
@@ -813,7 +799,7 @@ const PersonalDetailsStep = ({ formData, age, handleChange }) => {
               required
             />
 
-            <p className="mt-2 text-xs font-semibold text-slate-500">
+            <p className="mt-2 text-xs font-medium text-slate-500">
               {age !== "" ? `Age: ${age}` : "Age will appear here."}
             </p>
           </div>
@@ -845,7 +831,7 @@ const PersonalDetailsStep = ({ formData, age, handleChange }) => {
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-md bg-white p-5 shadow-sm">
         <SectionHeader
           title="Contact Details"
           description="Mobile must be 11 digits and start with 09."
@@ -884,7 +870,7 @@ const PersonalDetailsStep = ({ formData, age, handleChange }) => {
 
 const GuardianDetailStep = ({ formData, age, handleChange }) => {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-md bg-white p-5 shadow-sm">
       <SectionHeader
         title="Guardian Detail"
         description="Provide a contact person for student updates."
@@ -922,8 +908,8 @@ const GuardianDetailStep = ({ formData, age, handleChange }) => {
         />
       </div>
 
-      <div className="mt-5 rounded-md border border-cyan-200 bg-cyan-50 p-4">
-        <p className="flex items-center gap-2 text-sm font-semibold text-cyan-800">
+      <div className="mt-5 rounded-md bg-cyan-50 p-4">
+        <p className="flex items-center gap-2 text-sm font-medium text-cyan-800">
           <FiInfo className="text-cyan-600" />
           {age !== "" && age >= 18
             ? "Applicant is 18 or above. Parent or guardian consent may not be required."
@@ -938,7 +924,7 @@ const GradeCourseStep = ({ formData, handleChange, handleLevelChange }) => {
   const isCollege = formData.levelApplied === "College";
 
   return (
-    <div className="mx-auto max-w-5xl rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="mx-auto max-w-5xl rounded-md bg-white p-5 shadow-sm">
       <SectionHeader
         title="Grade / Course"
         description="Select the grade level or course. Department will be auto-filled."
@@ -1006,7 +992,7 @@ const DocumentUploadStep = ({
   handleRemoveFile,
 }) => {
   return (
-    <div className="mx-auto max-w-5xl rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="mx-auto max-w-5xl rounded-md bg-white p-5 shadow-sm">
       <SectionHeader
         title="Document Upload"
         description="All requirements are optional. Files above 5MB will be rejected."
@@ -1090,35 +1076,35 @@ const ReviewStep = ({ formData, files, age, isReviewed, setIsReviewed }) => {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4">
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-md bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="text-xl font-black text-orange-700">
+            <h2 className="text-xl font-semibold text-slate-950">
               Review Details
             </h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
+            <p className="mt-1 text-sm text-slate-500">
               Please check the summary before submitting.
             </p>
           </div>
 
-          <div className="rounded-md bg-cyan-50 px-4 py-2 text-sm font-black text-cyan-700">
+          <div className="rounded-md bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-700">
             {uploadedCount} of 5 files uploaded
           </div>
         </div>
 
         <div className="mt-5 grid gap-4 xl:grid-cols-4">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-4 xl:col-span-1">
+          <div className="rounded-md bg-slate-50 p-4 xl:col-span-1">
             <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-lg font-black text-cyan-700 ring-4 ring-cyan-100">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-lg font-semibold text-cyan-700 ring-4 ring-cyan-100">
                 {formData.firstName?.[0]}
                 {formData.lastName?.[0]}
               </div>
 
               <div className="min-w-0">
-                <p className="truncate text-base font-black text-slate-900">
+                <p className="truncate text-base font-semibold text-slate-900">
                   {fullName || "-"}
                 </p>
-                <p className="text-xs font-bold text-slate-500">
+                <p className="text-xs font-medium text-slate-500">
                   {formData.levelApplied || "No level selected"}
                   {formData.department ? ` • ${formData.department}` : ""}
                 </p>
@@ -1159,14 +1145,14 @@ const ReviewStep = ({ formData, files, age, isReviewed, setIsReviewed }) => {
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-md bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h3 className="flex items-center gap-2 text-base font-black text-slate-900">
+            <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
               <FiFileText className="text-cyan-600" />
               Uploaded Requirements
             </h3>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
+            <p className="mt-1 text-sm text-slate-500">
               Compact preview of all uploaded files.
             </p>
           </div>
@@ -1193,7 +1179,7 @@ const ReviewStep = ({ formData, files, age, isReviewed, setIsReviewed }) => {
         </div>
       </div>
 
-      <label className="flex cursor-pointer items-start gap-3 rounded-md border border-orange-200 bg-orange-50 p-4 shadow-sm">
+      <label className="flex cursor-pointer items-start gap-3 rounded-md bg-orange-50 p-4 shadow-sm">
         <input
           type="checkbox"
           checked={isReviewed}
@@ -1201,7 +1187,7 @@ const ReviewStep = ({ formData, files, age, isReviewed, setIsReviewed }) => {
           className="mt-1 h-4 w-4 cursor-pointer accent-orange-500"
         />
 
-        <span className="text-sm font-bold text-orange-900">
+        <span className="text-sm font-medium text-orange-900">
           I have reviewed all details and confirm that the information and
           uploaded documents are correct before submitting this application.
         </span>
@@ -1213,10 +1199,10 @@ const ReviewStep = ({ formData, files, age, isReviewed, setIsReviewed }) => {
 const ReviewMiniRow = ({ label, value }) => {
   return (
     <div className="rounded-md bg-white px-3 py-2">
-      <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
         {label}
       </p>
-      <p className="mt-0.5 break-words text-sm font-black text-slate-800">
+      <p className="mt-0.5 break-words text-sm font-medium text-slate-800">
         {value}
       </p>
     </div>
@@ -1234,8 +1220,8 @@ const ReviewCompactCard = ({
   if (visibleItems.length === 0) return null;
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4">
-      <h3 className="mb-3 flex items-center gap-2 text-sm font-black text-slate-900">
+    <div className="rounded-md bg-slate-50 p-4">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950">
         <span className="text-cyan-600">{icon}</span>
         {title}
       </h3>
@@ -1260,7 +1246,7 @@ const TextField = ({
 }) => {
   return (
     <div>
-      <label className="mb-2 block text-sm font-bold text-slate-700">
+      <label className="mb-2 block text-sm font-medium text-slate-600">
         {label}
         {required && <span className="text-orange-500"> *</span>}
       </label>
@@ -1271,7 +1257,7 @@ const TextField = ({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={`h-12 w-full rounded-md border border-slate-200 px-4 text-sm font-semibold outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 ${
+        className={`h-11 w-full rounded-md border border-slate-200 px-4 text-sm font-medium outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 ${
           disabled
             ? "cursor-not-allowed bg-slate-100 text-slate-500"
             : "bg-white text-slate-700"
@@ -1284,7 +1270,7 @@ const TextField = ({
 const DateField = ({ label, value, onChange, required = false }) => {
   return (
     <div>
-      <label className="mb-2 block text-sm font-bold text-slate-700">
+      <label className="mb-2 block text-sm font-medium text-slate-600">
         {label}
         {required && <span className="text-orange-500"> *</span>}
       </label>
@@ -1293,7 +1279,7 @@ const DateField = ({ label, value, onChange, required = false }) => {
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+        className="h-11 w-full rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
       />
     </div>
   );
@@ -1309,7 +1295,7 @@ const SelectField = ({
 }) => {
   return (
     <div>
-      <label className="mb-2 block text-sm font-bold text-slate-700">
+      <label className="mb-2 block text-sm font-medium text-slate-600">
         {label}
         {required && <span className="text-orange-500"> *</span>}
       </label>
@@ -1317,7 +1303,7 @@ const SelectField = ({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+        className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
       >
         <option value="">{placeholder}</option>
 
@@ -1333,7 +1319,7 @@ const SelectField = ({
 
 const PhotoUploadBox = ({ label, fileItem, onChange, onRemove }) => {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-md bg-slate-50 p-4">
       <UploadHeader label={label} fileItem={fileItem} onRemove={onRemove} />
 
       {fileItem ? (
@@ -1346,27 +1332,13 @@ const PhotoUploadBox = ({ label, fileItem, onChange, onRemove }) => {
           />
         </PreviewContent>
       ) : (
-        <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-slate-300 bg-white p-4 transition hover:border-cyan-500 hover:bg-cyan-50">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-xl text-cyan-600">
-            <FiImage />
-          </div>
-
-          <div>
-            <p className="text-sm font-black text-slate-800">
-              Upload and crop 2x2 photo
-            </p>
-            <p className="text-xs font-semibold text-slate-500">
-              JPG, PNG, or WEBP. Max 5MB.
-            </p>
-          </div>
-
-          <input
-            type="file"
-            accept="image/*"
-            onChange={onChange}
-            className="hidden"
-          />
-        </label>
+        <UploadPlaceholder
+          icon={<FiImage />}
+          title="Upload and crop 2x2 photo"
+          description="JPG, PNG, or WEBP. Max 5MB."
+          accept="image/*"
+          onChange={onChange}
+        />
       )}
     </div>
   );
@@ -1374,7 +1346,7 @@ const PhotoUploadBox = ({ label, fileItem, onChange, onRemove }) => {
 
 const FileUploadBox = ({ label, fileItem, onChange, onRemove }) => {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-md bg-slate-50 p-4">
       <UploadHeader label={label} fileItem={fileItem} onRemove={onRemove} />
 
       {fileItem ? (
@@ -1387,27 +1359,37 @@ const FileUploadBox = ({ label, fileItem, onChange, onRemove }) => {
           />
         </PreviewContent>
       ) : (
-        <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-slate-300 bg-white p-4 transition hover:border-cyan-500 hover:bg-cyan-50">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-xl text-cyan-600">
-            <FiUploadCloud />
-          </div>
-
-          <div>
-            <p className="text-sm font-black text-slate-800">Choose file</p>
-            <p className="text-xs font-semibold text-slate-500">
-              PDF, JPG, PNG, or WEBP. Max 5MB.
-            </p>
-          </div>
-
-          <input
-            type="file"
-            accept=".pdf,image/*"
-            onChange={(event) => onChange(event.target.files?.[0])}
-            className="hidden"
-          />
-        </label>
+        <UploadPlaceholder
+          icon={<FiUploadCloud />}
+          title="Choose file"
+          description="PDF, JPG, PNG, or WEBP. Max 5MB."
+          accept=".pdf,image/*"
+          onChange={(event) => onChange(event.target.files?.[0])}
+        />
       )}
     </div>
+  );
+};
+
+const UploadPlaceholder = ({ icon, title, description, accept, onChange }) => {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-slate-300 bg-white p-4 transition hover:border-cyan-500 hover:bg-cyan-50">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-xl text-cyan-600">
+        {icon}
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-slate-800">{title}</p>
+        <p className="text-xs font-medium text-slate-500">{description}</p>
+      </div>
+
+      <input
+        type="file"
+        accept={accept}
+        onChange={onChange}
+        className="hidden"
+      />
+    </label>
   );
 };
 
@@ -1415,17 +1397,15 @@ const UploadHeader = ({ label, fileItem, onRemove }) => {
   return (
     <div className="mb-3 flex items-start justify-between gap-3">
       <div>
-        <h3 className="text-sm font-black text-slate-900">{label}</h3>
-        <p className="text-xs font-semibold text-slate-500">
-          Optional. Max 5MB.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900">{label}</h3>
+        <p className="text-xs font-medium text-slate-500">Optional. Max 5MB.</p>
       </div>
 
       {fileItem && (
         <button
           type="button"
           onClick={onRemove}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-red-50 text-red-600 transition hover:bg-red-600 hover:text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-red-50 text-red-500 transition hover:bg-red-500 hover:text-white"
           title="Remove file"
         >
           <FiTrash2 />
@@ -1441,15 +1421,15 @@ const PreviewContent = ({ fileItem, changeLabel, children }) => {
       <FilePreview fileItem={fileItem} />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-black text-slate-800">
+        <p className="truncate text-sm font-semibold text-slate-800">
           {fileItem.name}
         </p>
 
-        <p className="mt-1 text-xs font-bold text-slate-500">
+        <p className="mt-1 text-xs font-medium text-slate-500">
           {getFileSizeLabel(fileItem.file)}
         </p>
 
-        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-700 transition hover:bg-cyan-100">
+        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md bg-cyan-50 px-3 py-2 text-xs font-medium text-cyan-700 transition hover:bg-cyan-100">
           {changeLabel}
           {children}
         </label>
@@ -1467,21 +1447,21 @@ const FilePreview = ({ fileItem }) => {
       <img
         src={fileItem.previewUrl}
         alt={fileItem.name}
-        className="h-24 w-24 shrink-0 rounded-md border border-slate-200 bg-white object-cover"
+        className="h-24 w-24 shrink-0 rounded-md bg-white object-cover"
       />
     );
   }
 
   if (isPdf) {
     return (
-      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md border border-red-100 bg-red-50">
+      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md bg-red-50">
         <FiFileText className="text-3xl text-red-500" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white">
+    <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-md bg-white">
       <FiFileText className="text-3xl text-slate-400" />
     </div>
   );
@@ -1489,7 +1469,7 @@ const FilePreview = ({ fileItem }) => {
 
 const RequirementPreview = ({ label, fileItem }) => {
   return (
-    <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
       {fileItem ? (
         <CompactFilePreview fileItem={fileItem} />
       ) : (
@@ -1499,21 +1479,23 @@ const RequirementPreview = ({ label, fileItem }) => {
       )}
 
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
           {label}
         </p>
 
         {fileItem ? (
           <>
-            <p className="mt-1 truncate text-sm font-black text-slate-800">
+            <p className="mt-1 truncate text-sm font-semibold text-slate-800">
               {fileItem.name}
             </p>
-            <p className="text-xs font-semibold text-slate-500">
+            <p className="text-xs font-medium text-slate-500">
               {getFileSizeLabel(fileItem.file)}
             </p>
           </>
         ) : (
-          <p className="mt-1 text-sm font-bold text-slate-400">Not uploaded</p>
+          <p className="mt-1 text-sm font-medium text-slate-400">
+            Not uploaded
+          </p>
         )}
       </div>
     </div>
@@ -1529,21 +1511,21 @@ const CompactFilePreview = ({ fileItem }) => {
       <img
         src={fileItem.previewUrl}
         alt={fileItem.name}
-        className="h-16 w-16 shrink-0 rounded-md border border-slate-200 bg-white object-cover"
+        className="h-16 w-16 shrink-0 rounded-md bg-white object-cover"
       />
     );
   }
 
   if (isPdf) {
     return (
-      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-red-100 bg-red-50">
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-red-50">
         <FiFileText className="text-2xl text-red-500" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white">
+    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-white">
       <FiFileText className="text-2xl text-slate-400" />
     </div>
   );

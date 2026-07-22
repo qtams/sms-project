@@ -1,7 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   FiBriefcase,
-  FiEdit2,
+  FiChevronLeft,
+  FiChevronRight,
+  FiCreditCard,
+  FiDownload,
   FiEye,
   FiGrid,
   FiHash,
@@ -17,8 +21,12 @@ import { toast } from "react-toastify";
 import TeacherModal from "../components/modals/TeacherModal";
 import { apiDebugRequest } from "../utils/apiDebugger";
 
+const teacherStatusOptions = ["Active", "Inactive"];
+const rowsPerPageOptions = [5, 10, 25, 50];
+
 const defaultTeacherForm = {
   teacherId: "",
+  rfid: "",
   firstName: "",
   middleName: "",
   lastName: "",
@@ -35,6 +43,7 @@ const initialTeachers = [
   {
     id: 1,
     teacherId: "TCH-0001",
+    rfid: "RFID-TCH-000001",
     firstName: "Tamahome",
     middleName: "",
     lastName: "Buendia",
@@ -49,6 +58,7 @@ const initialTeachers = [
   {
     id: 2,
     teacherId: "TCH-0002",
+    rfid: "RFID-TCH-000002",
     firstName: "Arvin",
     middleName: "",
     lastName: "Buendia",
@@ -63,6 +73,7 @@ const initialTeachers = [
   {
     id: 3,
     teacherId: "TCH-0003",
+    rfid: "",
     firstName: "Misorsikat",
     middleName: "",
     lastName: "Misorsikat",
@@ -76,8 +87,22 @@ const initialTeachers = [
   },
 ];
 
+const avatarStyles = [
+  "bg-cyan-50 text-cyan-700 ring-cyan-100",
+  "bg-orange-50 text-orange-700 ring-orange-100",
+  "bg-emerald-50 text-emerald-700 ring-emerald-100",
+  "bg-violet-50 text-violet-700 ring-violet-100",
+  "bg-pink-50 text-pink-700 ring-pink-100",
+];
+
 const getTeacherDisplayName = (teacher) => {
   return `${teacher.lastName}, ${teacher.firstName}`;
+};
+
+const getFullName = (teacher) => {
+  return [teacher.firstName, teacher.middleName, teacher.lastName]
+    .filter(Boolean)
+    .join(" ");
 };
 
 const getInitials = (teacher) => {
@@ -87,29 +112,40 @@ const getInitials = (teacher) => {
   return `${firstInitial}${lastInitial}`.toUpperCase();
 };
 
-const avatarStyles = [
-  "bg-cyan-50 text-cyan-700 ring-cyan-100",
-  "bg-orange-50 text-orange-700 ring-orange-100",
-  "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  "bg-violet-50 text-violet-700 ring-violet-100",
-  "bg-pink-50 text-pink-700 ring-pink-100",
-];
-
 const getAvatarStyle = (teacherId) => {
   return avatarStyles[teacherId % avatarStyles.length];
 };
 
+const formatFileSize = (file) => {
+  const sizeInMb = file.size / 1024 / 1024;
+
+  if (sizeInMb >= 1) {
+    return `${sizeInMb.toFixed(2)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(file.size / 1024))} KB`;
+};
+
+const csvValue = (value) => {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+};
+
 const Teachers = () => {
+  const navigate = useNavigate();
+
   const [teachers, setTeachers] = useState(initialTeachers);
   const [selectedTeacherIds, setSelectedTeacherIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [viewMode, setViewMode] = useState("table");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
   const [movingTeacherId, setMovingTeacherId] = useState(null);
   const [poppedTeacherId, setPoppedTeacherId] = useState(null);
 
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState(null);
   const [teacherForm, setTeacherForm] = useState(defaultTeacherForm);
 
   const filteredTeachers = useMemo(() => {
@@ -119,6 +155,7 @@ const Teachers = () => {
       const matchesSearch =
         getTeacherDisplayName(teacher).toLowerCase().includes(searchValue) ||
         teacher.teacherId.toLowerCase().includes(searchValue) ||
+        teacher.rfid.toLowerCase().includes(searchValue) ||
         teacher.department.toLowerCase().includes(searchValue) ||
         teacher.email.toLowerCase().includes(searchValue) ||
         teacher.mobile.toLowerCase().includes(searchValue);
@@ -140,6 +177,27 @@ const Teachers = () => {
     });
   }, [filteredTeachers]);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayedTeachers.length / rowsPerPage),
+  );
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedTeachers = displayedTeachers.slice(startIndex, endIndex);
+
+  const showingStart = displayedTeachers.length === 0 ? 0 : startIndex + 1;
+  const showingEnd = Math.min(endIndex, displayedTeachers.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, rowsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const activeTeachers = teachers.filter(
     (teacher) => teacher.status === "Active",
   ).length;
@@ -153,40 +211,18 @@ const Teachers = () => {
   ).size;
 
   const allDisplayedSelected =
-    displayedTeachers.length > 0 &&
-    displayedTeachers.every((teacher) =>
+    paginatedTeachers.length > 0 &&
+    paginatedTeachers.every((teacher) =>
       selectedTeacherIds.includes(teacher.id),
     );
 
   const openAddTeacherModal = () => {
-    setEditingTeacher(null);
     setTeacherForm(defaultTeacherForm);
-    setIsTeacherModalOpen(true);
-  };
-
-  const openEditTeacherModal = (teacher) => {
-    setEditingTeacher(teacher);
-
-    setTeacherForm({
-      teacherId: teacher.teacherId,
-      firstName: teacher.firstName,
-      middleName: teacher.middleName,
-      lastName: teacher.lastName,
-      department: teacher.department,
-      email: teacher.email,
-      mobile: teacher.mobile,
-      status: teacher.status,
-      photoFile: null,
-      photoPreview: teacher.photoPreview || "",
-      photoRemoved: false,
-    });
-
     setIsTeacherModalOpen(true);
   };
 
   const closeTeacherModal = () => {
     setIsTeacherModalOpen(false);
-    setEditingTeacher(null);
     setTeacherForm(defaultTeacherForm);
   };
 
@@ -202,7 +238,7 @@ const Teachers = () => {
 
   const handleSelectAllDisplayed = () => {
     if (allDisplayedSelected) {
-      const displayedIds = displayedTeachers.map((teacher) => teacher.id);
+      const displayedIds = paginatedTeachers.map((teacher) => teacher.id);
 
       setSelectedTeacherIds((current) =>
         current.filter((id) => !displayedIds.includes(id)),
@@ -214,7 +250,7 @@ const Teachers = () => {
     setSelectedTeacherIds((current) => {
       const nextIds = [...current];
 
-      displayedTeachers.forEach((teacher) => {
+      paginatedTeachers.forEach((teacher) => {
         if (!nextIds.includes(teacher.id)) {
           nextIds.push(teacher.id);
         }
@@ -227,7 +263,7 @@ const Teachers = () => {
   const handleViewTeacher = async (teacher) => {
     await apiDebugRequest({
       module: "teacher",
-      action: "view",
+      action: "view-details-page",
       method: "GET",
       payload: {
         id: teacher.id,
@@ -235,19 +271,110 @@ const Teachers = () => {
       },
     });
 
-    Swal.fire({
-      title: getTeacherDisplayName(teacher),
-      html: `
-        <div style="text-align:left; font-size:14px; line-height:1.8;">
-          <p><b>Teacher ID:</b> ${teacher.teacherId}</p>
-          <p><b>Department:</b> ${teacher.department || "-"}</p>
-          <p><b>Email:</b> ${teacher.email || "-"}</p>
-          <p><b>Mobile:</b> ${teacher.mobile || "-"}</p>
-          <p><b>Status:</b> ${teacher.status}</p>
-        </div>
-      `,
-      confirmButtonColor: "#0891b2",
+    navigate(`/teachers/${teacher.teacherId}`);
+  };
+
+  const handleTeacherSubmit = async (event) => {
+    event.preventDefault();
+
+    const cleanedData = {
+      ...teacherForm,
+      teacherId: teacherForm.teacherId.trim(),
+      rfid: teacherForm.rfid.trim(),
+      firstName: teacherForm.firstName.trim(),
+      middleName: teacherForm.middleName.trim(),
+      lastName: teacherForm.lastName.trim(),
+      department: teacherForm.department.trim(),
+      email: teacherForm.email.trim(),
+      mobile: teacherForm.mobile.trim(),
+    };
+
+    if (
+      !cleanedData.teacherId ||
+      !cleanedData.firstName ||
+      !cleanedData.lastName ||
+      !cleanedData.department
+    ) {
+      toast.error("Please complete all required teacher details.");
+      return;
+    }
+
+    const duplicateTeacherId = teachers.some((teacher) => {
+      return (
+        teacher.teacherId.toLowerCase() === cleanedData.teacherId.toLowerCase()
+      );
     });
+
+    if (duplicateTeacherId) {
+      toast.error("Teacher ID already exists.");
+      return;
+    }
+
+    const newTeacher = {
+      id: Date.now(),
+      ...cleanedData,
+    };
+
+    await apiDebugRequest({
+      module: "teacher",
+      action: "create",
+      method: "POST",
+      payload: {
+        id: newTeacher.id,
+        teacherId: cleanedData.teacherId,
+        rfid: cleanedData.rfid,
+        firstName: cleanedData.firstName,
+        middleName: cleanedData.middleName,
+        lastName: cleanedData.lastName,
+        displayName: `${cleanedData.lastName}, ${cleanedData.firstName}`,
+        department: cleanedData.department,
+        email: cleanedData.email,
+        mobile: cleanedData.mobile,
+        status: cleanedData.status,
+        teacherPhoto: cleanedData.photoFile,
+        photoRemoved: cleanedData.photoRemoved,
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    setTeachers((current) => [newTeacher, ...current]);
+    toast.success("Teacher added successfully.");
+    closeTeacherModal();
+  };
+
+  const handleDeleteTeacher = async (teacher) => {
+    const result = await Swal.fire({
+      title: "Delete teacher?",
+      text: `${getTeacherDisplayName(teacher)} will be removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#ef4444",
+    });
+
+    if (!result.isConfirmed) return;
+
+    await apiDebugRequest({
+      module: "teacher",
+      action: "delete",
+      method: "DELETE",
+      payload: {
+        id: teacher.id,
+        teacherId: teacher.teacherId,
+        displayName: getTeacherDisplayName(teacher),
+      },
+    });
+
+    setTeachers((current) =>
+      current.filter((currentTeacher) => currentTeacher.id !== teacher.id),
+    );
+
+    setSelectedTeacherIds((current) =>
+      current.filter((id) => id !== teacher.id),
+    );
+
+    toast.success("Teacher deleted successfully.");
   };
 
   const handleBulkDelete = async () => {
@@ -294,144 +421,6 @@ const Teachers = () => {
     toast.success("Selected teachers deleted successfully.");
   };
 
-  const handleTeacherSubmit = async (event) => {
-    event.preventDefault();
-
-    const cleanedData = {
-      ...teacherForm,
-      teacherId: teacherForm.teacherId.trim(),
-      firstName: teacherForm.firstName.trim(),
-      middleName: teacherForm.middleName.trim(),
-      lastName: teacherForm.lastName.trim(),
-      department: teacherForm.department.trim(),
-      email: teacherForm.email.trim(),
-      mobile: teacherForm.mobile.trim(),
-    };
-
-    if (
-      !cleanedData.teacherId ||
-      !cleanedData.firstName ||
-      !cleanedData.lastName ||
-      !cleanedData.department
-    ) {
-      toast.error("Please complete all required teacher details.");
-      return;
-    }
-
-    const duplicateTeacherId = teachers.some((teacher) => {
-      const sameTeacherId =
-        teacher.teacherId.toLowerCase() === cleanedData.teacherId.toLowerCase();
-
-      if (editingTeacher) {
-        return sameTeacherId && teacher.id !== editingTeacher.id;
-      }
-
-      return sameTeacherId;
-    });
-
-    if (duplicateTeacherId) {
-      toast.error("Teacher ID already exists.");
-      return;
-    }
-
-    const apiPayload = {
-      teacherId: cleanedData.teacherId,
-      firstName: cleanedData.firstName,
-      middleName: cleanedData.middleName,
-      lastName: cleanedData.lastName,
-      displayName: `${cleanedData.lastName}, ${cleanedData.firstName}`,
-      department: cleanedData.department,
-      email: cleanedData.email,
-      mobile: cleanedData.mobile,
-      status: cleanedData.status,
-      teacherPhoto: cleanedData.photoFile,
-      photoRemoved: cleanedData.photoRemoved,
-    };
-
-    if (editingTeacher) {
-      const payload = {
-        id: editingTeacher.id,
-        ...apiPayload,
-      };
-
-      await apiDebugRequest({
-        module: "teacher",
-        action: "update",
-        method: "PUT",
-        payload,
-      });
-
-      setTeachers((current) =>
-        current.map((teacher) =>
-          teacher.id === editingTeacher.id
-            ? {
-                ...teacher,
-                ...cleanedData,
-              }
-            : teacher,
-        ),
-      );
-
-      toast.success("Teacher updated successfully.");
-      closeTeacherModal();
-      return;
-    }
-
-    const newTeacher = {
-      id: Date.now(),
-      ...cleanedData,
-    };
-
-    await apiDebugRequest({
-      module: "teacher",
-      action: "create",
-      method: "POST",
-      payload: {
-        id: newTeacher.id,
-        ...apiPayload,
-      },
-    });
-
-    setTeachers((current) => [newTeacher, ...current]);
-    toast.success("Teacher added successfully.");
-    closeTeacherModal();
-  };
-
-  const handleDeleteTeacher = async (teacher) => {
-    const result = await Swal.fire({
-      title: "Delete teacher?",
-      text: `${getTeacherDisplayName(teacher)} will be removed.`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, delete",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: "#ef4444",
-    });
-
-    if (!result.isConfirmed) return;
-
-    await apiDebugRequest({
-      module: "teacher",
-      action: "delete",
-      method: "DELETE",
-      payload: {
-        id: teacher.id,
-        teacherId: teacher.teacherId,
-        displayName: getTeacherDisplayName(teacher),
-      },
-    });
-
-    setTeachers((current) =>
-      current.filter((currentTeacher) => currentTeacher.id !== teacher.id),
-    );
-
-    setSelectedTeacherIds((current) =>
-      current.filter((id) => id !== teacher.id),
-    );
-
-    toast.success("Teacher deleted successfully.");
-  };
-
   const handleToggleTeacherStatus = async (teacher) => {
     if (movingTeacherId) return;
 
@@ -474,14 +463,77 @@ const Teachers = () => {
     toast.success(`Teacher marked as ${nextStatus}.`);
   };
 
+  const handleExportTeachers = async () => {
+    const rows = teachers.map((teacher) => ({
+      teacherId: teacher.teacherId,
+      rfid: teacher.rfid,
+      name: getTeacherDisplayName(teacher),
+      department: teacher.department,
+      email: teacher.email,
+      mobile: teacher.mobile,
+      status: teacher.status,
+    }));
+
+    await apiDebugRequest({
+      module: "teacher",
+      action: "export",
+      method: "POST",
+      payload: {
+        totalRows: rows.length,
+        rows,
+        exportedAt: new Date().toISOString(),
+      },
+    });
+
+    const header = [
+      "Teacher ID",
+      "RFID",
+      "Name",
+      "Department",
+      "Email",
+      "Mobile",
+      "Status",
+    ];
+
+    const csvRows = rows.map((row) =>
+      [
+        row.teacherId,
+        row.rfid,
+        row.name,
+        row.department,
+        row.email,
+        row.mobile,
+        row.status,
+      ]
+        .map(csvValue)
+        .join(","),
+    );
+
+    const csvContent = [header.map(csvValue).join(","), ...csvRows].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "teachers-export.csv";
+    link.click();
+
+    URL.revokeObjectURL(url);
+    toast.success("Teachers exported successfully.");
+  };
+
   return (
     <div data-aos="fade-up" className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Teachers</h1>
+          <h1 className="text-2xl font-semibold text-slate-950">Teachers</h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Manage teacher profiles and prepare them for section assignments.
+            Manage teacher profiles, RFID, departments, and contact details.
           </p>
         </div>
 
@@ -490,7 +542,7 @@ const Teachers = () => {
             <button
               type="button"
               onClick={handleBulkDelete}
-              className="flex w-fit items-center gap-2 rounded-md bg-red-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-600"
+              className="flex w-fit items-center gap-2 rounded-md bg-red-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-600"
             >
               <FiTrash2 />
               Delete Selected ({selectedTeacherIds.length})
@@ -499,8 +551,17 @@ const Teachers = () => {
 
           <button
             type="button"
+            onClick={handleExportTeachers}
+            className="flex w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            <FiDownload />
+            Export
+          </button>
+
+          <button
+            type="button"
             onClick={openAddTeacherModal}
-            className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-cyan-700"
+            className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
           >
             <FiPlus />
             Add Teacher
@@ -510,18 +571,20 @@ const Teachers = () => {
 
       <div className="grid gap-3 md:grid-cols-4">
         <SummaryCard label="Total Teachers" value={teachers.length} />
-        <SummaryCard label="Active Teachers" value={activeTeachers} />
-        <SummaryCard label="Inactive Teachers" value={inactiveTeachers} />
+        <SummaryCard label="Active" value={activeTeachers} />
+        <SummaryCard label="Inactive" value={inactiveTeachers} />
         <SummaryCard label="Departments" value={departmentsCount} />
       </div>
 
       <div className="rounded-md bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-black text-slate-900">Teacher List</h2>
+            <h2 className="text-lg font-semibold text-slate-950">
+              Teacher List
+            </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Teacher ID is under the name. Department and contact have separate
-              columns.
+              Teacher ID is under the name. RFID, department, and contact have
+              separate columns.
             </p>
           </div>
 
@@ -533,26 +596,29 @@ const Teachers = () => {
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search teacher, ID, department..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+                placeholder="Search teacher, ID, RFID..."
+                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
+              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
             >
               <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              {teacherStatusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
             </select>
 
             <div className="flex h-11 rounded-md border border-slate-200 bg-white p-1">
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-2 rounded-md px-3 text-sm font-black transition ${
+                className={`flex items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
                   viewMode === "grid"
                     ? "bg-cyan-50 text-cyan-700"
                     : "text-slate-500 hover:bg-slate-50"
@@ -565,7 +631,7 @@ const Teachers = () => {
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
-                className={`flex items-center gap-2 rounded-md px-3 text-sm font-black transition ${
+                className={`flex items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
                   viewMode === "table"
                     ? "bg-cyan-50 text-cyan-700"
                     : "text-slate-500 hover:bg-slate-50"
@@ -580,19 +646,18 @@ const Teachers = () => {
 
         {viewMode === "grid" ? (
           <TeacherGrid
-            teachers={displayedTeachers}
+            teachers={paginatedTeachers}
             selectedTeacherIds={selectedTeacherIds}
             movingTeacherId={movingTeacherId}
             poppedTeacherId={poppedTeacherId}
             onSelect={handleToggleSelect}
             onView={handleViewTeacher}
-            onEdit={openEditTeacherModal}
             onDelete={handleDeleteTeacher}
             onToggleStatus={handleToggleTeacherStatus}
           />
         ) : (
           <TeacherTable
-            teachers={displayedTeachers}
+            teachers={paginatedTeachers}
             selectedTeacherIds={selectedTeacherIds}
             movingTeacherId={movingTeacherId}
             poppedTeacherId={poppedTeacherId}
@@ -600,16 +665,26 @@ const Teachers = () => {
             onSelect={handleToggleSelect}
             onSelectAll={handleSelectAllDisplayed}
             onView={handleViewTeacher}
-            onEdit={openEditTeacherModal}
             onDelete={handleDeleteTeacher}
             onToggleStatus={handleToggleTeacherStatus}
           />
         )}
+
+        <PaginationFooter
+          currentPage={currentPage}
+          totalPages={totalPages}
+          rowsPerPage={rowsPerPage}
+          totalRows={displayedTeachers.length}
+          showingStart={showingStart}
+          showingEnd={showingEnd}
+          onRowsPerPageChange={setRowsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <TeacherModal
         isOpen={isTeacherModalOpen}
-        editingTeacher={editingTeacher}
+        editingTeacher={null}
         formData={teacherForm}
         setFormData={setTeacherForm}
         onClose={closeTeacherModal}
@@ -661,14 +736,14 @@ const TeacherNameBlock = ({ teacher, inactive = false }) => {
   return (
     <div>
       <p
-        className={`text-sm font-black ${
+        className={`text-sm font-semibold ${
           inactive ? "text-slate-500" : "text-slate-900"
         }`}
       >
         {getTeacherDisplayName(teacher)}
       </p>
 
-      <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-400">
+      <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
         <FiHash className="shrink-0" />
         <span>{teacher.teacherId}</span>
       </div>
@@ -676,9 +751,18 @@ const TeacherNameBlock = ({ teacher, inactive = false }) => {
   );
 };
 
+const RfidInfo = ({ rfid }) => {
+  return (
+    <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
+      <FiCreditCard className="shrink-0 text-slate-400" />
+      <span>{rfid || "No RFID"}</span>
+    </div>
+  );
+};
+
 const DepartmentInfo = ({ department }) => {
   return (
-    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
+    <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
       <FiBriefcase className="shrink-0 text-slate-400" />
       <span>{department || "-"}</span>
     </div>
@@ -687,7 +771,7 @@ const DepartmentInfo = ({ department }) => {
 
 const ContactInfo = ({ teacher }) => {
   return (
-    <div className="space-y-1 text-sm font-semibold text-slate-600">
+    <div className="space-y-1 text-sm font-medium text-slate-600">
       {teacher.email ? (
         <div className="flex items-center gap-2">
           <FiMail className="shrink-0 text-slate-400" />
@@ -716,7 +800,6 @@ const TeacherGrid = ({
   poppedTeacherId,
   onSelect,
   onView,
-  onEdit,
   onDelete,
   onToggleStatus,
 }) => {
@@ -739,11 +822,9 @@ const TeacherGrid = ({
               isSelected
                 ? "border-cyan-300 ring-4 ring-cyan-50"
                 : "border-slate-200"
-            } ${
-              isInactive ? "bg-slate-50 opacity-75" : "bg-white"
-            } ${isMoving ? "teacher-pop-out" : ""} ${
-              isPopped ? "teacher-pop-in" : ""
-            }`}
+            } ${isInactive ? "bg-slate-50 opacity-75" : "bg-white"} ${
+              isMoving ? "teacher-pop-out" : ""
+            } ${isPopped ? "teacher-pop-in" : ""}`}
           >
             <div className="flex items-center justify-between">
               <input
@@ -755,7 +836,6 @@ const TeacherGrid = ({
 
               <div className="flex gap-2">
                 <IconButton type="view" onClick={() => onView(teacher)} />
-                <IconButton type="edit" onClick={() => onEdit(teacher)} />
                 <IconButton type="delete" onClick={() => onDelete(teacher)} />
               </div>
             </div>
@@ -774,14 +854,21 @@ const TeacherGrid = ({
 
             <div className="mt-5 space-y-4 rounded-md bg-slate-50 p-4 text-left">
               <div>
-                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+                  RFID
+                </p>
+                <RfidInfo rfid={teacher.rfid} />
+              </div>
+
+              <div>
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
                   Department
                 </p>
                 <DepartmentInfo department={teacher.department} />
               </div>
 
               <div>
-                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-400">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
                   Contact
                 </p>
                 <ContactInfo teacher={teacher} />
@@ -811,13 +898,12 @@ const TeacherTable = ({
   onSelect,
   onSelectAll,
   onView,
-  onEdit,
   onDelete,
   onToggleStatus,
 }) => {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1040px] border-collapse text-left">
+      <table className="w-full min-w-[1100px] border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50">
             <th className="w-14 px-5 py-3">
@@ -829,23 +915,13 @@ const TeacherTable = ({
               />
             </th>
 
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Teacher
-            </th>
+            <TableHeader label="Teacher" />
+            <TableHeader label="RFID" />
+            <TableHeader label="Department" />
+            <TableHeader label="Contact" />
+            <TableHeader label="Status" />
 
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Department
-            </th>
-
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Contact
-            </th>
-
-            <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-              Status
-            </th>
-
-            <th className="px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">
+            <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500">
               Actions
             </th>
           </tr>
@@ -888,6 +964,10 @@ const TeacherTable = ({
                   </td>
 
                   <td className="px-5 py-4">
+                    <RfidInfo rfid={teacher.rfid} />
+                  </td>
+
+                  <td className="px-5 py-4">
                     <DepartmentInfo department={teacher.department} />
                   </td>
 
@@ -906,7 +986,6 @@ const TeacherTable = ({
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
                       <IconButton type="view" onClick={() => onView(teacher)} />
-                      <IconButton type="edit" onClick={() => onEdit(teacher)} />
                       <IconButton
                         type="delete"
                         onClick={() => onDelete(teacher)}
@@ -918,7 +997,7 @@ const TeacherTable = ({
             })
           ) : (
             <tr>
-              <td colSpan="6">
+              <td colSpan="7">
                 <EmptyState />
               </td>
             </tr>
@@ -929,10 +1008,85 @@ const TeacherTable = ({
   );
 };
 
+const PaginationFooter = ({
+  currentPage,
+  totalPages,
+  rowsPerPage,
+  totalRows,
+  showingStart,
+  showingEnd,
+  onRowsPerPageChange,
+  onPageChange,
+}) => {
+  return (
+    <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-500">Show</span>
+
+          <select
+            value={rowsPerPage}
+            onChange={(event) =>
+              onRowsPerPageChange(Number(event.target.value))
+            }
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+          >
+            {rowsPerPageOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+
+          <span className="text-sm text-slate-500">entries</span>
+        </div>
+
+        <p className="text-sm text-slate-500">
+          Showing {showingStart} to {showingEnd} of {totalRows} teachers
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <FiChevronLeft />
+          Prev
+        </button>
+
+        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+          Page {currentPage} of {totalPages}
+        </div>
+
+        <button
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Next
+          <FiChevronRight />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const TableHeader = ({ label }) => {
+  return (
+    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+      {label}
+    </th>
+  );
+};
+
 const TeacherAvatar = ({ teacher, size = "normal", inactive = false }) => {
   const sizeClass =
     size === "hero"
-      ? "h-32 w-32 text-3xl"
+      ? "h-24 w-24 text-2xl"
       : size === "large"
         ? "h-16 w-16 text-sm"
         : "h-10 w-10 text-xs";
@@ -951,7 +1105,7 @@ const TeacherAvatar = ({ teacher, size = "normal", inactive = false }) => {
 
   return (
     <div
-      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full font-black ring-4 ${
+      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full font-semibold ring-4 ${
         inactive
           ? "bg-slate-100 text-slate-400 ring-slate-200"
           : getAvatarStyle(teacher.id)
@@ -991,7 +1145,7 @@ const StatusButton = ({ status, disabled = false, onClick }) => {
       title={
         status === "Active" ? "Click to set inactive" : "Click to set active"
       }
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
         status === "Active"
           ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
           : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -1010,8 +1164,8 @@ const StatusButton = ({ status, disabled = false, onClick }) => {
 const SummaryCard = ({ label, value }) => {
   return (
     <div className="rounded-md bg-white p-4 shadow-sm">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <h2 className="mt-2 text-2xl font-black text-slate-950">{value}</h2>
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <h2 className="mt-2 text-2xl font-semibold text-slate-950">{value}</h2>
     </div>
   );
 };
@@ -1019,19 +1173,16 @@ const SummaryCard = ({ label, value }) => {
 const IconButton = ({ type, onClick }) => {
   const buttonStyles = {
     view: "bg-violet-50 text-violet-600 hover:bg-violet-600 hover:text-white",
-    edit: "bg-cyan-50 text-cyan-600 hover:bg-cyan-600 hover:text-white",
     delete: "bg-red-50 text-red-600 hover:bg-red-600 hover:text-white",
   };
 
   const icons = {
     view: <FiEye />,
-    edit: <FiEdit2 />,
     delete: <FiTrash2 />,
   };
 
   const labels = {
     view: "View Teacher",
-    edit: "Edit Teacher",
     delete: "Delete Teacher",
   };
 
@@ -1050,7 +1201,7 @@ const IconButton = ({ type, onClick }) => {
 const EmptyState = () => {
   return (
     <div className="px-5 py-12 text-center">
-      <p className="font-black text-slate-900">No teachers found</p>
+      <p className="font-semibold text-slate-900">No teachers found</p>
 
       <p className="mt-1 text-sm text-slate-500">
         Try changing your search or add a new teacher.

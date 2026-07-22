@@ -342,14 +342,14 @@ const ApplicantDetails = () => {
         <button
           type="button"
           onClick={() => navigate("/enrollment/verification")}
-          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-600"
+          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-600"
         >
           <FiArrowLeft />
           Back to Verification
         </button>
 
         <div className="rounded-md bg-white p-10 text-center shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-900">
+          <h1 className="text-2xl font-medium text-slate-900">
             Applicant not found
           </h1>
           <p className="mt-2 text-sm text-slate-500">
@@ -612,7 +612,7 @@ const ApplicantDetails = () => {
     <div data-aos="fade-up" className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">
+          <h1 className="text-2xl font-medium text-slate-950">
             Applicant Details
           </h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -623,7 +623,7 @@ const ApplicantDetails = () => {
         <button
           type="button"
           onClick={() => navigate("/enrollment/verification")}
-          className="inline-flex w-fit items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-600"
+          className="inline-flex w-fit items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-600"
         >
           <FiArrowLeft />
           Back
@@ -631,15 +631,15 @@ const ApplicantDetails = () => {
       </div>
 
       <div className="rounded-md bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-5 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-semibold text-cyan-700 ring-4 ring-cyan-100">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-medium text-cyan-700 ring-4 ring-cyan-100">
               {getInitials(formData)}
             </div>
 
             <div>
               <p className="text-sm font-medium text-slate-500">Applicant</p>
-              <h2 className="text-xl font-semibold text-slate-950">
+              <h2 className="text-xl font-medium text-slate-950">
                 {getFullName(formData)}
               </h2>
 
@@ -660,7 +660,7 @@ const ApplicantDetails = () => {
               <button
                 type="button"
                 onClick={handleVerifyApplicant}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-100 transition hover:bg-cyan-700"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
               >
                 <FiShield />
                 Verify Applicant
@@ -673,7 +673,7 @@ const ApplicantDetails = () => {
           <DetailCard
             title="Applicant Information"
             icon={<FiUser />}
-            color="emerald"
+            color="cyan"
             section="personal"
             editingSection={editingSection}
             onEdit={startEdit}
@@ -804,7 +804,7 @@ const ApplicantDetails = () => {
           <DetailCard
             title="Application Details"
             icon={<FiBookOpen />}
-            color="purple"
+            color="emerald"
             section="application"
             editingSection={editingSection}
             onEdit={startEdit}
@@ -873,14 +873,14 @@ const ApplicantDetails = () => {
           </DetailCard>
         </div>
 
-        <div className="mt-5 rounded-md border border-slate-200 bg-white">
-          <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="mt-5 rounded-md bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-600">
               <FiFileText />
             </div>
 
             <div>
-              <h3 className="font-semibold text-slate-950">
+              <h3 className="font-medium text-slate-950">
                 Uploaded Requirements
               </h3>
               <p className="text-sm text-slate-500">
@@ -935,7 +935,6 @@ const DetailCard = ({
     emerald: "bg-emerald-50 text-emerald-600",
     orange: "bg-orange-50 text-orange-600",
     violet: "bg-violet-50 text-violet-600",
-    purple: "bg-purple-50 text-purple-600",
     cyan: "bg-cyan-50 text-cyan-600",
   };
 
@@ -944,16 +943,18 @@ const DetailCard = ({
   });
 
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+    <div className="overflow-hidden rounded-md bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-4">
         <div className="flex items-center gap-3">
           <div
-            className={`flex h-9 w-9 items-center justify-center rounded-md ${colorClass[color]}`}
+            className={`flex h-9 w-9 items-center justify-center rounded-md ${
+              colorClass[color] || colorClass.cyan
+            }`}
           >
             {icon}
           </div>
 
-          <h3 className="font-semibold text-slate-950">{title}</h3>
+          <h3 className="font-medium text-slate-950">{title}</h3>
         </div>
 
         {!isEditing && (
@@ -985,7 +986,7 @@ const DetailCard = ({
               <button
                 type="button"
                 onClick={() => onSave(section)}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-700"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
               >
                 <FiSave />
                 Save
@@ -997,7 +998,7 @@ const DetailCard = ({
             {visibleItems.map(([label, value]) => (
               <div key={label}>
                 <p className="text-xs font-medium text-slate-500">{label}</p>
-                <p className="mt-1 break-words text-sm font-semibold text-slate-900">
+                <p className="mt-1 break-words text-sm font-medium text-slate-900">
                   {value}
                 </p>
               </div>
@@ -1066,10 +1067,10 @@ const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
   const isImage = documentItem.fileType?.startsWith("image/");
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-md bg-slate-50 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">
+          <p className="text-sm font-medium text-slate-900">
             {documentItem.label}
           </p>
           <p className="mt-1 text-xs font-medium text-slate-500">
@@ -1111,7 +1112,7 @@ const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
 
       {hasFile && (
         <div className="mt-3">
-          <p className="truncate text-xs font-semibold text-slate-700">
+          <p className="truncate text-xs font-medium text-slate-700">
             {documentItem.fileName}
           </p>
           <p className="text-xs font-medium text-slate-400">
@@ -1123,7 +1124,7 @@ const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
       <button
         type="button"
         onClick={() => onOpenUploadModal(documentItem)}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-600 hover:text-white"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-cyan-50 px-4 py-2.5 text-sm font-medium text-cyan-700 transition hover:bg-cyan-600 hover:text-white"
       >
         <FiUploadCloud />
         {hasFile ? "View / Reupload" : "Upload File"}
@@ -1137,7 +1138,7 @@ const VerificationBadge = ({ status }) => {
 
   return (
     <span
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold ${
+      className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
         isVerified
           ? "bg-emerald-50 text-emerald-700"
           : "bg-slate-100 text-slate-700"
@@ -1154,7 +1155,7 @@ const ApplicationStatus = ({ status }) => {
 
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold ${
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${
         isVerified
           ? "bg-emerald-50 text-emerald-700"
           : "bg-orange-50 text-orange-700"

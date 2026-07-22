@@ -6,7 +6,6 @@ import {
   FiCreditCard,
   FiFileText,
   FiLayers,
-  FiUsers,
 } from "react-icons/fi";
 import { PiChalkboardTeacher, PiStudent } from "react-icons/pi";
 import { MdOutlineSchool } from "react-icons/md";
@@ -34,9 +33,9 @@ const Dashboard = () => {
       bg: brand.softCyan,
     },
     {
-      label: "Total Modules",
+      label: "Modules",
       value: "10",
-      description: "+2 this month",
+      description: "Available tools",
       icon: FiLayers,
       color: brand.orange,
       bg: brand.softOrange,
@@ -89,22 +88,6 @@ const Dashboard = () => {
       color: brand.orange,
       bg: brand.softOrange,
     },
-    {
-      label: "Enrollments",
-      value: "12",
-      description: "Pending review",
-      icon: FiClipboard,
-      color: brand.darkOrange,
-      bg: brand.softOrange,
-    },
-    {
-      label: "Reports",
-      value: "6",
-      description: "Generated this week",
-      icon: FiFileText,
-      color: brand.blueTeal,
-      bg: brand.softBlue,
-    },
   ];
 
   const enrollmentData = [
@@ -126,21 +109,21 @@ const Dashboard = () => {
   const modules = [
     {
       title: "Enrollment",
-      description: "Review and approve new student applications.",
+      description: "Review student applications.",
       icon: FiClipboard,
       color: brand.orange,
       bg: brand.softOrange,
     },
     {
       title: "Attendance",
-      description: "Monitor daily attendance by grade and section.",
+      description: "Check daily class attendance.",
       icon: FiCalendar,
       color: brand.cyan,
       bg: brand.softCyan,
     },
     {
       title: "Grades",
-      description: "Track quizzes, exams, activities, and final grades.",
+      description: "Manage student grade records.",
       icon: FiBookOpen,
       color: brand.blueTeal,
       bg: brand.softBlue,
@@ -166,56 +149,41 @@ const Dashboard = () => {
   ];
 
   return (
-    <div data-aos="fade-up" className="space-y-6">
+    <div data-aos="fade-up" className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 md:text-3xl">
-            Dashboard
-          </h1>
+          <h1 className="text-2xl font-semibold text-slate-950">Dashboard</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Simple overview of your school management system.
+            Overview of your school management system.
           </p>
         </div>
 
-        <div className="rounded-md bg-white px-4 py-3 shadow-sm">
-          <p className="text-xs font-semibold text-slate-400">School Year</p>
-          <p className="text-sm font-black text-slate-900">2026 - 2027</p>
+        <div className="w-fit rounded-md border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">School Year</p>
+          <p className="mt-0.5 text-sm font-semibold text-slate-950">
+            2026 - 2027
+          </p>
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((card) => (
           <StatCard key={card.label} card={card} />
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+      <div className="grid gap-5 xl:grid-cols-[2fr_1fr]">
         <div className="rounded-md bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 p-6">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">
-                Students and Attendance
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Monthly student growth and attendance trend.
-              </p>
-            </div>
+          <SectionHeader
+            title="Students and Attendance"
+            description="Monthly student growth and attendance trend."
+            action="Monthly"
+          />
 
-            <span
-              className="rounded-md px-3 py-2 text-xs font-bold"
-              style={{
-                backgroundColor: brand.softOrange,
-                color: brand.darkOrange,
-              }}
-            >
-              Monthly
-            </span>
-          </div>
-
-          <div className="p-6">
+          <div className="p-5">
             <GroupedBarChart data={enrollmentData} />
 
-            <div className="mt-5 flex items-center justify-center gap-6">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-5">
               <LegendDot color={brand.orange} label="Students" />
               <LegendDot color={brand.cyan} label="Attendance" />
             </div>
@@ -223,19 +191,15 @@ const Dashboard = () => {
         </div>
 
         <div className="rounded-md bg-white shadow-sm">
-          <div className="border-b border-slate-100 p-6">
-            <h2 className="text-lg font-black text-slate-900">
-              Attendance Today
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Current attendance percentage.
-            </p>
-          </div>
+          <SectionHeader
+            title="Attendance Today"
+            description="Current attendance percentage."
+          />
 
-          <div className="flex flex-col items-center p-6">
+          <div className="flex flex-col items-center p-5">
             <DonutChart percent={89} />
 
-            <div className="mt-6 grid w-full grid-cols-3 gap-3 text-center">
+            <div className="mt-5 grid w-full grid-cols-3 gap-3 text-center">
               <SmallStat label="Present" value="285" />
               <SmallStat label="Absent" value="20" />
               <SmallStat label="Late" value="15" />
@@ -244,60 +208,27 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <div className="rounded-md bg-white shadow-sm">
-          <div className="border-b border-slate-100 p-6">
-            <h2 className="text-lg font-black text-slate-900">
-              School Modules
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Quick access to core school tools.
-            </p>
-          </div>
+          <SectionHeader
+            title="School Modules"
+            description="Quick access to core school tools."
+          />
 
-          <div className="grid gap-4 p-6 md:grid-cols-3">
-            {modules.map((module) => {
-              const Icon = module.icon;
-
-              return (
-                <div
-                  key={module.title}
-                  className="rounded-md bg-slate-50 p-5 transition hover:bg-white hover:shadow-md"
-                >
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-md"
-                    style={{
-                      backgroundColor: module.bg,
-                      color: module.color,
-                    }}
-                  >
-                    <Icon size={23} />
-                  </div>
-
-                  <h3 className="mt-5 text-base font-black text-slate-900">
-                    {module.title}
-                  </h3>
-
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {module.description}
-                  </p>
-                </div>
-              );
-            })}
+          <div className="grid gap-3 p-5 md:grid-cols-3">
+            {modules.map((module) => (
+              <ModuleCard key={module.title} module={module} />
+            ))}
           </div>
         </div>
 
         <div className="rounded-md bg-white shadow-sm">
-          <div className="border-b border-slate-100 p-6">
-            <h2 className="text-lg font-black text-slate-900">
-              Students by Grade
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Current division count.
-            </p>
-          </div>
+          <SectionHeader
+            title="Students by Grade"
+            description="Current division count."
+          />
 
-          <div className="space-y-5 p-6">
+          <div className="space-y-4 p-5">
             {gradeData.map((item) => (
               <DivisionItem
                 key={item.name}
@@ -307,57 +238,39 @@ const Dashboard = () => {
             ))}
           </div>
         </div>
+      </div>
 
+      <div className="grid gap-5 xl:grid-cols-[1fr_1.4fr]">
         <div
           className="overflow-hidden rounded-md shadow-sm"
           style={{
             background: `linear-gradient(135deg, ${brand.orange}, ${brand.cyan})`,
           }}
         >
-          <div className="p-6 text-white">
-            <p className="text-sm font-semibold text-white/80">
-              Total enrolled
-            </p>
-            <h2 className="mt-2 text-4xl font-black">320</h2>
+          <div className="p-5 text-white">
+            <p className="text-sm font-medium text-white/80">Total Enrolled</p>
+            <h2 className="mt-2 text-4xl font-semibold">320</h2>
             <p className="mt-1 text-sm text-white/80">
               Students this school year
             </p>
           </div>
 
-          <div className="px-6 pb-6">
+          <div className="px-5 pb-5">
             <BrandLineChart />
           </div>
         </div>
-      </div>
 
-      <div className="rounded-md bg-white shadow-sm">
-        <div className="border-b border-slate-100 p-6">
-          <h2 className="text-lg font-black text-slate-900">
-            Recent Activities
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Latest updates from your school system.
-          </p>
-        </div>
+        <div className="rounded-md bg-white shadow-sm">
+          <SectionHeader
+            title="Recent Activities"
+            description="Latest updates from your school system."
+          />
 
-        <div className="divide-y divide-slate-100">
-          {activities.map((activity) => (
-            <div
-              key={activity.title}
-              className="flex flex-col gap-2 p-6 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <h3 className="font-black text-slate-900">{activity.title}</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  {activity.description}
-                </p>
-              </div>
-
-              <span className="text-xs font-bold text-slate-400">
-                {activity.time}
-              </span>
-            </div>
-          ))}
+          <div className="divide-y divide-slate-100">
+            {activities.map((activity) => (
+              <ActivityItem key={activity.title} activity={activity} />
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -368,28 +281,79 @@ const StatCard = ({ card }) => {
   const Icon = card.icon;
 
   return (
-    <div className="rounded-md bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+    <div className="rounded-md border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold text-slate-600">{card.label}</p>
-          <h2 className="mt-3 text-4xl font-black text-slate-950">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-slate-500">{card.label}</p>
+
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">
             {card.value}
           </h2>
-          <p className="mt-2 text-sm font-medium text-slate-400">
+
+          <p className="mt-1 truncate text-xs font-medium text-slate-400">
             {card.description}
           </p>
         </div>
 
         <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
           style={{
             backgroundColor: card.bg,
             color: card.color,
           }}
         >
-          <Icon size={23} />
+          <Icon size={19} />
         </div>
       </div>
+    </div>
+  );
+};
+
+const SectionHeader = ({ title, description, action }) => {
+  return (
+    <div className="flex flex-col justify-between gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+
+      {action && (
+        <span
+          className="w-fit rounded-md px-3 py-1.5 text-xs font-medium"
+          style={{
+            backgroundColor: brand.softOrange,
+            color: brand.darkOrange,
+          }}
+        >
+          {action}
+        </span>
+      )}
+    </div>
+  );
+};
+
+const ModuleCard = ({ module }) => {
+  const Icon = module.icon;
+
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm">
+      <div
+        className="flex h-10 w-10 items-center justify-center rounded-md"
+        style={{
+          backgroundColor: module.bg,
+          color: module.color,
+        }}
+      >
+        <Icon size={20} />
+      </div>
+
+      <h3 className="mt-4 text-sm font-semibold text-slate-950">
+        {module.title}
+      </h3>
+
+      <p className="mt-1 text-sm leading-6 text-slate-500">
+        {module.description}
+      </p>
     </div>
   );
 };
@@ -400,7 +364,7 @@ const GroupedBarChart = ({ data }) => {
   );
 
   return (
-    <div className="flex h-72 items-end gap-5 rounded-md bg-slate-50 px-6 py-5">
+    <div className="flex h-64 items-end gap-4 rounded-md bg-slate-50 px-5 py-4">
       {data.map((item) => {
         const studentsHeight = `${(item.students / max) * 100}%`;
         const attendanceHeight = `${(item.attendance / max) * 100}%`;
@@ -412,7 +376,7 @@ const GroupedBarChart = ({ data }) => {
           >
             <div className="flex flex-1 items-end justify-center gap-2">
               <div
-                className="w-5 rounded-t-md"
+                className="w-4 rounded-t-md"
                 style={{
                   height: studentsHeight,
                   backgroundColor: brand.orange,
@@ -420,7 +384,7 @@ const GroupedBarChart = ({ data }) => {
               />
 
               <div
-                className="w-5 rounded-t-md"
+                className="w-4 rounded-t-md"
                 style={{
                   height: attendanceHeight,
                   backgroundColor: brand.cyan,
@@ -428,7 +392,7 @@ const GroupedBarChart = ({ data }) => {
               />
             </div>
 
-            <p className="mt-3 text-center text-xs font-bold text-slate-400">
+            <p className="mt-3 text-center text-xs font-medium text-slate-400">
               {item.month}
             </p>
           </div>
@@ -444,7 +408,7 @@ const DonutChart = ({ percent }) => {
   const dashOffset = circumference - (percent / 100) * circumference;
 
   return (
-    <div className="relative h-40 w-40">
+    <div className="relative h-36 w-36">
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
         <circle
           cx="60"
@@ -460,7 +424,7 @@ const DonutChart = ({ percent }) => {
           cy="60"
           r={radius}
           fill="none"
-          stroke={brand.orange}
+          stroke={brand.cyan}
           strokeWidth="14"
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -469,8 +433,8 @@ const DonutChart = ({ percent }) => {
       </svg>
 
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <p className="text-3xl font-black text-slate-900">{percent}%</p>
-        <p className="text-xs font-bold text-slate-400">Present</p>
+        <p className="text-3xl font-semibold text-slate-950">{percent}%</p>
+        <p className="text-xs font-medium text-slate-400">Present</p>
       </div>
     </div>
   );
@@ -488,7 +452,8 @@ const BrandLineChart = () => {
       />
 
       <circle cx="210" cy="50" r="5" fill="white" />
-      <text x="198" y="32" fill="white" fontSize="13" fontWeight="700">
+
+      <text x="198" y="32" fill="white" fontSize="13" fontWeight="600">
         232
       </text>
     </svg>
@@ -502,7 +467,8 @@ const LegendDot = ({ color, label }) => {
         className="h-2.5 w-2.5 rounded-full"
         style={{ backgroundColor: color }}
       />
-      <span className="text-sm font-semibold text-slate-500">{label}</span>
+
+      <span className="text-sm font-medium text-slate-500">{label}</span>
     </div>
   );
 };
@@ -510,23 +476,23 @@ const LegendDot = ({ color, label }) => {
 const SmallStat = ({ label, value }) => {
   return (
     <div className="rounded-md bg-slate-50 p-3">
-      <p className="text-lg font-black text-slate-900">{value}</p>
-      <p className="mt-1 text-xs font-bold text-slate-400">{label}</p>
+      <p className="text-lg font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-xs font-medium text-slate-400">{label}</p>
     </div>
   );
 };
 
 const DivisionItem = ({ name, value }) => {
-  const width = `${(value / 100) * 100}%`;
+  const width = `${value}%`;
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-sm font-bold text-slate-600">{name}</p>
-        <p className="text-sm font-black text-slate-900">{value}</p>
+        <p className="text-sm font-medium text-slate-600">{name}</p>
+        <p className="text-sm font-semibold text-slate-950">{value}</p>
       </div>
 
-      <div className="h-2.5 overflow-hidden rounded-md bg-slate-100">
+      <div className="h-2 overflow-hidden rounded-md bg-slate-100">
         <div
           className="h-full rounded-md"
           style={{
@@ -535,6 +501,24 @@ const DivisionItem = ({ name, value }) => {
           }}
         />
       </div>
+    </div>
+  );
+};
+
+const ActivityItem = ({ activity }) => {
+  return (
+    <div className="flex flex-col gap-2 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-950">
+          {activity.title}
+        </h3>
+
+        <p className="mt-1 text-sm text-slate-500">{activity.description}</p>
+      </div>
+
+      <span className="text-xs font-medium text-slate-400">
+        {activity.time}
+      </span>
     </div>
   );
 };

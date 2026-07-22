@@ -2,12 +2,8 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   BookOpenCheck,
-  CalendarCheck,
   ChevronDown,
   ClipboardList,
-  CreditCard,
-  FileBarChart,
-  GraduationCap,
   LayoutDashboard,
   School,
   Settings,
@@ -45,6 +41,26 @@ const Sidebar = () => {
       items: [
         {
           type: "dropdown",
+          key: "user-management",
+          label: "User Management",
+          icon: Users,
+          items: [
+            {
+              label: "Admin",
+              path: "/user-management/admin",
+            },
+            {
+              label: "Guard",
+              path: "/user-management/guard",
+            },
+            {
+              label: "Registrar",
+              path: "/user-management/registrar",
+            },
+          ],
+        },
+        {
+          type: "dropdown",
           key: "school",
           label: "School Management",
           icon: School,
@@ -60,6 +76,10 @@ const Sidebar = () => {
             {
               label: "Grade & Sections",
               path: "/classes",
+            },
+            {
+              label: "RFID",
+              path: "/rfid",
             },
           ],
         },
@@ -89,10 +109,6 @@ const Sidebar = () => {
               label: "Attendance",
               path: "/attendance",
             },
-            {
-              label: "Grades",
-              path: "/grades",
-            },
           ],
         },
       ],
@@ -100,22 +116,6 @@ const Sidebar = () => {
     {
       title: "Administration",
       items: [
-        {
-          type: "dropdown",
-          key: "finance",
-          label: "Finance",
-          icon: CreditCard,
-          items: [
-            {
-              label: "Payments",
-              path: "/payments",
-            },
-            {
-              label: "Reports",
-              path: "/reports",
-            },
-          ],
-        },
         {
           type: "link",
           label: "Settings",
@@ -134,15 +134,28 @@ const Sidebar = () => {
         key={item.label}
         to={item.path}
         className={({ isActive }) =>
-          `flex items-center gap-3 rounded-md px-4 py-3 text-sm font-bold transition ${
+          `group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition ${
             isActive
-              ? "bg-slate-100 text-slate-950"
-              : "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+              ? "bg-cyan-50 text-cyan-700"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
           }`
         }
       >
-        <Icon size={18} className="shrink-0 text-slate-500" />
-        <span className="truncate">{item.label}</span>
+        {({ isActive }) => (
+          <>
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition ${
+                isActive
+                  ? "bg-white text-cyan-600 shadow-sm"
+                  : "bg-transparent text-slate-400 group-hover:bg-white group-hover:text-slate-500"
+              }`}
+            >
+              <Icon size={17} />
+            </span>
+
+            <span className="truncate">{item.label}</span>
+          </>
+        )}
       </NavLink>
     );
   };
@@ -153,10 +166,10 @@ const Sidebar = () => {
         key={item.label}
         to={item.path}
         className={({ isActive }) =>
-          `block rounded-md px-4 py-2.5 text-sm font-semibold transition ${
+          `relative block rounded-md px-3 py-2 text-sm font-medium transition ${
             isActive
-              ? "bg-slate-100 text-slate-950"
-              : "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+              ? "bg-cyan-50 text-cyan-700"
+              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
           }`
         }
       >
@@ -179,28 +192,37 @@ const Sidebar = () => {
         <button
           type="button"
           onClick={() => toggleDropdown(section.key)}
-          className={`flex w-full items-center justify-between rounded-md px-4 py-3 text-sm font-bold transition ${
+          className={`group flex w-full items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium transition ${
             isOpen
-              ? "bg-slate-100 text-slate-950"
-              : "text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+              ? "bg-cyan-50 text-cyan-700"
+              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
           }`}
         >
           <span className="flex min-w-0 items-center gap-3">
-            <Icon size={18} className="shrink-0 text-slate-500" />
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition ${
+                isOpen
+                  ? "bg-white text-cyan-600 shadow-sm"
+                  : "bg-transparent text-slate-400 group-hover:bg-white group-hover:text-slate-500"
+              }`}
+            >
+              <Icon size={17} />
+            </span>
+
             <span className="truncate">{section.label}</span>
           </span>
 
           <ChevronDown
-            size={17}
-            className={`shrink-0 text-slate-500 transition-transform duration-200 ${
-              isOpen ? "rotate-180" : ""
+            size={16}
+            className={`shrink-0 text-slate-400 transition-transform duration-200 ${
+              isOpen ? "rotate-180 text-cyan-600" : ""
             }`}
           />
         </button>
 
         {isOpen && (
-          <div className="ml-8 mt-2 border-l border-slate-200 pl-4">
-            <div className="space-y-1">
+          <div className="ml-7 mt-1 border-l border-slate-100 pl-3">
+            <div className="space-y-1 py-1">
               {section.items.map((item) => renderChildLink(item))}
             </div>
           </div>
@@ -209,25 +231,25 @@ const Sidebar = () => {
     );
   };
 
-  const renderMenuItem = (section) => {
-    if (section.type === "link") {
-      return renderParentLink(section);
+  const renderMenuItem = (item) => {
+    if (item.type === "link") {
+      return renderParentLink(item);
     }
 
-    return renderDropdown(section);
+    return renderDropdown(item);
   };
 
   return (
-    <aside className="no-scrollbar hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 text-slate-900 lg:block">
-      <nav className="space-y-7">
+    <aside className="no-scrollbar hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-5 text-slate-900 lg:block">
+      <nav className="space-y-6">
         {menuSections.map((group) => (
           <div key={group.title}>
-            <p className="mb-3 px-3 text-xs font-semibold text-slate-500">
+            <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-wide text-slate-400">
               {group.title}
             </p>
 
             <div className="space-y-1">
-              {group.items.map((section) => renderMenuItem(section))}
+              {group.items.map((item) => renderMenuItem(item))}
             </div>
           </div>
         ))}

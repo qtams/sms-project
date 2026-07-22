@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  FiChevronLeft,
+  FiChevronRight,
   FiEdit2,
   FiPlus,
   FiSearch,
@@ -13,6 +15,8 @@ import GradeLevelModal from "../components/modals/GradeLevelModal";
 import SectionModal from "../components/modals/SectionModal";
 import AssignTeachersModal from "../components/modals/AssignTeachersModal";
 import { apiDebugRequest } from "../utils/apiDebugger";
+
+const rowsPerPageOptions = [5, 10, 25, 50];
 
 const defaultGradeLevelForm = {
   levelName: "",
@@ -105,6 +109,14 @@ const initialSections = [
   },
 ];
 
+const teacherAvatarStyles = [
+  "bg-cyan-50 text-cyan-700 ring-cyan-100",
+  "bg-orange-50 text-orange-700 ring-orange-100",
+  "bg-emerald-50 text-emerald-700 ring-emerald-100",
+  "bg-violet-50 text-violet-700 ring-violet-100",
+  "bg-pink-50 text-pink-700 ring-pink-100",
+];
+
 const getInitials = (name = "") => {
   if (!name) return "";
 
@@ -124,14 +136,6 @@ const getInitials = (name = "") => {
   }`.toUpperCase();
 };
 
-const teacherAvatarStyles = [
-  "bg-cyan-50 text-cyan-700 ring-cyan-100",
-  "bg-orange-50 text-orange-700 ring-orange-100",
-  "bg-emerald-50 text-emerald-700 ring-emerald-100",
-  "bg-violet-50 text-violet-700 ring-violet-100",
-  "bg-pink-50 text-pink-700 ring-pink-100",
-];
-
 const getTeacherAvatarStyle = (teacherId) => {
   return teacherAvatarStyles[teacherId % teacherAvatarStyles.length];
 };
@@ -143,6 +147,9 @@ const GradeSections = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [isGradeModalOpen, setIsGradeModalOpen] = useState(false);
   const [editingGradeLevel, setEditingGradeLevel] = useState(null);
@@ -188,6 +195,9 @@ const GradeSections = () => {
           .includes(searchValue) ||
         String(gradeLevel?.department || "")
           .toLowerCase()
+          .includes(searchValue) ||
+        String(section.schoolYear || "")
+          .toLowerCase()
           .includes(searchValue);
 
       const matchesStatus =
@@ -197,8 +207,45 @@ const GradeSections = () => {
     });
   }, [sections, gradeLevels, teachers, searchTerm, statusFilter]);
 
+  const displayedSections = useMemo(() => {
+    return [...filteredSections].sort((a, b) => {
+      const gradeA = getGradeLevelById(a.gradeLevelId)?.levelName || "";
+      const gradeB = getGradeLevelById(b.gradeLevelId)?.levelName || "";
+
+      return `${gradeA} ${a.sectionName}`.localeCompare(
+        `${gradeB} ${b.sectionName}`,
+      );
+    });
+  }, [filteredSections, gradeLevels]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayedSections.length / rowsPerPage),
+  );
+
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedSections = displayedSections.slice(startIndex, endIndex);
+
+  const showingStart = displayedSections.length === 0 ? 0 : startIndex + 1;
+  const showingEnd = Math.min(endIndex, displayedSections.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, rowsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const activeGradeLevels = gradeLevels.filter(
     (gradeLevel) => gradeLevel.status === "Active",
+  ).length;
+
+  const activeSections = sections.filter(
+    (section) => section.status === "Active",
   ).length;
 
   const totalStudents = sections.reduce(
@@ -559,12 +606,12 @@ const GradeSections = () => {
     <div data-aos="fade-up" className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">
+          <h1 className="text-2xl font-semibold text-slate-950">
             Grade & Sections
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Create grade levels first, then create sections under each grade.
+            Manage grade levels, sections, capacity, and teacher assignments.
           </p>
         </div>
 
@@ -572,7 +619,7 @@ const GradeSections = () => {
           <button
             type="button"
             onClick={openAddGradeModal}
-            className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-cyan-700"
+            className="flex w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <FiPlus />
             Add Grade Level
@@ -581,7 +628,7 @@ const GradeSections = () => {
           <button
             type="button"
             onClick={openAddSectionModal}
-            className="flex w-fit items-center gap-2 rounded-md bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-orange-500"
+            className="flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
           >
             <FiPlus />
             Add Section
@@ -597,79 +644,89 @@ const GradeSections = () => {
       </div>
 
       <div className="rounded-md bg-white shadow-sm">
-        <div className="border-b border-slate-100 p-4">
-          <h2 className="text-lg font-black text-slate-900">Grade Levels</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            These are the grade levels that sections can use.
-          </p>
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">
+              Grade Levels
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Grade levels used when creating sections.
+            </p>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] border-collapse text-left">
+          <table className="w-full min-w-[720px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Grade Level
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Department
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Sections
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Status
-                </th>
-                <th className="px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">
+                <TableHeader label="Grade Level" />
+                <TableHeader label="Department" />
+                <TableHeader label="Sections" />
+                <TableHeader label="Status" />
+
+                <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500">
                   Actions
                 </th>
               </tr>
             </thead>
 
             <tbody>
-              {gradeLevels.map((gradeLevel) => {
-                const sectionCount = sections.filter(
-                  (section) =>
-                    String(section.gradeLevelId) === String(gradeLevel.id),
-                ).length;
+              {gradeLevels.length > 0 ? (
+                gradeLevels.map((gradeLevel) => {
+                  const sectionCount = sections.filter(
+                    (section) =>
+                      String(section.gradeLevelId) === String(gradeLevel.id),
+                  ).length;
 
-                return (
-                  <tr
-                    key={gradeLevel.id}
-                    className="border-b border-slate-100 transition hover:bg-slate-50"
-                  >
-                    <td className="px-5 py-3 text-sm font-bold text-slate-900">
-                      {gradeLevel.levelName}
-                    </td>
+                  return (
+                    <tr
+                      key={gradeLevel.id}
+                      className="border-b border-slate-100 transition hover:bg-slate-50"
+                    >
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {gradeLevel.levelName}
+                        </p>
+                      </td>
 
-                    <td className="px-5 py-3 text-sm font-semibold text-slate-600">
-                      {gradeLevel.department}
-                    </td>
+                      <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                        {gradeLevel.department}
+                      </td>
 
-                    <td className="px-5 py-3 text-sm font-bold text-slate-700">
-                      {sectionCount}
-                    </td>
+                      <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                        {sectionCount}
+                      </td>
 
-                    <td className="px-5 py-3">
-                      <StatusBadge status={gradeLevel.status} />
-                    </td>
+                      <td className="px-5 py-4">
+                        <StatusBadge status={gradeLevel.status} />
+                      </td>
 
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end gap-2">
-                        <IconButton
-                          type="edit"
-                          onClick={() => openEditGradeModal(gradeLevel)}
-                        />
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-2">
+                          <IconButton
+                            type="edit"
+                            onClick={() => openEditGradeModal(gradeLevel)}
+                          />
 
-                        <IconButton
-                          type="delete"
-                          onClick={() => handleDeleteGrade(gradeLevel)}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          <IconButton
+                            type="delete"
+                            onClick={() => handleDeleteGrade(gradeLevel)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="5">
+                    <EmptyState
+                      title="No grade levels found"
+                      description="Create a grade level before adding sections."
+                    />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -678,9 +735,9 @@ const GradeSections = () => {
       <div className="rounded-md bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-black text-slate-900">Sections</h2>
+            <h2 className="text-lg font-semibold text-slate-950">Sections</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Sections are connected to the grade levels you created.
+              Sections are connected to grade levels.
             </p>
           </div>
 
@@ -693,14 +750,14 @@ const GradeSections = () => {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search section, grade, teacher..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
+              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
             >
               <option value="All">All Status</option>
               <option value="Active">Active</option>
@@ -709,37 +766,26 @@ const GradeSections = () => {
           </div>
         </div>
 
-        <div className="overflow-visible">
-          <table className="w-full min-w-[920px] border-collapse text-left">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Grade & Section
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Department
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Teachers
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Capacity
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Students
-                </th>
-                <th className="px-5 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Status
-                </th>
-                <th className="px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500">
+                <TableHeader label="Grade & Section" />
+                <TableHeader label="Department" />
+                <TableHeader label="Teachers" />
+                <TableHeader label="Capacity" />
+                <TableHeader label="Students" />
+                <TableHeader label="Status" />
+
+                <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500">
                   Actions
                 </th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredSections.length > 0 ? (
-                filteredSections.map((section) => {
+              {paginatedSections.length > 0 ? (
+                paginatedSections.map((section) => {
                   const gradeLevel = getGradeLevelById(section.gradeLevelId);
                   const assignedTeachers = getTeachersByIds(
                     section.assignedTeacherIds,
@@ -750,41 +796,41 @@ const GradeSections = () => {
                       key={section.id}
                       className="border-b border-slate-100 transition hover:bg-slate-50"
                     >
-                      <td className="px-5 py-3">
-                        <p className="text-sm font-bold text-slate-900">
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-semibold text-slate-900">
                           {gradeLevel?.levelName || "No Grade"} -{" "}
                           {section.sectionName}
                         </p>
 
-                        <p className="mt-1 text-xs font-semibold text-slate-400">
+                        <p className="mt-1 text-xs font-medium text-slate-400">
                           {section.schoolYear}
                         </p>
                       </td>
 
-                      <td className="px-5 py-3 text-sm font-semibold text-slate-600">
+                      <td className="px-5 py-4 text-sm font-medium text-slate-600">
                         {gradeLevel?.department || "-"}
                       </td>
 
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-4">
                         <TeacherProfiles teachers={assignedTeachers} />
                       </td>
 
-                      <td className="px-5 py-3 text-sm font-semibold text-slate-600">
+                      <td className="px-5 py-4 text-sm font-medium text-slate-600">
                         {section.capacity || "-"}
                       </td>
 
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
                           <FiUsers className="text-slate-400" />
                           {section.students}
                         </div>
                       </td>
 
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-4">
                         <StatusBadge status={section.status} />
                       </td>
 
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-4">
                         <div className="flex justify-end gap-2">
                           <IconButton
                             type="assign"
@@ -807,20 +853,28 @@ const GradeSections = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan="7" className="px-5 py-12 text-center">
-                    <p className="font-black text-slate-900">
-                      No sections found
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      Try changing your search or add a new section.
-                    </p>
+                  <td colSpan="7">
+                    <EmptyState
+                      title="No sections found"
+                      description="Try changing your search or add a new section."
+                    />
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        <PaginationFooter
+          currentPage={currentPage}
+          totalPages={totalPages}
+          rowsPerPage={rowsPerPage}
+          totalRows={displayedSections.length}
+          showingStart={showingStart}
+          showingEnd={showingEnd}
+          onRowsPerPageChange={setRowsPerPage}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <GradeLevelModal
@@ -863,8 +917,8 @@ const GradeSections = () => {
 const SummaryCard = ({ label, value }) => {
   return (
     <div className="rounded-md bg-white p-4 shadow-sm">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
-      <h2 className="mt-2 text-2xl font-black text-slate-950">{value}</h2>
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <h2 className="mt-2 text-2xl font-semibold text-slate-950">{value}</h2>
     </div>
   );
 };
@@ -872,9 +926,8 @@ const SummaryCard = ({ label, value }) => {
 const TeacherProfiles = ({ teachers }) => {
   if (!teachers || teachers.length === 0) {
     return (
-      <div className="group relative inline-flex h-9 w-9 cursor-default items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-400 ring-2 ring-slate-200">
-        -
-        <TeacherTooltip teachers={[]} />
+      <div className="inline-flex items-center rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500">
+        No teacher
       </div>
     );
   }
@@ -883,12 +936,13 @@ const TeacherProfiles = ({ teachers }) => {
   const extraCount = teachers.length - visibleTeachers.length;
 
   return (
-    <div className="group relative inline-flex cursor-default items-center">
+    <div className="flex items-center gap-2">
       <div className="flex -space-x-2">
         {visibleTeachers.map((teacher) => (
           <div
             key={teacher.id}
-            className={`flex h-9 w-9 items-center justify-center rounded-full border-2 border-white text-xs font-black shadow-sm ring-2 ${getTeacherAvatarStyle(
+            title={`${teacher.name} - ${teacher.subject}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-xs font-semibold ring-2 ${getTeacherAvatarStyle(
               teacher.id,
             )}`}
           >
@@ -897,73 +951,113 @@ const TeacherProfiles = ({ teachers }) => {
         ))}
 
         {extraCount > 0 && (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-xs font-black text-slate-600 shadow-sm ring-2 ring-slate-200">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-xs font-semibold text-slate-600 ring-2 ring-slate-200">
             +{extraCount}
           </div>
         )}
       </div>
 
-      <TeacherTooltip teachers={teachers} />
+      <div className="hidden min-w-0 lg:block">
+        <p className="max-w-[180px] truncate text-sm font-medium text-slate-700">
+          {visibleTeachers.map((teacher) => teacher.name).join(", ")}
+        </p>
+        <p className="text-xs font-medium text-slate-400">
+          {teachers.length} assigned
+        </p>
+      </div>
     </div>
   );
 };
 
-const TeacherTooltip = ({ teachers }) => {
+const PaginationFooter = ({
+  currentPage,
+  totalPages,
+  rowsPerPage,
+  totalRows,
+  showingStart,
+  showingEnd,
+  onRowsPerPageChange,
+  onPageChange,
+}) => {
   return (
-    <div className="pointer-events-none absolute bottom-full left-1/2 z-[9999] mb-3 hidden w-80 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-4 text-left shadow-2xl group-hover:block">
-      <div className="absolute bottom-[-7px] left-1/2 h-3.5 w-3.5 -translate-x-1/2 rotate-45 border-b border-r border-slate-200 bg-white" />
+    <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-slate-500">Show</span>
 
-      <div className="mb-3 border-b border-slate-100 pb-3">
-        <p className="text-sm font-black text-slate-900">Assigned Teachers</p>
-        <p className="mt-1 text-xs font-semibold text-slate-500">
-          Hover preview
+          <select
+            value={rowsPerPage}
+            onChange={(event) =>
+              onRowsPerPageChange(Number(event.target.value))
+            }
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+          >
+            {rowsPerPageOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+
+          <span className="text-sm text-slate-500">entries</span>
+        </div>
+
+        <p className="text-sm text-slate-500">
+          Showing {showingStart} to {showingEnd} of {totalRows} sections
         </p>
       </div>
 
-      {teachers.length > 0 ? (
-        <div className="space-y-2">
-          {teachers.map((teacher) => (
-            <div
-              key={teacher.id}
-              className="flex items-center gap-3 rounded-md bg-slate-50 p-3"
-            >
-              <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-black ring-4 ${getTeacherAvatarStyle(
-                  teacher.id,
-                )}`}
-              >
-                {getInitials(teacher.name)}
-              </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <FiChevronLeft />
+          Prev
+        </button>
 
-              <div>
-                <p className="text-sm font-black text-slate-900">
-                  {teacher.name}
-                </p>
-                <p className="text-xs font-semibold text-slate-500">
-                  {teacher.subject}
-                </p>
-              </div>
-            </div>
-          ))}
+        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+          Page {currentPage} of {totalPages}
         </div>
-      ) : (
-        <p className="rounded-md bg-slate-50 p-3 text-sm font-semibold text-slate-500">
-          No teachers assigned.
-        </p>
-      )}
+
+        <button
+          type="button"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Next
+          <FiChevronRight />
+        </button>
+      </div>
     </div>
+  );
+};
+
+const TableHeader = ({ label }) => {
+  return (
+    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+      {label}
+    </th>
   );
 };
 
 const StatusBadge = ({ status }) => {
   return (
     <span
-      className={`rounded-md px-3 py-1 text-xs font-black ${
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${
         status === "Active"
           ? "bg-emerald-50 text-emerald-700"
           : "bg-slate-100 text-slate-500"
       }`}
     >
+      <span
+        className={`h-2 w-2 rounded-full ${
+          status === "Active" ? "bg-emerald-500" : "bg-slate-400"
+        }`}
+      />
       {status}
     </span>
   );
@@ -985,8 +1079,8 @@ const IconButton = ({ type, onClick }) => {
 
   const labels = {
     assign: "Assign Teachers",
-    edit: "Edit Section",
-    delete: "Delete Section",
+    edit: "Edit",
+    delete: "Delete",
   };
 
   return (
@@ -994,10 +1088,20 @@ const IconButton = ({ type, onClick }) => {
       type="button"
       title={labels[type]}
       onClick={onClick}
-      className={`flex h-8 w-8 items-center justify-center rounded-md text-sm transition ${buttonStyles[type]}`}
+      className={`flex h-9 w-9 items-center justify-center rounded-md text-sm transition ${buttonStyles[type]}`}
     >
       {icons[type]}
     </button>
+  );
+};
+
+const EmptyState = ({ title, description }) => {
+  return (
+    <div className="px-5 py-12 text-center">
+      <p className="font-semibold text-slate-900">{title}</p>
+
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
+    </div>
   );
 };
 
