@@ -1,18 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { FiArrowRight, FiEye, FiEyeOff, FiLock, FiUser } from "react-icons/fi";
 import spryLogo from "../assets/Sprylogo.webp";
 import ForgotPasswordModal from "../components/modals/ForgotPasswordModal";
-
-const ADMIN_ACCOUNT = {
-  username: "Sprytech",
-  password: "@Sprytech01",
-  role: "Admin",
-  redirectTo: "/dashboard",
-};
+import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { user, isAuthLoading, login } = useAuth();
 
   const savedUsername = useMemo(() => {
     return localStorage.getItem("spry_remembered_username") || "";
@@ -32,15 +27,7 @@ const Login = () => {
     text: "",
   });
 
-  const isAlreadyLoggedIn = localStorage.getItem("spry_auth_token");
-
-  useEffect(() => {
-    if (isAlreadyLoggedIn) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [isAlreadyLoggedIn, navigate]);
-
-  if (isAlreadyLoggedIn) {
+  if (!isAuthLoading && user) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -58,60 +45,30 @@ const Login = () => {
     }));
   };
 
-  const saveLoginSession = () => {
-    const authUser = {
-      username: ADMIN_ACCOUNT.username,
-      role: ADMIN_ACCOUNT.role,
-      teacherId: "",
-      studentId: "",
-      schoolIds: [],
-      sectionIds: [],
-    };
-
-    localStorage.setItem("spry_auth_token", "spry-admin-token");
-    localStorage.setItem("spry_auth_user", JSON.stringify(authUser));
-
-    localStorage.setItem("spry_username", ADMIN_ACCOUNT.username);
-    localStorage.setItem("spry_user_role", ADMIN_ACCOUNT.role);
-    localStorage.setItem("spry_teacher_id", "");
-    localStorage.setItem("spry_student_id", "");
-
-    localStorage.setItem("username", ADMIN_ACCOUNT.username);
-    localStorage.setItem("role", ADMIN_ACCOUNT.role);
-    localStorage.setItem("isLoggedIn", "true");
-  };
-
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     const username = formData.username.trim();
-    const password = formData.password.trim();
+    const password = formData.password;
 
     if (!username || !password) {
       setMessage({
         type: "error",
         text: "Please enter username and password.",
       });
-      return;
-    }
 
-    const isValidUsername =
-      username.toLowerCase() === ADMIN_ACCOUNT.username.toLowerCase();
-
-    const isValidPassword = password === ADMIN_ACCOUNT.password;
-
-    if (!isValidUsername || !isValidPassword) {
-      setMessage({
-        type: "error",
-        text: "Invalid username or password.",
-      });
       return;
     }
 
     setIsLoading(true);
+    setMessage({ type: "", text: "" });
 
-    setTimeout(() => {
-      saveLoginSession();
+    try {
+      await login({
+        username,
+        password,
+        remember: formData.rememberMe,
+      });
 
       if (formData.rememberMe) {
         localStorage.setItem("spry_remembered_username", username);
@@ -119,8 +76,20 @@ const Login = () => {
         localStorage.removeItem("spry_remembered_username");
       }
 
-      window.location.replace(ADMIN_ACCOUNT.redirectTo);
-    }, 500);
+      navigate("/dashboard", { replace: true });
+    } catch (error) {
+      const validationMessage = error.response?.data?.errors?.username?.[0];
+
+      setMessage({
+        type: "error",
+        text:
+          validationMessage ||
+          error.response?.data?.message ||
+          "Unable to connect to the server.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

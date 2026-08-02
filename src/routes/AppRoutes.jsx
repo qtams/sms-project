@@ -19,6 +19,7 @@ import AdminUsers from "../pages/AdminUsers";
 import GuardUsers from "../pages/GuardUsers";
 import RegistrarUsers from "../pages/RegistrarUsers";
 import UserManagementDetails from "../pages/UserManagementDetails";
+import { useAuth } from "../context/AuthContext";
 
 const ComingSoon = ({ title }) => {
   return (
@@ -47,9 +48,19 @@ const ComingSoon = ({ title }) => {
 };
 
 const ProtectedRoute = () => {
-  const token = localStorage.getItem("spry_auth_token");
+  const { user, isAuthLoading } = useAuth();
 
-  if (!token) {
+  if (isAuthLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-sm font-semibold text-slate-500">
+          Checking session...
+        </p>
+      </div>
+    );
+  }
+
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
