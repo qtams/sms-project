@@ -19,6 +19,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Keep app notifications and SweetAlert dialogs above portal-based modals. */
+.Toastify__toast-container {
+  z-index: 110000 !important;
+}
+
+.swal2-container {
+  z-index: 110000 !important;
+}
+
 button,
 input,
 select,
