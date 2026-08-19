@@ -220,7 +220,7 @@ const UserManagementPage = ({ role }) => {
     if (!confirmed) return;
 
     try {
-      const response = await api.delete(`/api/admin-users/${user.id}`);
+      const response = await api.delete(`${config.apiPath}/${user.id}`);
 
       setUsers((current) => current.filter((item) => item.id !== user.id));
 

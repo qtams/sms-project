@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
+import api from "../lib/api";
 import {
   FiArrowLeft,
   FiCalendar,
@@ -21,9 +22,7 @@ import {
   csvValue,
   formatBirthday,
   getInitials,
-  getStoredUsers,
   roleConfigs,
-  saveStoredUsers,
 } from "../data/userManagementData";
 
 const TEMPORARY_PASSWORD = "Spry@12345";
@@ -33,17 +32,30 @@ const UserManagementDetails = ({ role }) => {
   const { userId } = useParams();
   const config = roleConfigs[role];
 
-  const [users, setUsers] = useState(() => getStoredUsers(config));
-
   const [modalState, setModalState] = useState({
     isOpen: false,
     mode: "edit",
     user: null,
   });
 
-  const selectedUser = useMemo(() => {
-    return users.find((user) => user.userId === userId);
-  }, [users, userId]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isLoading, setIsLoading] =useState(true);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const response = await api.get(`${config.apiPath}/${userId}`);
+
+        setSelectedUser(response.data.data);
+      } catch(error) {
+        setSelectedUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUser();
+  }, [config.apiPath, userId]);
 
   const openEditModal = () => {
     setModalState({
@@ -67,63 +79,23 @@ const UserManagementDetails = ({ role }) => {
       return;
     }
 
-    const updatedUser = {
-      ...selectedUser,
-      ...formData,
-    };
-
-    await apiDebugRequest({
-      module: "user-management",
-      action: `update-${role}-details`,
-      method: "PATCH",
-      payload: {
-        role,
-        userId: selectedUser.userId,
-        user: updatedUser,
-        updatedAt: new Date().toISOString(),
-      },
-    });
-
-    setUsers((current) => {
-      const nextUsers = current.map((user) =>
-        user.userId === selectedUser.userId ? updatedUser : user,
+    try {
+      const response = await api.put(
+        `${config.apiPath}/${selectedUser.id}`,
+        formData,
       );
 
-      saveStoredUsers(config, nextUsers);
-      return nextUsers;
-    });
+      setSelectedUser(response.data.user);
 
-    toast.success("User details updated.");
-    closeModal();
-  };
-
-  const handleResetPassword = async () => {
-    const result = await Swal.fire({
-      title: "Reset password?",
-      text: `This will reset the password of ${selectedUser.fullName}.`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Reset Password",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: "#0891b2",
-      cancelButtonColor: "#64748b",
-      reverseButtons: true,
-    });
-
-    if (!result.isConfirmed) return;
-
-    await apiDebugRequest({
-      module: "user-management",
-      action: `reset-${role}-password`,
-      method: "PATCH",
-      payload: {
-        role,
-        userId: selectedUser.userId,
-        username: selectedUser.username,
-        temporaryPassword: TEMPORARY_PASSWORD,
-        resetAt: new Date().toISOString(),
-      },
-    });
+      toast.success(response.data.message || 'User details updated.');
+      closeModal();
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || 
+        "Unable to update user details.",
+      );
+    }
+    
 
     await Swal.fire({
       title: "Password Reset",
@@ -201,9 +173,17 @@ const UserManagementDetails = ({ role }) => {
     toast.success("User details exported.");
   };
 
+  if (isLoading) {
+    return (
+      <div className="p-10 text-center">
+          Loading user...
+      </div>
+    )
+  }
+
   if (!selectedUser) {
     return (
-      <div data-aos="fade-up" className="space-y-5">
+      <div className="space-y-5">
         <button
           type="button"
           onClick={() => navigate(config.listPath)}
@@ -226,7 +206,7 @@ const UserManagementDetails = ({ role }) => {
   }
 
   return (
-    <div data-aos="fade-up" className="space-y-5">
+    <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-medium text-slate-950">

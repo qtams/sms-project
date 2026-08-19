@@ -15,7 +15,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin-users')->group(function () {
         Route::get('/', [AdminUserController::class, 'index']);
         Route::post('/', [AdminUserController::class, 'store']);
-        Route::get('/{user}', [AdminUserController::class, 'show']);
+        Route::get('/{user:user_code}', [AdminUserController::class, 'show']);
         Route::put('/{user}', [AdminUserController::class, 'update']);
 
         Route::patch('/{user}/status', [
