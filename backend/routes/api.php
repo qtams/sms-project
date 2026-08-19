@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminUserController;
+use App\Http\Controllers\Api\GuardUserController;
 use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,5 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
             AdminUserController::class,
             'destroy',
         ]);
+    });
+
+    Route::prefix('guard-users')->group(function() {
+        Route::get('/', [GuardUserController::class, 'index']);
     });
 });

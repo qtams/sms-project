@@ -34,11 +34,11 @@ const UserManagementPage = ({ role }) => {
       setIsLoading(true);
 
       try {
-        if (role !== "admin") {
+        if (!config.apiPath) {
           throw new Error(`${config.roleLabel} API is not implemented yet.`);
         }
 
-        const response = await api.get("/api/admin-users");
+        const response = await api.get(config.apiPath);
 
         if (isCurrent) {
           setUsers(response.data.data);
