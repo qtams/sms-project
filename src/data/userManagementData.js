@@ -35,6 +35,8 @@ export const roleConfigs = {
         status: "Active",
       },
     ],
+
+    apiPath:"/api/admin-users",
   },
 
   guard: {
@@ -73,6 +75,7 @@ export const roleConfigs = {
         status: "Inactive",
       },
     ],
+    apiPath: "/api/guard-users",
   },
 
   registrar: {
@@ -111,6 +114,7 @@ export const roleConfigs = {
         status: "Active",
       },
     ],
+    apiPath: "/api/registrar-users",
   },
 };
 

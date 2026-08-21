@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../lib/api";
 import {
   FiCheckCircle,
   FiDownload,
@@ -16,21 +17,55 @@ import {
 } from "react-icons/fi";
 import { toast } from "react-toastify";
 import UserManagementModal from "../components/modals/UserManagementModal";
-import { apiDebugRequest } from "../utils/apiDebugger";
-import {
-  createUserId,
-  csvValue,
-  getInitials,
-  getStoredUsers,
-  roleConfigs,
-  saveStoredUsers,
-} from "../data/userManagementData";
+import { csvValue, getInitials, roleConfigs } from "../data/userManagementData";
 
 const UserManagementPage = ({ role }) => {
   const navigate = useNavigate();
   const config = roleConfigs[role];
 
-  const [users, setUsers] = useState(() => getStoredUsers(config));
+  const [users, setUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    const loadUsers = async () => {
+      setIsLoading(true);
+
+      try {
+        if (!config.apiPath) {
+          throw new Error(`${config.roleLabel} API is not implemented yet.`);
+        }
+
+        const response = await api.get(config.apiPath);
+
+        if (isCurrent) {
+          setUsers(response.data.data);
+        }
+      } catch (error) {
+        if (isCurrent) {
+          setUsers([]);
+          toast.error(
+            error.response?.data?.message ||
+              error.message ||
+              "Unable to load user accounts.",
+          );
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [config.apiPath, config.roleLabel, role]);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
@@ -93,85 +128,86 @@ const UserManagementPage = ({ role }) => {
   };
 
   const handleSaveUser = async (formData) => {
-    if (!formData.fullName.trim() || !formData.username.trim()) {
-      toast.error("Full name and username are required.");
+    if (
+      !formData.firstName.trim() ||
+      !formData.lastName.trim() ||
+      !formData.username.trim()
+    ) {
+      toast.error("First name, last name, and username are required.");
       return;
     }
 
-    const nextUser =
-      modalState.mode === "edit"
-        ? {
-            ...modalState.user,
-            ...formData,
-          }
-        : {
-            id: Date.now(),
-            userId: createUserId(config, users),
-            ...formData,
-          };
+    setIsSaving(true);
 
-    await apiDebugRequest({
-      module: "user-management",
-      action: modalState.mode === "edit" ? `update-${role}` : `create-${role}`,
-      method: modalState.mode === "edit" ? "PATCH" : "POST",
-      payload: {
-        role,
-        roleLabel: config.roleLabel,
-        user: nextUser,
-        submittedAt: new Date().toISOString(),
-      },
-    });
+    try {
+      if (modalState.mode === "edit") {
+        const response = await api.put(
+          `${config.apiPath}/${modalState.user.id}`,
+          formData,
+        );
 
-    setUsers((current) => {
-      const nextUsers =
-        modalState.mode === "edit"
-          ? current.map((user) =>
-              user.id === modalState.user.id ? nextUser : user,
-            )
-          : [nextUser, ...current];
+        const updatedUser = response.data.user;
 
-      saveStoredUsers(config, nextUsers);
-      return nextUsers;
-    });
+        setUsers((current) =>
+          current.map((user) =>
+            user.id === updatedUser.id ? updatedUser : user,
+          ),
+        );
 
-    toast.success(
-      modalState.mode === "edit" ? "User updated." : "User created.",
-    );
+        toast.success(response.data.message);
+      } else {
+        const response = await api.post(config.apiPath, formData);
 
-    closeModal();
+        const createdUser = response.data.user;
+
+        setUsers((current) => [createdUser, ...current]);
+
+        toast.success(response.data.message);
+      }
+
+      closeModal();
+    } catch (error) {
+      const validationErrors = error.response?.data?.errors;
+
+      if (validationErrors) {
+        const firstMessage = Object.values(validationErrors).flat()[0];
+
+        toast.error(firstMessage);
+        return;
+      }
+
+      toast.error(
+        error.response?.data?.message ||
+          `Unable to save ${config.roleLabel.toLowerCase()}.`,
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleStatusToggle = async (user) => {
     const nextStatus = user.status === "Active" ? "Inactive" : "Active";
 
-    const updatedUser = {
-      ...user,
-      status: nextStatus,
-    };
+    try {
+      const response = await api.patch(`${config.apiPath}/${user.id}/status`, {
+        status: nextStatus,
+      });
 
-    await apiDebugRequest({
-      module: "user-management",
-      action: `toggle-${role}-status`,
-      method: "PATCH",
-      payload: {
-        role,
-        userId: user.userId,
-        previousStatus: user.status,
-        nextStatus,
-        updatedAt: new Date().toISOString(),
-      },
-    });
+      const updatedUser = response.data.user;
 
-    setUsers((current) => {
-      const nextUsers = current.map((item) =>
-        item.id === user.id ? updatedUser : item,
+      setUsers((current) =>
+        current.map((item) =>
+          item.id === updatedUser.id ? updatedUser : item,
+        ),
       );
 
-      saveStoredUsers(config, nextUsers);
-      return nextUsers;
-    });
-
-    toast.success(`User set to ${nextStatus}.`);
+      toast.success(response.data.message);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          `Unable to change ${config.roleLabel.toLowerCase()} status.`,
+      );
+    }
   };
 
   const handleDelete = async (user) => {
@@ -179,25 +215,18 @@ const UserManagementPage = ({ role }) => {
 
     if (!confirmed) return;
 
-    await apiDebugRequest({
-      module: "user-management",
-      action: `delete-${role}`,
-      method: "DELETE",
-      payload: {
-        role,
-        userId: user.userId,
-        deletedAt: new Date().toISOString(),
-      },
-    });
+    try {
+      const response = await api.delete(`${config.apiPath}/${user.id}`);
 
-    setUsers((current) => {
-      const nextUsers = current.filter((item) => item.id !== user.id);
+      setUsers((current) => current.filter((item) => item.id !== user.id));
 
-      saveStoredUsers(config, nextUsers);
-      return nextUsers;
-    });
-
-    toast.success("User deleted.");
+      toast.success(response.data.message);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          `Unable to delete ${config.roleLabel.toLowerCase()}.`,
+      );
+    }
   };
 
   const handleExport = async () => {
@@ -214,18 +243,6 @@ const UserManagementPage = ({ role }) => {
       role: config.roleLabel,
       status: user.status,
     }));
-
-    await apiDebugRequest({
-      module: "user-management",
-      action: `export-${role}`,
-      method: "POST",
-      payload: {
-        role,
-        totalRows: rows.length,
-        rows,
-        exportedAt: new Date().toISOString(),
-      },
-    });
 
     const header = [
       "User ID",
@@ -375,7 +392,15 @@ const UserManagementPage = ({ role }) => {
             </thead>
 
             <tbody>
-              {filteredUsers.length > 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan="6" className="px-5 py-12 text-center">
+                    <p className="text-sm font-medium text-slate-500">
+                      Loading {config.roleLabel.toLowerCase()} accounts...
+                    </p>
+                  </td>
+                </tr>
+              ) : filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
                   <tr
                     key={user.id}
@@ -478,6 +503,7 @@ const UserManagementPage = ({ role }) => {
         mode={modalState.mode}
         roleLabel={config.roleLabel}
         user={modalState.user}
+        isSaving={isSaving}
         onClose={closeModal}
         onSave={handleSaveUser}
       />

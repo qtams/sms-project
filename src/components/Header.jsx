@@ -3,8 +3,10 @@ import { LogOut, User, UserCircle } from "lucide-react";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import spryIcon from "../assets/Sprytechicon.webp";
+import { useAuth } from "../context/AuthContext";
 
 const Header = () => {
+  const { user, logout } = useAuth();
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -21,15 +23,14 @@ const Header = () => {
 
     if (!result.isConfirmed) return;
 
-    localStorage.clear();
-    sessionStorage.clear();
-
-    toast.success("Logged out successfully");
-    setIsAccountOpen(false);
-
-    setTimeout(() => {
-      window.location.href = "/dashboard";
-    }, 500);
+    try {
+      await logout();
+      toast.success("Logged out successfully");
+      setIsAccountOpen(false);
+      window.location.href = "/login";
+    } catch {
+      toast.error("Unable to log out. Please try again.");
+    }
   };
 
   useEffect(() => {
@@ -81,10 +82,10 @@ const Header = () => {
             <div className="absolute right-0 top-14 w-80 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
               <div className="border-b border-slate-200 p-5">
                 <h2 className="text-sm font-black text-slate-950">
-                  SPRYtech SOLUTIONS
+                  {user?.name || "Account"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  sprytechmail@gmail.com
+                  {user?.email || ""}
                 </p>
               </div>
 

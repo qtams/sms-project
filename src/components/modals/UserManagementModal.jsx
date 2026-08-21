@@ -4,9 +4,12 @@ import BaseModal from "./BaseModal";
 import { statusOptions } from "../../data/userManagementData";
 
 const emptyForm = {
-  fullName: "",
+  firstName: "",
+  lastName: "",
   username: "",
   email: "",
+  password: "",
+  password_confirmation: "",
   mobile: "",
   birthday: "",
   department: "",
@@ -20,6 +23,7 @@ const UserManagementModal = ({
   mode = "create",
   roleLabel,
   user,
+  isSaving = false,
   onClose,
   onSave,
 }) => {
@@ -30,9 +34,12 @@ const UserManagementModal = ({
 
     if (user) {
       setFormData({
-        fullName: user.fullName || "",
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
         username: user.username || "",
         email: user.email || "",
+        password: "",
+        password_confirmation: "",
         mobile: user.mobile || "",
         birthday: user.birthday || "",
         department: user.department || "",
@@ -68,10 +75,17 @@ const UserManagementModal = ({
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid gap-4 md:grid-cols-2">
           <FormInput
-            label="Full Name"
-            value={formData.fullName}
-            onChange={(value) => updateFormValue("fullName", value)}
-            placeholder="Enter full name"
+            label="First Name"
+            value={formData.firstName}
+            onChange={(value) => updateFormValue("firstName", value)}
+            placeholder="Enter first name"
+          />
+
+          <FormInput
+            label="Last Name"
+            value={formData.lastName}
+            onChange={(value) => updateFormValue("lastName", value)}
+            placeholder="Enter last name"
           />
 
           <FormInput
@@ -88,6 +102,28 @@ const UserManagementModal = ({
             onChange={(value) => updateFormValue("email", value)}
             placeholder="Enter email"
           />
+
+          {mode === "create" && (
+            <>
+              <FormInput
+                label="Password"
+                type="password"
+                value={formData.password}
+                onChange={(value) => updateFormValue("password", value)}
+                placeholder="At least 8 characters"
+              />
+
+              <FormInput
+                label="Confirm Password"
+                type="password"
+                value={formData.password_confirmation}
+                onChange={(value) =>
+                  updateFormValue("password_confirmation", value)
+                }
+                placeholder="Repeat the password"
+              />
+            </>
+          )}
 
           <FormInput
             label="Mobile Number"
@@ -143,10 +179,15 @@ const UserManagementModal = ({
 
           <button
             type="submit"
-            className="inline-flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <FiSave />
-            {mode === "edit" ? "Save Changes" : "Create User"}
+            {isSaving
+              ? "Saving..."
+              : mode === "edit"
+                ? "Save Changes"
+                : "Create User"}
           </button>
         </div>
       </form>
