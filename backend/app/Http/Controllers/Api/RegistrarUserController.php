@@ -2,20 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
-class GuardUserController extends RoleUserController
+class RegistrarUserController extends RoleUserController
 {
     protected function managedRole(): string
     {
-        return 'guard';
+        return 'registrar';
     }
 
     protected function codePrefix(): string
     {
-        return 'GRD';
+        return 'REG';
     }
 
     protected function accountLabel(): string
     {
-        return 'Guard';
+        return 'Registrar';
     }
 }

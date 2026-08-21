@@ -64,7 +64,7 @@ const UserManagementPage = ({ role }) => {
     return () => {
       isCurrent = false;
     };
-  }, [config.roleLabel, role]);
+  }, [config.apiPath, config.roleLabel, role]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -128,11 +128,6 @@ const UserManagementPage = ({ role }) => {
   };
 
   const handleSaveUser = async (formData) => {
-    if (role !== "admin") {
-      toast.error(`${config.roleLabel} API is not implemented yet.`);
-      return;
-    }
-
     if (
       !formData.firstName.trim() ||
       !formData.lastName.trim() ||
@@ -147,7 +142,7 @@ const UserManagementPage = ({ role }) => {
     try {
       if (modalState.mode === "edit") {
         const response = await api.put(
-          `/api/admin-users/${modalState.user.id}`,
+          `${config.apiPath}/${modalState.user.id}`,
           formData,
         );
 
@@ -161,7 +156,7 @@ const UserManagementPage = ({ role }) => {
 
         toast.success(response.data.message);
       } else {
-        const response = await api.post("/api/admin-users", formData);
+        const response = await api.post(config.apiPath, formData);
 
         const createdUser = response.data.user;
 
@@ -182,7 +177,8 @@ const UserManagementPage = ({ role }) => {
       }
 
       toast.error(
-        error.response?.data?.message || "Unable to save administrator.",
+        error.response?.data?.message ||
+          `Unable to save ${config.roleLabel.toLowerCase()}.`,
       );
     } finally {
       setIsSaving(false);
@@ -193,7 +189,7 @@ const UserManagementPage = ({ role }) => {
     const nextStatus = user.status === "Active" ? "Inactive" : "Active";
 
     try {
-      const response = await api.patch(`/api/admin-users/${user.id}/status`, {
+      const response = await api.patch(`${config.apiPath}/${user.id}/status`, {
         status: nextStatus,
       });
 
@@ -209,7 +205,7 @@ const UserManagementPage = ({ role }) => {
     } catch (error) {
       toast.error(
         error.response?.data?.message ||
-          "Unable to change administrator status.",
+          `Unable to change ${config.roleLabel.toLowerCase()} status.`,
       );
     }
   };
@@ -227,7 +223,8 @@ const UserManagementPage = ({ role }) => {
       toast.success(response.data.message);
     } catch (error) {
       toast.error(
-        error.response?.data?.message || "Unable to delete administrator.",
+        error.response?.data?.message ||
+          `Unable to delete ${config.roleLabel.toLowerCase()}.`,
       );
     }
   };
@@ -399,7 +396,7 @@ const UserManagementPage = ({ role }) => {
                 <tr>
                   <td colSpan="6" className="px-5 py-12 text-center">
                     <p className="text-sm font-medium text-slate-500">
-                      Loading administrator accounts...
+                      Loading {config.roleLabel.toLowerCase()} accounts...
                     </p>
                   </td>
                 </tr>

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\GuardUserController;
+use App\Http\Controllers\Api\RegistrarUserController;
 use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,7 +30,14 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
-    Route::prefix('guard-users')->group(function() {
-        Route::get('/', [GuardUserController::class, 'index']);
-    });
+    foreach (['guard-users' => GuardUserController::class, 'registrar-users' => RegistrarUserController::class] as $prefix => $controller) {
+        Route::prefix($prefix)->group(function () use ($controller) {
+            Route::get('/', [$controller, 'index']);
+            Route::post('/', [$controller, 'store']);
+            Route::get('/{user:user_code}', [$controller, 'show']);
+            Route::put('/{user}', [$controller, 'update']);
+            Route::patch('/{user}/status', [$controller, 'updateStatus']);
+            Route::delete('/{user}', [$controller, 'destroy']);
+        });
+    }
 });

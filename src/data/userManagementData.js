@@ -114,6 +114,7 @@ export const roleConfigs = {
         status: "Active",
       },
     ],
+    apiPath: "/api/registrar-users",
   },
 };
 
