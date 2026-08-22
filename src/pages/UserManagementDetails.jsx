@@ -74,8 +74,8 @@ const UserManagementDetails = ({ role }) => {
   };
 
   const handleSaveUser = async (formData) => {
-    if (!formData.fullName.trim() || !formData.username.trim()) {
-      toast.error("Full name and username are required.");
+    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.username.trim()) {
+      toast.error("First name, last name, and username are required.");
       return;
     }
 

@@ -84,9 +84,6 @@ const UserManagementPage = ({ role }) => {
         user.username.toLowerCase().includes(searchValue) ||
         user.email.toLowerCase().includes(searchValue) ||
         user.userId.toLowerCase().includes(searchValue) ||
-        String(user.rfid || "")
-          .toLowerCase()
-          .includes(searchValue) ||
         String(user.mobile || "")
           .toLowerCase()
           .includes(searchValue);
@@ -237,7 +234,6 @@ const UserManagementPage = ({ role }) => {
       email: user.email,
       mobile: user.mobile,
       birthday: user.birthday,
-      rfid: user.rfid,
       department: user.department,
       position: user.position,
       role: config.roleLabel,
@@ -251,7 +247,6 @@ const UserManagementPage = ({ role }) => {
       "Email",
       "Mobile",
       "Birthday",
-      "RFID",
       "Department",
       "Position",
       "Role",
@@ -266,7 +261,6 @@ const UserManagementPage = ({ role }) => {
         row.email,
         row.mobile,
         row.birthday,
-        row.rfid,
         row.department,
         row.position,
         row.role,
@@ -358,7 +352,7 @@ const UserManagementPage = ({ role }) => {
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search name, username, email, ID, RFID..."
+                placeholder="Search name, username, email, or staff ID..."
                 className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
@@ -465,7 +459,7 @@ const UserManagementPage = ({ role }) => {
                           icon={<FiEye />}
                           className="bg-slate-100 text-slate-600 hover:bg-slate-900 hover:text-white"
                           onClick={() =>
-                            navigate(`/user-management/${role}/${user.userId}`)
+                            navigate(`/user-management/${role}/${user.id}`)
                           }
                         />
 

@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
 import { FiSave } from "react-icons/fi";
 import BaseModal from "./BaseModal";
+import api from "../../lib/api";
 import { statusOptions } from "../../data/userManagementData";
 
 const emptyForm = {
   firstName: "",
+  middleName: "",
   lastName: "",
+  suffix: "",
   username: "",
   email: "",
   password: "",
   password_confirmation: "",
   mobile: "",
   birthday: "",
-  department: "",
-  position: "",
-  rfid: "",
+  address: "",
+  departmentId: "",
+  positionId: "",
+  employmentStatus: "active",
+  hireDate: "",
   status: "Active",
 };
 
@@ -28,6 +33,15 @@ const UserManagementModal = ({
   onSave,
 }) => {
   const [formData, setFormData] = useState(emptyForm);
+  const [metadata, setMetadata] = useState({ departments: [], positions: [] });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    api.get("/api/staff-metadata").then((response) => {
+      setMetadata(response.data);
+    }).catch(() => setMetadata({ departments: [], positions: [] }));
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -35,16 +49,20 @@ const UserManagementModal = ({
     if (user) {
       setFormData({
         firstName: user.firstName || "",
+        middleName: user.middleName || "",
         lastName: user.lastName || "",
+        suffix: user.suffix || "",
         username: user.username || "",
         email: user.email || "",
         password: "",
         password_confirmation: "",
         mobile: user.mobile || "",
         birthday: user.birthday || "",
-        department: user.department || "",
-        position: user.position || "",
-        rfid: user.rfid || "",
+        address: user.address || "",
+        departmentId: user.departmentId || "",
+        positionId: user.positionId || "",
+        employmentStatus: user.employmentStatus || "active",
+        hireDate: user.hireDate || "",
         status: user.status || "Active",
       });
     } else {
@@ -82,10 +100,24 @@ const UserManagementModal = ({
           />
 
           <FormInput
+            label="Middle Name"
+            value={formData.middleName}
+            onChange={(value) => updateFormValue("middleName", value)}
+            placeholder="Optional"
+          />
+
+          <FormInput
             label="Last Name"
             value={formData.lastName}
             onChange={(value) => updateFormValue("lastName", value)}
             placeholder="Enter last name"
+          />
+
+          <FormInput
+            label="Suffix"
+            value={formData.suffix}
+            onChange={(value) => updateFormValue("suffix", value)}
+            placeholder="Jr., III, etc."
           />
 
           <FormInput
@@ -139,26 +171,50 @@ const UserManagementModal = ({
             onChange={(value) => updateFormValue("birthday", value)}
           />
 
-          <FormInput
-            label="RFID"
-            value={formData.rfid}
-            onChange={(value) => updateFormValue("rfid", value)}
-            placeholder="Enter RFID number"
-          />
-
-          <FormInput
+          <FormSelect
             label="Department"
-            value={formData.department}
-            onChange={(value) => updateFormValue("department", value)}
-            placeholder="Enter department"
+            value={formData.departmentId}
+            onChange={(value) => updateFormValue("departmentId", value)}
+            options={metadata.departments.map((item) => ({ value: item.id, label: item.name }))}
+            placeholder="Select department"
+          />
+
+          <FormSelect
+            label="Position"
+            value={formData.positionId}
+            onChange={(value) => updateFormValue("positionId", value)}
+            options={metadata.positions.map((item) => ({ value: item.id, label: item.name }))}
+            placeholder="Select position"
           />
 
           <FormInput
-            label="Position"
-            value={formData.position}
-            onChange={(value) => updateFormValue("position", value)}
-            placeholder="Enter position"
+            label="Hire Date"
+            type="date"
+            value={formData.hireDate}
+            onChange={(value) => updateFormValue("hireDate", value)}
           />
+
+          <FormSelect
+            label="Employment Status"
+            value={formData.employmentStatus}
+            onChange={(value) => updateFormValue("employmentStatus", value)}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+              { value: "on_leave", label: "On Leave" },
+              { value: "separated", label: "Separated" },
+            ]}
+          />
+
+          <label className="block md:col-span-2">
+            <span className="mb-2 block text-sm font-medium text-slate-600">Address</span>
+            <textarea
+              value={formData.address}
+              onChange={(event) => updateFormValue("address", event.target.value)}
+              rows="3"
+              className="w-full rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+            />
+          </label>
 
           <FormSelect
             label="Status"
@@ -213,7 +269,7 @@ const FormInput = ({ label, value, onChange, placeholder, type = "text" }) => {
   );
 };
 
-const FormSelect = ({ label, value, onChange, options }) => {
+const FormSelect = ({ label, value, onChange, options, placeholder }) => {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium text-slate-600">
@@ -225,9 +281,10 @@ const FormSelect = ({ label, value, onChange, options }) => {
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
       >
+        {placeholder && <option value="">{placeholder}</option>}
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={option.value ?? option} value={option.value ?? option}>
+            {option.label ?? option}
           </option>
         ))}
       </select>
