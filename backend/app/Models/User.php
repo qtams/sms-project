@@ -5,24 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 #[Fillable([
-    'user_code',
-    'first_name',
-    'last_name',
-    'name',
     'username',
     'email',
     'password',
     'role',
     'is_active',
-    'mobile',
-    'birthday',
-    'department',
-    'position',
-    'rfid',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -39,9 +31,13 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'birthday' => 'date:Y-m-d',
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function staffProfile(): HasOne
+    {
+        return $this->hasOne(StaffProfile::class);
     }
 }

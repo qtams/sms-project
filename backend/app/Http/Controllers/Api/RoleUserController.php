@@ -23,7 +23,9 @@ abstract class RoleUserController extends Controller
     {
         $this->authorizeAdministrator($request);
 
-        return AdminUserResource::collection(User::query()->where('role', $this->managedRole())->latest()->get());
+        return AdminUserResource::collection(User::query()
+            ->with(['staffProfile.department', 'staffProfile.position'])
+            ->where('role', $this->managedRole())->latest()->get());
     }
 
     public function store(Request $request): JsonResponse
@@ -31,13 +33,15 @@ abstract class RoleUserController extends Controller
         $this->authorizeAdministrator($request);
         $validated = $request->validate($this->validationRules());
         $user = DB::transaction(function () use ($validated) {
-            $user = User::create($this->attributes($validated) + [
+            $user = User::create($this->accountAttributes($validated) + [
                 'password' => $validated['password'],
                 'role' => $this->managedRole(),
             ]);
-            $user->update(['user_code' => $this->codePrefix().'-'.str_pad((string) $user->id, 4, '0', STR_PAD_LEFT)]);
+            $user->staffProfile()->create($this->profileAttributes($validated) + [
+                'staff_no' => $this->codePrefix().'-'.str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
+            ]);
 
-            return $user->refresh();
+            return $user->load(['staffProfile.department', 'staffProfile.position']);
         });
 
         return response()->json(['message' => $this->accountLabel().' created successfully.', 'user' => new AdminUserResource($user)], 201);
@@ -48,7 +52,7 @@ abstract class RoleUserController extends Controller
         $this->authorizeAdministrator($request);
         $this->ensureManagedRole($user);
 
-        return new AdminUserResource($user);
+        return new AdminUserResource($user->load(['staffProfile.department', 'staffProfile.position']));
     }
 
     public function update(Request $request, User $user): JsonResponse
@@ -56,9 +60,18 @@ abstract class RoleUserController extends Controller
         $this->authorizeAdministrator($request);
         $this->ensureManagedRole($user);
         $validated = $request->validate($this->validationRules($user));
-        $user->update($this->attributes($validated));
+        DB::transaction(function () use ($user, $validated) {
+            $user->update($this->accountAttributes($validated));
+            $user->staffProfile()->updateOrCreate(
+                ['user_id' => $user->id],
+                $this->profileAttributes($validated) + [
+                    'staff_no' => $user->staffProfile?->staff_no
+                        ?: $this->codePrefix().'-'.str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
+                ],
+            );
+        });
 
-        return response()->json(['message' => $this->accountLabel().' updated successfully.', 'user' => new AdminUserResource($user->refresh())]);
+        return response()->json(['message' => $this->accountLabel().' updated successfully.', 'user' => new AdminUserResource($user->refresh()->load(['staffProfile.department', 'staffProfile.position']))]);
     }
 
     public function updateStatus(Request $request, User $user): JsonResponse
@@ -66,32 +79,51 @@ abstract class RoleUserController extends Controller
         $this->authorizeAdministrator($request);
         $this->ensureManagedRole($user);
         $validated = $request->validate(['status' => ['required', Rule::in(['Active', 'Inactive'])]]);
-        $user->update(['is_active' => $validated['status'] === 'Active']);
+        if ($request->user()->is($user) && $validated['status'] === 'Inactive') {
+            return response()->json(['message' => 'You cannot deactivate your own account.'], 422);
+        }
 
-        return response()->json(['message' => $this->accountLabel()." set to {$validated['status']}.", 'user' => new AdminUserResource($user->refresh())]);
+        DB::transaction(function () use ($user, $validated) {
+            $active = $validated['status'] === 'Active';
+            $user->update(['is_active' => $active]);
+            $user->staffProfile?->update(['employment_status' => $active ? 'active' : 'inactive']);
+        });
+
+        return response()->json(['message' => $this->accountLabel()." set to {$validated['status']}.", 'user' => new AdminUserResource($user->refresh()->load(['staffProfile.department', 'staffProfile.position']))]);
     }
 
     public function destroy(Request $request, User $user): JsonResponse
     {
         $this->authorizeAdministrator($request);
         $this->ensureManagedRole($user);
-        $user->delete();
+        if ($request->user()->is($user)) {
+            return response()->json(['message' => 'You cannot archive your own account.'], 422);
+        }
 
-        return response()->json(['message' => $this->accountLabel().' deleted successfully.']);
+        DB::transaction(function () use ($user) {
+            $user->update(['is_active' => false]);
+            $user->staffProfile?->update(['employment_status' => 'separated']);
+        });
+
+        return response()->json(['message' => $this->accountLabel().' archived successfully.']);
     }
 
     private function validationRules(?User $user = null): array
     {
         $rules = [
             'firstName' => ['required', 'string', 'max:100'],
+            'middleName' => ['nullable', 'string', 'max:100'],
             'lastName' => ['required', 'string', 'max:100'],
+            'suffix' => ['nullable', 'string', 'max:20'],
             'username' => ['required', 'string', 'max:100', Rule::unique('users', 'username')->ignore($user?->id)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
             'mobile' => ['nullable', 'string', 'max:30'],
             'birthday' => ['nullable', 'date', 'before:today'],
-            'department' => ['nullable', 'string', 'max:255'],
-            'position' => ['nullable', 'string', 'max:255'],
-            'rfid' => ['nullable', 'string', 'max:255', Rule::unique('users', 'rfid')->ignore($user?->id)],
+            'address' => ['nullable', 'string', 'max:2000'],
+            'departmentId' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('is_active', true)],
+            'positionId' => ['nullable', 'integer', Rule::exists('positions', 'id')->where('is_active', true)],
+            'employmentStatus' => ['nullable', Rule::in(['active', 'inactive', 'on_leave', 'separated'])],
+            'hireDate' => ['nullable', 'date'],
             'status' => ['required', Rule::in(['Active', 'Inactive'])],
         ];
         if ($user === null) {
@@ -101,15 +133,28 @@ abstract class RoleUserController extends Controller
         return $rules;
     }
 
-    private function attributes(array $validated): array
+    private function accountAttributes(array $validated): array
     {
         return [
-            'first_name' => $validated['firstName'], 'last_name' => $validated['lastName'],
-            'name' => trim($validated['firstName'].' '.$validated['lastName']),
             'username' => $validated['username'], 'email' => $validated['email'],
-            'is_active' => $validated['status'] === 'Active', 'mobile' => $validated['mobile'] ?? null,
-            'birthday' => $validated['birthday'] ?? null, 'department' => $validated['department'] ?? null,
-            'position' => $validated['position'] ?? null, 'rfid' => $validated['rfid'] ?? null,
+            'is_active' => $validated['status'] === 'Active',
+        ];
+    }
+
+    private function profileAttributes(array $validated): array
+    {
+        return [
+            'first_name' => $validated['firstName'],
+            'middle_name' => $validated['middleName'] ?? null,
+            'last_name' => $validated['lastName'],
+            'suffix' => $validated['suffix'] ?? null,
+            'mobile' => $validated['mobile'] ?? null,
+            'birth_date' => $validated['birthday'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'department_id' => $validated['departmentId'] ?? null,
+            'position_id' => $validated['positionId'] ?? null,
+            'employment_status' => $validated['employmentStatus'] ?? ($validated['status'] === 'Active' ? 'active' : 'inactive'),
+            'hire_date' => $validated['hireDate'] ?? null,
         ];
     }
 

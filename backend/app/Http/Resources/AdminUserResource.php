@@ -14,23 +14,30 @@ class AdminUserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $nameParts = preg_split('/\s+/', trim($this->name), 2);
-        $firstName = $this->first_name ?: ($nameParts[0] ?? '');
-        $lastName = $this->last_name ?: ($nameParts[1] ?? '');
+        $profile = $this->staffProfile;
+        $firstName = $profile?->first_name ?? '';
+        $lastName = $profile?->last_name ?? '';
 
         return [
             'id' => $this->id,
-            'userId' => $this->user_code,
+            'userId' => $profile?->staff_no,
             'firstName' => $firstName,
             'lastName' => $lastName,
             'fullName' => trim("{$firstName} {$lastName}"),
             'username' => $this->username,
             'email' => $this->email,
-            'mobile' => $this->mobile,
-            'birthday' => $this->birthday?->format('Y-m-d'),
-            'department' => $this->department,
-            'position' => $this->position,
-            'rfid' => $this->rfid,
+            'middleName' => $profile?->middle_name,
+            'suffix' => $profile?->suffix,
+            'mobile' => $profile?->mobile,
+            'birthday' => $profile?->birth_date?->format('Y-m-d'),
+            'address' => $profile?->address,
+            'departmentId' => $profile?->department_id,
+            'department' => $profile?->department?->name,
+            'positionId' => $profile?->position_id,
+            'position' => $profile?->position?->name,
+            'employmentStatus' => $profile?->employment_status,
+            'hireDate' => $profile?->hire_date?->format('Y-m-d'),
+            'rfid' => null,
             'role' => $this->role,
             'status' => $this->is_active ? 'Active' : 'Inactive',
             'createdAt' => $this->created_at?->toISOString(),
