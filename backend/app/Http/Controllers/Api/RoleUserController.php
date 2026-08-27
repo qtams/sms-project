@@ -25,7 +25,7 @@ abstract class RoleUserController extends Controller
 
         return AdminUserResource::collection(User::query()
             ->with(['staffProfile.department', 'staffProfile.position'])
-            ->where('role', $this->managedRole())->latest()->get());
+            ->where('role', $this->managedRole())->whereHas('staffProfile')->latest()->get());
     }
 
     public function store(Request $request): JsonResponse
@@ -38,13 +38,13 @@ abstract class RoleUserController extends Controller
                 'role' => $this->managedRole(),
             ]);
             $user->staffProfile()->create($this->profileAttributes($validated) + [
-                'staff_no' => $this->codePrefix().'-'.str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
+                'staff_no' => $this->codePrefix() . '-' . str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
             ]);
 
             return $user->load(['staffProfile.department', 'staffProfile.position']);
         });
 
-        return response()->json(['message' => $this->accountLabel().' created successfully.', 'user' => new AdminUserResource($user)], 201);
+        return response()->json(['message' => $this->accountLabel() . ' created successfully.', 'user' => new AdminUserResource($user)], 201);
     }
 
     public function show(Request $request, User $user): AdminUserResource
@@ -66,12 +66,12 @@ abstract class RoleUserController extends Controller
                 ['user_id' => $user->id],
                 $this->profileAttributes($validated) + [
                     'staff_no' => $user->staffProfile?->staff_no
-                        ?: $this->codePrefix().'-'.str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
+                        ?: $this->codePrefix() . '-' . str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
                 ],
             );
         });
 
-        return response()->json(['message' => $this->accountLabel().' updated successfully.', 'user' => new AdminUserResource($user->refresh()->load(['staffProfile.department', 'staffProfile.position']))]);
+        return response()->json(['message' => $this->accountLabel() . ' updated successfully.', 'user' => new AdminUserResource($user->refresh()->load(['staffProfile.department', 'staffProfile.position']))]);
     }
 
     public function updateStatus(Request $request, User $user): JsonResponse
@@ -89,7 +89,7 @@ abstract class RoleUserController extends Controller
             $user->staffProfile?->update(['employment_status' => $active ? 'active' : 'inactive']);
         });
 
-        return response()->json(['message' => $this->accountLabel()." set to {$validated['status']}.", 'user' => new AdminUserResource($user->refresh()->load(['staffProfile.department', 'staffProfile.position']))]);
+        return response()->json(['message' => $this->accountLabel() . " set to {$validated['status']}.", 'user' => new AdminUserResource($user->refresh()->load(['staffProfile.department', 'staffProfile.position']))]);
     }
 
     public function destroy(Request $request, User $user): JsonResponse
@@ -102,10 +102,14 @@ abstract class RoleUserController extends Controller
 
         DB::transaction(function () use ($user) {
             $user->update(['is_active' => false]);
-            $user->staffProfile?->update(['employment_status' => 'separated']);
+            if ($user->staffProfile) {
+                $user->staffProfile?->update(['employment_status' => 'separated']);
+
+                $user->staffProfile->delete();
+            }
         });
 
-        return response()->json(['message' => $this->accountLabel().' archived successfully.']);
+        return response()->json(['message' => $this->accountLabel() . ' archived successfully.']);
     }
 
     private function validationRules(?User $user = null): array
@@ -136,7 +140,8 @@ abstract class RoleUserController extends Controller
     private function accountAttributes(array $validated): array
     {
         return [
-            'username' => $validated['username'], 'email' => $validated['email'],
+            'username' => $validated['username'],
+            'email' => $validated['email'],
             'is_active' => $validated['status'] === 'Active',
         ];
     }
@@ -165,6 +170,6 @@ abstract class RoleUserController extends Controller
 
     private function ensureManagedRole(User $user): void
     {
-        abort_unless($user->role === $this->managedRole(), 404, $this->accountLabel().' not found.');
+        abort_unless($user->role === $this->managedRole(), 404, $this->accountLabel() . ' not found.');
     }
 }

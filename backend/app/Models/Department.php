@@ -22,4 +22,9 @@ class Department extends Model
     {
         return $this->hasMany(StaffProfile::class);
     }
+
+    public function gradeLevels(): HasMany
+    {
+        return $this->hasMany(GradeLevel::class);
+    }
 }
