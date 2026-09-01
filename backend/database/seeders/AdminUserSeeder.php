@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Department;
 use App\Models\Position;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -19,7 +20,7 @@ class AdminUserSeeder extends Seeder
             [
                 'email' => 'sprytechmail@gmail.com',
                 'password' => env('ADMIN_INITIAL_PASSWORD'),
-                'role' => 'admin',
+                'role_id' => Role::idFor(Role::ADMIN),
                 'is_active' => true,
             ]
         );

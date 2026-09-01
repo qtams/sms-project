@@ -61,14 +61,14 @@ class AuthController extends Controller
 
     private function userData(Request $request): array
     {
-        $user = $request->user()->loadMissing('staffProfile');
+        $user = $request->user()->loadMissing(['staffProfile', 'role']);
 
         return [
             'id' => $user->id,
             'name' => $user->staffProfile?->full_name ?? $user->username,
             'username' => $user->username,
             'email' => $user->email,
-            'role' => $user->role,
+            'role' => $user->role->slug,
             'is_active' => $user->is_active,
         ];
     }

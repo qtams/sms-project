@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Department;
 use App\Models\Position;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -14,7 +15,7 @@ class StaffUserManagementTest extends TestCase
 
     public function test_administrator_can_create_a_normalized_guard_profile(): void
     {
-        $administrator = User::factory()->create(['role' => 'admin']);
+        $administrator = User::factory()->create(['role_id' => Role::idFor(Role::ADMIN)]);
         $department = Department::where('code', 'SEC')->firstOrFail();
         $position = Position::create(['code' => 'GUARD', 'name' => 'School Guard', 'is_active' => true]);
 
@@ -42,7 +43,7 @@ class StaffUserManagementTest extends TestCase
 
         $this->assertDatabaseHas('users', [
             'username' => 'pedro.guard',
-            'role' => 'guard',
+            'role_id' => Role::idFor(Role::GUARD),
         ]);
         $this->assertDatabaseHas('staff_profiles', [
             'first_name' => 'Pedro',
@@ -54,8 +55,8 @@ class StaffUserManagementTest extends TestCase
 
     public function test_archiving_staff_preserves_the_user_and_profile(): void
     {
-        $administrator = User::factory()->create(['role' => 'admin']);
-        $guard = User::factory()->create(['role' => 'guard']);
+        $administrator = User::factory()->create(['role_id' => Role::idFor(Role::ADMIN)]);
+        $guard = User::factory()->create(['role_id' => Role::idFor(Role::GUARD)]);
         $guard->staffProfile()->create([
             'staff_no' => 'GRD-0002',
             'first_name' => 'Pedro',
