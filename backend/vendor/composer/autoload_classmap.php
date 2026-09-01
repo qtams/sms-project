@@ -6,7 +6,17 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
+    'App\\Http\\Controllers\\Api\\AdminUserController' => $baseDir . '/app/Http/Controllers/Api/AdminUserController.php',
+    'App\\Http\\Controllers\\Api\\GuardUserController' => $baseDir . '/app/Http/Controllers/Api/GuardUserController.php',
+    'App\\Http\\Controllers\\Api\\RegistrarUserController' => $baseDir . '/app/Http/Controllers/Api/RegistrarUserController.php',
+    'App\\Http\\Controllers\\Api\\RoleUserController' => $baseDir . '/app/Http/Controllers/Api/RoleUserController.php',
+    'App\\Http\\Controllers\\Api\\StaffMetadataController' => $baseDir . '/app/Http/Controllers/Api/StaffMetadataController.php',
+    'App\\Http\\Controllers\\AuthController' => $baseDir . '/app/Http/Controllers/AuthController.php',
     'App\\Http\\Controllers\\Controller' => $baseDir . '/app/Http/Controllers/Controller.php',
+    'App\\Http\\Resources\\AdminUserResource' => $baseDir . '/app/Http/Resources/AdminUserResource.php',
+    'App\\Models\\Department' => $baseDir . '/app/Models/Department.php',
+    'App\\Models\\Position' => $baseDir . '/app/Models/Position.php',
+    'App\\Models\\StaffProfile' => $baseDir . '/app/Models/StaffProfile.php',
     'App\\Models\\User' => $baseDir . '/app/Models/User.php',
     'App\\Providers\\AppServiceProvider' => $baseDir . '/app/Providers/AppServiceProvider.php',
     'Attribute' => $vendorDir . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
@@ -139,6 +149,7 @@ return array(
     'Cron\\MinutesField' => $vendorDir . '/dragonmantank/cron-expression/src/Cron/MinutesField.php',
     'Cron\\MonthField' => $vendorDir . '/dragonmantank/cron-expression/src/Cron/MonthField.php',
     'Database\\Factories\\UserFactory' => $baseDir . '/database/factories/UserFactory.php',
+    'Database\\Seeders\\AdminUserSeeder' => $baseDir . '/database/seeders/AdminUserSeeder.php',
     'Database\\Seeders\\DatabaseSeeder' => $baseDir . '/database/seeders/DatabaseSeeder.php',
     'DateError' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateError.php',
     'DateException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateException.php',
@@ -6710,6 +6721,7 @@ return array(
     'Termwind\\ValueObjects\\Style' => $vendorDir . '/nunomaduro/termwind/src/ValueObjects/Style.php',
     'Termwind\\ValueObjects\\Styles' => $vendorDir . '/nunomaduro/termwind/src/ValueObjects/Styles.php',
     'Tests\\Feature\\ExampleTest' => $baseDir . '/tests/Feature/ExampleTest.php',
+    'Tests\\Feature\\StaffUserManagementTest' => $baseDir . '/tests/Feature/StaffUserManagementTest.php',
     'Tests\\TestCase' => $baseDir . '/tests/TestCase.php',
     'Tests\\Unit\\ExampleTest' => $baseDir . '/tests/Unit/ExampleTest.php',
     'TheSeer\\Tokenizer\\Exception' => $vendorDir . '/theseer/tokenizer/src/Exception.php',
