@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Position;
+use App\Models\Role;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -12,7 +13,7 @@ class StaffMetadataController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
-        abort_unless($request->user()?->role === 'admin', 403);
+        abort_unless($request->user()?->hasRole(Role::ADMIN), 403);
 
         return response()->json([
             'departments' => Department::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),

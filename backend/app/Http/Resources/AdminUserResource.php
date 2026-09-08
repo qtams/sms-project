@@ -38,7 +38,7 @@ class AdminUserResource extends JsonResource
             'employmentStatus' => $profile?->employment_status,
             'hireDate' => $profile?->hire_date?->format('Y-m-d'),
             'rfid' => null,
-            'role' => $this->role,
+            'role' => $this->role->slug,
             'status' => $this->is_active ? 'Active' : 'Inactive',
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),

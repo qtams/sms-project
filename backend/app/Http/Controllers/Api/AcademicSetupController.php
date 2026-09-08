@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AcademicProgram;
 use App\Models\AcademicUnit;
 use App\Models\GradeLevel;
+use App\Models\Role;
 use App\Models\SchoolYear;
 use App\Models\Section;
 use App\Models\User;
@@ -17,7 +18,7 @@ class AcademicSetupController extends Controller
 {
     private function authorizeAdmin(Request $request): void
     {
-        abort_unless($request->user()?->role === 'admin', 403);
+        abort_unless($request->user()?->hasRole(Role::ADMIN), 403);
     }
 
     public function index(Request $request): JsonResponse
@@ -37,7 +38,7 @@ class AcademicSetupController extends Controller
                 'teachers:id,username,email',
                 'teachers.staffProfile:id,user_id,first_name,middle_name,last_name,suffix,employment_status',
             ])->latest()->get(),
-            'teachers' => User::query()->where('role', 'teacher')->where('is_active', true)
+            'teachers' => User::query()->whereHas('role', fn ($query) => $query->where('slug', Role::TEACHER))->where('is_active', true)
                 ->with('staffProfile:id,user_id,first_name,middle_name,last_name,suffix,employment_status')
                 ->orderBy('username')->get(['id', 'username', 'email']),
         ]);
@@ -46,6 +47,7 @@ class AcademicSetupController extends Controller
     public function storeAcademicUnit(Request $request): JsonResponse
     {
         $this->authorizeAdmin($request);
+
         return response()->json(AcademicUnit::create($this->validateAcademicUnit($request))->load('parent:id,name'), 201);
     }
 
@@ -53,6 +55,7 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
         $academicUnit->update($this->validateAcademicUnit($request, $academicUnit));
+
         return response()->json($academicUnit->fresh()->load('parent:id,name'));
     }
 
@@ -74,12 +77,14 @@ class AcademicSetupController extends Controller
         $this->authorizeAdmin($request);
         abort_if($academicUnit->children()->exists() || $academicUnit->programs()->exists() || $academicUnit->gradeLevels()->exists(), 422, 'This academic unit is in use and cannot be deleted.');
         $academicUnit->delete();
+
         return response()->json(status: 204);
     }
 
     public function storeAcademicProgram(Request $request): JsonResponse
     {
         $this->authorizeAdmin($request);
+
         return response()->json(AcademicProgram::create($this->validateAcademicProgram($request))->load('academicUnit:id,code,name,type,education_level'), 201);
     }
 
@@ -87,6 +92,7 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
         $academicProgram->update($this->validateAcademicProgram($request, $academicProgram));
+
         return response()->json($academicProgram->fresh()->load('academicUnit:id,code,name,type,education_level'));
     }
 
@@ -107,6 +113,7 @@ class AcademicSetupController extends Controller
         $this->authorizeAdmin($request);
         abort_if($academicProgram->gradeLevels()->exists(), 422, 'This program or track has grade levels and cannot be deleted.');
         $academicProgram->delete();
+
         return response()->json(status: 204);
     }
 
@@ -119,6 +126,7 @@ class AcademicSetupController extends Controller
             'end_date' => ['nullable', 'date', 'after:start_date'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
+
         return response()->json(SchoolYear::create($data), 201);
     }
 
@@ -132,6 +140,7 @@ class AcademicSetupController extends Controller
             'is_active' => ['required', 'boolean'],
         ]);
         $schoolYear->update($data);
+
         return response()->json($schoolYear->fresh()->loadCount('sections'));
     }
 
@@ -140,6 +149,7 @@ class AcademicSetupController extends Controller
         $this->authorizeAdmin($request);
         abort_if($schoolYear->sections()->exists(), 422, 'This school year has sections and cannot be deleted.');
         $schoolYear->delete();
+
         return response()->json(status: 204);
     }
 
@@ -147,6 +157,7 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
         $data = $this->validateGradeLevel($request);
+
         return response()->json(GradeLevel::create($data)->load(['academicUnit:id,code,name,type,education_level', 'academicProgram:id,code,name,program_type']), 201);
     }
 
@@ -154,6 +165,7 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
         $gradeLevel->update($this->validateGradeLevel($request, $gradeLevel));
+
         return response()->json($gradeLevel->fresh()->load(['academicUnit:id,code,name,type,education_level', 'academicProgram:id,code,name,program_type'])->loadCount('sections'));
     }
 
@@ -173,6 +185,7 @@ class AcademicSetupController extends Controller
         $this->authorizeAdmin($request);
         abort_if($gradeLevel->sections()->exists(), 422, 'This grade level has sections and cannot be deleted.');
         $gradeLevel->delete();
+
         return response()->json(status: 204);
     }
 
@@ -180,6 +193,7 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
         $section = Section::create($this->validateSection($request));
+
         return response()->json($this->loadSection($section), 201);
     }
 
@@ -187,6 +201,7 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
         $section->update($this->validateSection($request, $section));
+
         return response()->json($this->loadSection($section->fresh()));
     }
 
@@ -208,6 +223,7 @@ class AcademicSetupController extends Controller
         $this->authorizeAdmin($request);
         $section->teachers()->detach();
         $section->delete();
+
         return response()->json(status: 204);
     }
 
@@ -215,10 +231,11 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
         $data = $request->validate(['teacher_ids' => ['present', 'array'], 'teacher_ids.*' => ['integer', 'distinct']]);
-        $validIds = User::query()->where('role', 'teacher')->where('is_active', true)
+        $validIds = User::query()->whereHas('role', fn ($query) => $query->where('slug', Role::TEACHER))->where('is_active', true)
             ->whereIn('id', $data['teacher_ids'])->pluck('id');
         abort_if($validIds->count() !== count($data['teacher_ids']), 422, 'Every selected user must be an active teacher.');
         $section->teachers()->sync($validIds);
+
         return response()->json($this->loadSection($section));
     }
 
