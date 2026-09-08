@@ -16,153 +16,11 @@ import {
   FiSearch,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
+import api from "../lib/api";
 import { apiDebugRequest } from "../utils/apiDebugger";
 import "react-datepicker/dist/react-datepicker.css";
 
 const rowsPerPageOptions = [8, 16, 24, 32];
-
-const rfidLogs = [
-  {
-    id: 1,
-    studentId: "STD-0001",
-    rfid: "RFID-000001",
-    firstName: "Juan",
-    middleName: "",
-    lastName: "Dela Cruz",
-    gradeLevel: "Grade 7",
-    section: "A",
-    date: "2026-07-16",
-    timeIn: "07:18 AM",
-    timeOut: "04:12 PM",
-    status: "Complete",
-  },
-  {
-    id: 2,
-    studentId: "STD-0001",
-    rfid: "RFID-000001",
-    firstName: "Juan",
-    middleName: "",
-    lastName: "Dela Cruz",
-    gradeLevel: "Grade 7",
-    section: "A",
-    date: "2026-07-15",
-    timeIn: "07:25 AM",
-    timeOut: "04:08 PM",
-    status: "Complete",
-  },
-  {
-    id: 3,
-    studentId: "STD-0001",
-    rfid: "RFID-000001",
-    firstName: "Juan",
-    middleName: "",
-    lastName: "Dela Cruz",
-    gradeLevel: "Grade 7",
-    section: "A",
-    date: "2026-07-14",
-    timeIn: "07:41 AM",
-    timeOut: "",
-    status: "Time In Only",
-  },
-  {
-    id: 4,
-    studentId: "STD-0002",
-    rfid: "RFID-000002",
-    firstName: "Ana",
-    middleName: "",
-    lastName: "Santos",
-    gradeLevel: "Grade 8",
-    section: "B",
-    date: "2026-07-16",
-    timeIn: "07:31 AM",
-    timeOut: "",
-    status: "Time In Only",
-  },
-  {
-    id: 5,
-    studentId: "STD-0003",
-    rfid: "RFID-000003",
-    firstName: "Carlo",
-    middleName: "",
-    lastName: "Reyes",
-    gradeLevel: "Grade 11",
-    section: "STEM A",
-    date: "2026-07-15",
-    timeIn: "07:42 AM",
-    timeOut: "04:05 PM",
-    status: "Complete",
-  },
-  {
-    id: 6,
-    studentId: "STD-0004",
-    rfid: "RFID-000004",
-    firstName: "Mark",
-    middleName: "",
-    lastName: "Villanueva",
-    gradeLevel: "Grade 9",
-    section: "C",
-    date: "2026-07-14",
-    timeIn: "",
-    timeOut: "",
-    status: "No Tap",
-  },
-  {
-    id: 7,
-    studentId: "STD-0005",
-    rfid: "RFID-000005",
-    firstName: "Aisha",
-    middleName: "",
-    lastName: "Tinio",
-    gradeLevel: "Grade 7",
-    section: "A",
-    date: "2026-07-16",
-    timeIn: "07:22 AM",
-    timeOut: "04:01 PM",
-    status: "Complete",
-  },
-  {
-    id: 8,
-    studentId: "STD-0006",
-    rfid: "RFID-000006",
-    firstName: "Kandice",
-    middleName: "",
-    lastName: "Castro",
-    gradeLevel: "Grade 8",
-    section: "B",
-    date: "2026-07-16",
-    timeIn: "07:36 AM",
-    timeOut: "04:09 PM",
-    status: "Complete",
-  },
-  {
-    id: 9,
-    studentId: "STD-0007",
-    rfid: "RFID-000007",
-    firstName: "Aina",
-    middleName: "",
-    lastName: "Penales",
-    gradeLevel: "Grade 11",
-    section: "HUMSS A",
-    date: "2026-07-16",
-    timeIn: "07:44 AM",
-    timeOut: "",
-    status: "Time In Only",
-  },
-  {
-    id: 10,
-    studentId: "STD-0008",
-    rfid: "RFID-000008",
-    firstName: "Miguel",
-    middleName: "",
-    lastName: "Garcia",
-    gradeLevel: "Grade 10",
-    section: "D",
-    date: "2026-07-15",
-    timeIn: "07:29 AM",
-    timeOut: "04:15 PM",
-    status: "Complete",
-  },
-];
 
 const avatarStyles = [
   "bg-cyan-50 text-cyan-700 ring-cyan-100",
@@ -250,16 +108,36 @@ const csvValue = (value) => {
 const Rfid = () => {
   const navigate = useNavigate();
 
-  const [logs] = useState(rfidLogs);
+  const [logs, setLogs] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [viewMode, setViewMode] = useState("grid");
 
-  const [startDate, setStartDate] = useState(new Date("2026-07-13"));
-  const [endDate, setEndDate] = useState(new Date("2026-07-16"));
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(8);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get("/api/attendance/history")
+      .then((response) => {
+        if (!cancelled) setLogs(response.data.records || []);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Unable to load RFID history:", error);
+          toast.error(error.response?.data?.message || "Unable to load RFID history.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const latestStudentLogs = useMemo(() => {
     return getLatestLogPerStudent(logs);

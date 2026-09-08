@@ -23,4 +23,5 @@ class GradeLevel extends Model
     public function academicUnit(): BelongsTo { return $this->belongsTo(AcademicUnit::class); }
     public function academicProgram(): BelongsTo { return $this->belongsTo(AcademicProgram::class); }
     public function sections(): HasMany { return $this->hasMany(Section::class); }
+    public function enrollments(): HasMany { return $this->hasMany(Enrollment::class); }
 }

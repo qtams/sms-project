@@ -19,6 +19,7 @@ import {
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import TeacherModal from "../components/modals/TeacherModal";
+import api from "../lib/api";
 import { apiDebugRequest } from "../utils/apiDebugger";
 
 const teacherStatusOptions = ["Active", "Inactive"];
@@ -38,54 +39,6 @@ const defaultTeacherForm = {
   photoPreview: "",
   photoRemoved: false,
 };
-
-const initialTeachers = [
-  {
-    id: 1,
-    teacherId: "TCH-0001",
-    rfid: "RFID-TCH-000001",
-    firstName: "Tamahome",
-    middleName: "",
-    lastName: "Buendia",
-    department: "Elementary",
-    email: "mr.tamahome.buendia@gmail.com",
-    mobile: "09304486012",
-    status: "Active",
-    photoFile: null,
-    photoPreview: "",
-    photoRemoved: false,
-  },
-  {
-    id: 2,
-    teacherId: "TCH-0002",
-    rfid: "RFID-TCH-000002",
-    firstName: "Arvin",
-    middleName: "",
-    lastName: "Buendia",
-    department: "Junior High School",
-    email: "arvin.buendia@email.com",
-    mobile: "09987654321",
-    status: "Active",
-    photoFile: null,
-    photoPreview: "",
-    photoRemoved: false,
-  },
-  {
-    id: 3,
-    teacherId: "TCH-0003",
-    rfid: "",
-    firstName: "Misorsikat",
-    middleName: "",
-    lastName: "Misorsikat",
-    department: "Senior High School",
-    email: "",
-    mobile: "",
-    status: "Inactive",
-    photoFile: null,
-    photoPreview: "",
-    photoRemoved: false,
-  },
-];
 
 const avatarStyles = [
   "bg-cyan-50 text-cyan-700 ring-cyan-100",
@@ -117,7 +70,7 @@ const csvValue = (value) => {
 const Teachers = () => {
   const navigate = useNavigate();
 
-  const [teachers, setTeachers] = useState(initialTeachers);
+  const [teachers, setTeachers] = useState([]);
   const [selectedTeacherIds, setSelectedTeacherIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -131,6 +84,26 @@ const Teachers = () => {
 
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
   const [teacherForm, setTeacherForm] = useState(defaultTeacherForm);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get("/api/teachers")
+      .then((response) => {
+        if (!cancelled) setTeachers(response.data.teachers || []);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Unable to load teachers:", error);
+          toast.error(error.response?.data?.message || "Unable to load teachers.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredTeachers = useMemo(() => {
     return teachers.filter((teacher) => {

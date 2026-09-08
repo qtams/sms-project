@@ -17,19 +17,12 @@ import {
   FiUserX,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
-import { apiDebugRequest } from "../utils/apiDebugger";
+import api from "../lib/api";
 import "react-datepicker/dist/react-datepicker.css";
 
-const ATTENDANCE_STORAGE_KEY = "spry_teacher_attendance_records";
 const rowsPerPageOptions = [8, 16, 24, 32];
 
-const currentTeacher = {
-  teacherId: "TCH-0001",
-  teacherName: "Buendia, Tamahome",
-  assignedSections: ["Grade 7 - A", "Grade 9 - C", "Grade 10 - D"],
-};
-
-const classStudents = [
+const fallbackStudents = [
   {
     id: 1,
     studentId: "STD-0001",
@@ -87,51 +80,6 @@ const classStudents = [
   },
 ];
 
-const initialAttendanceRecords = [
-  {
-    id: 1,
-    studentId: "STD-0001",
-    date: "2026-07-16",
-    timeIn: "07:18 AM",
-    status: "Present",
-  },
-  {
-    id: 2,
-    studentId: "STD-0005",
-    date: "2026-07-16",
-    timeIn: "07:22 AM",
-    status: "Present",
-  },
-  {
-    id: 3,
-    studentId: "STD-0004",
-    date: "2026-07-16",
-    timeIn: "-",
-    status: "Absent",
-  },
-  {
-    id: 4,
-    studentId: "STD-0008",
-    date: "2026-07-16",
-    timeIn: "07:29 AM",
-    status: "Present",
-  },
-  {
-    id: 5,
-    studentId: "STD-0001",
-    date: "2026-07-15",
-    timeIn: "07:25 AM",
-    status: "Present",
-  },
-  {
-    id: 6,
-    studentId: "STD-0005",
-    date: "2026-07-15",
-    timeIn: "-",
-    status: "Absent",
-  },
-];
-
 const avatarStyles = [
   "bg-cyan-50 text-cyan-700 ring-cyan-100",
   "bg-orange-50 text-orange-700 ring-orange-100",
@@ -139,31 +87,6 @@ const avatarStyles = [
   "bg-violet-50 text-violet-700 ring-violet-100",
   "bg-pink-50 text-pink-700 ring-pink-100",
 ];
-
-const getStoredAttendanceRecords = () => {
-  try {
-    const stored = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
-
-    if (!stored) {
-      localStorage.setItem(
-        ATTENDANCE_STORAGE_KEY,
-        JSON.stringify(initialAttendanceRecords),
-      );
-
-      return initialAttendanceRecords;
-    }
-
-    const parsed = JSON.parse(stored);
-
-    return Array.isArray(parsed) ? parsed : initialAttendanceRecords;
-  } catch {
-    return initialAttendanceRecords;
-  }
-};
-
-const saveStoredAttendanceRecords = (records) => {
-  localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(records));
-};
 
 const getAvatarStyle = (id) => {
   return avatarStyles[id % avatarStyles.length];
@@ -226,10 +149,6 @@ const getManilaDateTime = () => {
   };
 };
 
-const getDateObjectFromIso = (dateString) => {
-  return new Date(`${dateString}T00:00:00`);
-};
-
 const formatDate = (date) => {
   if (!date) return "";
 
@@ -247,31 +166,61 @@ const csvValue = (value) => {
 const Attendance = () => {
   const navigate = useNavigate();
 
-  const [attendanceRecords, setAttendanceRecords] = useState(() =>
-    getStoredAttendanceRecords(),
-  );
+  const [assignedStudents, setAssignedStudents] = useState(fallbackStudents);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [teacherName, setTeacherName] = useState("Authorized staff");
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [sectionFilter, setSectionFilter] = useState(
-    currentTeacher.assignedSections[0] || "All",
-  );
+  const [sectionFilter, setSectionFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [selectedDate, setSelectedDate] = useState(new Date("2026-07-16"));
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewMode, setViewMode] = useState("grid");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(8);
 
-  const assignedStudents = useMemo(() => {
-    return classStudents.filter((student) => {
-      const isTeacherStudent = student.teacherId === currentTeacher.teacherId;
-      const isAssignedSection = currentTeacher.assignedSections.includes(
-        getClassName(student),
-      );
+  const assignedSections = useMemo(
+    () => [...new Set(assignedStudents.map(getClassName))].sort(),
+    [assignedStudents],
+  );
 
-      return isTeacherStudent && isAssignedSection;
-    });
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAttendance = async () => {
+      try {
+        const response = await api.get("/api/attendance", {
+          params: { date: formatLocalDate(selectedDate) },
+        });
+        if (cancelled) return;
+
+        const records = response.data.records || [];
+        setAssignedStudents(records);
+        setAttendanceRecords(
+          records.map((record) => ({
+            id: record.attendanceId,
+            enrollmentId: record.enrollmentId,
+            studentId: record.studentId,
+            date: record.date,
+            timeIn: record.timeIn,
+            status: record.status,
+          })),
+        );
+        setTeacherName(records.find((record) => record.teacherName)?.teacherName || "Authorized staff");
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Unable to load attendance:", error);
+          toast.error(error.response?.data?.message || "Unable to load attendance records.");
+        }
+      }
+    };
+
+    loadAttendance();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
 
   const studentsWithAttendance = useMemo(() => {
     const selectedDateText = selectedDate ? formatLocalDate(selectedDate) : "";
@@ -351,50 +300,41 @@ const Attendance = () => {
 
   const handleResetFilter = () => {
     setSearchTerm("");
-    setSectionFilter(currentTeacher.assignedSections[0] || "All");
+    setSectionFilter("All");
     setStatusFilter("All");
-    setSelectedDate(new Date("2026-07-16"));
+    setSelectedDate(new Date());
     setCurrentPage(1);
   };
 
   const updateAttendanceStatus = async (record, nextStatus) => {
-    const manilaDateTime = getManilaDateTime();
+    const selectedDateText = formatLocalDate(selectedDate);
 
     const nextAttendance =
       nextStatus === "Present"
         ? {
             id: record.attendanceId || Date.now(),
+            enrollmentId: record.enrollmentId,
             studentId: record.studentId,
-            date: manilaDateTime.date,
-            timeIn: manilaDateTime.time,
+            date: selectedDateText,
+            timeIn: record.timeIn === "-" ? getManilaDateTime().time : record.timeIn,
             status: "Present",
           }
         : {
             id: record.attendanceId || Date.now(),
+            enrollmentId: record.enrollmentId,
             studentId: record.studentId,
-            date: manilaDateTime.date,
+            date: selectedDateText,
             timeIn: "-",
             status: "Absent",
           };
 
-    await apiDebugRequest({
-      module: "attendance",
-      action: "teacher-update-status",
-      method: "PATCH",
-      payload: {
-        teacherId: currentTeacher.teacherId,
-        teacherName: currentTeacher.teacherName,
-        studentId: record.studentId,
-        studentName: getFullName(record),
-        className: getClassName(record),
-        previousStatus: record.status,
-        nextStatus,
-        date: nextAttendance.date,
-        timeIn: nextAttendance.timeIn,
-        timezone: "Asia/Manila",
-        updatedAt: new Date().toISOString(),
-      },
+    const response = await api.post("/api/attendance/records/status", {
+      enrollment_id: record.enrollmentId,
+      date: nextAttendance.date,
+      status: nextStatus.toLowerCase(),
+      reason: "Updated from the attendance management page.",
     });
+    nextAttendance.id = response.data.record.id;
 
     setAttendanceRecords((current) => {
       const exists = current.some((item) => item.id === nextAttendance.id);
@@ -405,12 +345,8 @@ const Attendance = () => {
           )
         : [nextAttendance, ...current];
 
-      saveStoredAttendanceRecords(nextRecords);
-
       return nextRecords;
     });
-
-    setSelectedDate(getDateObjectFromIso(manilaDateTime.date));
 
     toast.success(
       nextStatus === "Present"
@@ -420,17 +356,6 @@ const Attendance = () => {
   };
 
   const handleView = async (record) => {
-    await apiDebugRequest({
-      module: "attendance",
-      action: "view-student-attendance-page",
-      method: "GET",
-      payload: {
-        teacherId: currentTeacher.teacherId,
-        studentId: record.studentId,
-        className: getClassName(record),
-      },
-    });
-
     navigate(`/attendance/${record.studentId}`);
   };
 
@@ -444,25 +369,6 @@ const Attendance = () => {
       timeIn: record.timeIn,
       status: record.status,
     }));
-
-    await apiDebugRequest({
-      module: "attendance",
-      action: "teacher-export-section",
-      method: "POST",
-      payload: {
-        teacherId: currentTeacher.teacherId,
-        teacherName: currentTeacher.teacherName,
-        totalRows: rows.length,
-        filters: {
-          searchTerm,
-          sectionFilter,
-          statusFilter,
-          selectedDate,
-        },
-        rows,
-        exportedAt: new Date().toISOString(),
-      },
-    });
 
     const header = [
       "Date",
@@ -533,7 +439,7 @@ const Attendance = () => {
           <div>
             <p className="text-sm font-medium text-slate-500">Teacher</p>
             <h2 className="text-xl font-semibold text-slate-950">
-              {currentTeacher.teacherName}
+              {teacherName}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               Students are populated from the selected assigned section.
@@ -543,7 +449,7 @@ const Attendance = () => {
           <div className="rounded-md bg-cyan-50 px-4 py-3 text-cyan-700">
             <p className="text-xs font-medium">Assigned Sections</p>
             <p className="mt-1 text-sm font-semibold">
-              {currentTeacher.assignedSections.length} section(s)
+              {assignedSections.length} section(s)
             </p>
           </div>
         </div>
@@ -615,7 +521,7 @@ const Attendance = () => {
               className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
             >
               <option value="All">All My Sections</option>
-              {currentTeacher.assignedSections.map((section) => (
+              {assignedSections.map((section) => (
                 <option key={section} value={section}>
                   {section}
                 </option>

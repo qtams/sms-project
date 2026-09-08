@@ -15,134 +15,10 @@ import {
   FiUserX,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
-import { apiDebugRequest } from "../utils/apiDebugger";
+import api from "../lib/api";
 import "react-datepicker/dist/react-datepicker.css";
 
-const ATTENDANCE_STORAGE_KEY = "spry_teacher_attendance_records";
 const rowsPerPageOptions = [5, 10, 25, 50];
-
-const currentTeacher = {
-  teacherId: "TCH-0001",
-  teacherName: "Buendia, Tamahome",
-  assignedSections: ["Grade 7 - A", "Grade 9 - C", "Grade 10 - D"],
-};
-
-const classStudents = [
-  {
-    id: 1,
-    studentId: "STD-0001",
-    firstName: "Juan",
-    middleName: "",
-    lastName: "Dela Cruz",
-    gradeLevel: "Grade 7",
-    section: "A",
-    teacherId: "TCH-0001",
-    teacherName: "Buendia, Tamahome",
-  },
-  {
-    id: 2,
-    studentId: "STD-0005",
-    firstName: "Aisha",
-    middleName: "",
-    lastName: "Tinio",
-    gradeLevel: "Grade 7",
-    section: "A",
-    teacherId: "TCH-0001",
-    teacherName: "Buendia, Tamahome",
-  },
-  {
-    id: 3,
-    studentId: "STD-0004",
-    firstName: "Mark",
-    middleName: "",
-    lastName: "Villanueva",
-    gradeLevel: "Grade 9",
-    section: "C",
-    teacherId: "TCH-0001",
-    teacherName: "Buendia, Tamahome",
-  },
-  {
-    id: 4,
-    studentId: "STD-0008",
-    firstName: "Miguel",
-    middleName: "",
-    lastName: "Garcia",
-    gradeLevel: "Grade 10",
-    section: "D",
-    teacherId: "TCH-0001",
-    teacherName: "Buendia, Tamahome",
-  },
-];
-
-const initialAttendanceRecords = [
-  {
-    id: 1,
-    studentId: "STD-0001",
-    date: "2026-07-16",
-    timeIn: "07:18 AM",
-    status: "Present",
-  },
-  {
-    id: 2,
-    studentId: "STD-0005",
-    date: "2026-07-16",
-    timeIn: "07:22 AM",
-    status: "Present",
-  },
-  {
-    id: 3,
-    studentId: "STD-0004",
-    date: "2026-07-16",
-    timeIn: "-",
-    status: "Absent",
-  },
-  {
-    id: 4,
-    studentId: "STD-0008",
-    date: "2026-07-16",
-    timeIn: "07:29 AM",
-    status: "Present",
-  },
-  {
-    id: 5,
-    studentId: "STD-0001",
-    date: "2026-07-15",
-    timeIn: "07:25 AM",
-    status: "Present",
-  },
-  {
-    id: 6,
-    studentId: "STD-0005",
-    date: "2026-07-15",
-    timeIn: "-",
-    status: "Absent",
-  },
-];
-
-const getStoredAttendanceRecords = () => {
-  try {
-    const stored = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
-
-    if (!stored) {
-      localStorage.setItem(
-        ATTENDANCE_STORAGE_KEY,
-        JSON.stringify(initialAttendanceRecords),
-      );
-
-      return initialAttendanceRecords;
-    }
-
-    const parsed = JSON.parse(stored);
-
-    return Array.isArray(parsed) ? parsed : initialAttendanceRecords;
-  } catch {
-    return initialAttendanceRecords;
-  }
-};
-
-const saveStoredAttendanceRecords = (records) => {
-  localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(records));
-};
 
 const getFullName = (record) => {
   return [record.firstName, record.middleName, record.lastName]
@@ -215,33 +91,50 @@ const AttendanceDetails = () => {
   const navigate = useNavigate();
   const { studentId } = useParams();
 
-  const [attendanceRecords, setAttendanceRecords] = useState(() =>
-    getStoredAttendanceRecords(),
-  );
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [student, setStudent] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [startDate, setStartDate] = useState(new Date("2026-07-14"));
-  const [endDate, setEndDate] = useState(new Date("2026-07-16"));
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const student = useMemo(() => {
-    return classStudents.find((item) => {
-      const isCurrentStudent = item.studentId === studentId;
-      const isAssignedToTeacher = item.teacherId === currentTeacher.teacherId;
-      const isAssignedSection = currentTeacher.assignedSections.includes(
-        getClassName(item),
-      );
+  useEffect(() => {
+    let cancelled = false;
 
-      return isCurrentStudent && isAssignedToTeacher && isAssignedSection;
-    });
+    const loadHistory = async () => {
+      setIsLoading(true);
+
+      try {
+        const response = await api.get(`/api/attendance/students/${studentId}`);
+        if (!cancelled) {
+          setStudent(response.data.student);
+          setAttendanceRecords(response.data.records || []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStudent(null);
+          setAttendanceRecords([]);
+          toast.error(error.response?.data?.message || "Unable to load student attendance history.");
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
   }, [studentId]);
 
   const studentLogs = useMemo(() => {
-    return attendanceRecords.filter((record) => record.studentId === studentId);
-  }, [attendanceRecords, studentId]);
+    return attendanceRecords;
+  }, [attendanceRecords]);
 
   const filteredLogs = useMemo(() => {
     return studentLogs.filter((record) => {
@@ -299,48 +192,31 @@ const AttendanceDetails = () => {
   ).length;
 
   const updateAttendanceStatus = async (record, nextStatus) => {
-    const manilaDateTime = getManilaDateTime();
-
     const updatedRecord =
       nextStatus === "Present"
         ? {
             ...record,
-            date: manilaDateTime.date,
-            timeIn: manilaDateTime.time,
+            timeIn: record.timeIn === "-" ? getManilaDateTime().time : record.timeIn,
             status: "Present",
           }
         : {
             ...record,
-            date: manilaDateTime.date,
             timeIn: "-",
             status: "Absent",
           };
 
-    await apiDebugRequest({
-      module: "attendance",
-      action: "teacher-update-individual-status",
-      method: "PATCH",
-      payload: {
-        teacherId: currentTeacher.teacherId,
-        teacherName: currentTeacher.teacherName,
-        id: record.id,
-        studentId: record.studentId,
-        studentName: student ? getFullName(student) : record.studentId,
-        previousStatus: record.status,
-        nextStatus,
-        date: updatedRecord.date,
-        timeIn: updatedRecord.timeIn,
-        timezone: "Asia/Manila",
-        updatedAt: new Date().toISOString(),
-      },
+    const response = await api.post("/api/attendance/records/status", {
+      enrollment_id: record.enrollmentId,
+      date: record.date,
+      status: nextStatus.toLowerCase(),
+      reason: "Updated from the individual attendance history page.",
     });
+    updatedRecord.id = response.data.record.id;
 
     setAttendanceRecords((current) => {
       const nextRecords = current.map((item) =>
         item.id === record.id ? updatedRecord : item,
       );
-
-      saveStoredAttendanceRecords(nextRecords);
 
       return nextRecords;
     });
@@ -375,19 +251,6 @@ const AttendanceDetails = () => {
       timeIn: record.timeIn,
       status: record.status,
     }));
-
-    await apiDebugRequest({
-      module: "attendance",
-      action: "teacher-export-individual-attendance",
-      method: "POST",
-      payload: {
-        teacherId: currentTeacher.teacherId,
-        studentId,
-        totalRows: rows.length,
-        rows,
-        exportedAt: new Date().toISOString(),
-      },
-    });
 
     const header = [
       "Date",
@@ -430,6 +293,10 @@ const AttendanceDetails = () => {
 
     toast.success("Student attendance exported.");
   };
+
+  if (isLoading) {
+    return <div className="rounded-md bg-white p-10 text-center text-sm font-medium text-slate-500 shadow-sm">Loading attendance history…</div>;
+  }
 
   if (!student) {
     return (
@@ -520,7 +387,7 @@ const AttendanceDetails = () => {
             <p className="text-xs font-medium text-slate-500">Teacher</p>
 
             <p className="mt-1 text-sm font-semibold text-slate-900">
-              {currentTeacher.teacherName}
+              {student.teacherName}
             </p>
           </div>
         </div>

@@ -17,85 +17,11 @@ import {
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import ImportStudentModal from "../components/modals/ImportStudentModal";
+import api from "../lib/api";
 import { apiDebugRequest } from "../utils/apiDebugger";
 
 const studentStatusOptions = ["Enrolled", "Unenrolled", "Inactive"];
 const rowsPerPageOptions = [5, 10, 25, 50];
-
-const initialStudents = [
-  {
-    id: 1,
-    studentId: "STD-0001",
-    rfid: "RFID-000001",
-    firstName: "Juan",
-    middleName: "",
-    lastName: "Dela Cruz",
-    gradeLevel: "Grade 7",
-    section: "A",
-    birthDate: "2013-05-10",
-    guardianName: "Maria Dela Cruz",
-    guardianContact: "09123456789",
-    address: "Cagayan de Oro City",
-    status: "Enrolled",
-    photoFile: null,
-    photoPreview: "",
-    photoRemoved: false,
-  },
-  {
-    id: 2,
-    studentId: "STD-0002",
-    rfid: "RFID-000002",
-    firstName: "Ana",
-    middleName: "",
-    lastName: "Santos",
-    gradeLevel: "Grade 8",
-    section: "B",
-    birthDate: "2012-03-18",
-    guardianName: "Pedro Santos",
-    guardianContact: "09987654321",
-    address: "Misamis Oriental",
-    status: "Enrolled",
-    photoFile: null,
-    photoPreview: "",
-    photoRemoved: false,
-  },
-  {
-    id: 3,
-    studentId: "STD-0003",
-    rfid: "RFID-000003",
-    firstName: "Carlo",
-    middleName: "",
-    lastName: "Reyes",
-    gradeLevel: "Grade 11",
-    section: "STEM A",
-    birthDate: "2010-08-22",
-    guardianName: "",
-    guardianContact: "",
-    address: "",
-    status: "Unenrolled",
-    photoFile: null,
-    photoPreview: "",
-    photoRemoved: false,
-  },
-  {
-    id: 4,
-    studentId: "STD-0004",
-    rfid: "RFID-000004",
-    firstName: "Mark",
-    middleName: "",
-    lastName: "Villanueva",
-    gradeLevel: "Grade 9",
-    section: "C",
-    birthDate: "2011-11-14",
-    guardianName: "",
-    guardianContact: "",
-    address: "",
-    status: "Inactive",
-    photoFile: null,
-    photoPreview: "",
-    photoRemoved: false,
-  },
-];
 
 const avatarStyles = [
   "bg-cyan-50 text-cyan-700 ring-cyan-100",
@@ -157,7 +83,7 @@ const csvValue = (value) => {
 const Students = () => {
   const navigate = useNavigate();
 
-  const [students, setStudents] = useState(initialStudents);
+  const [students, setStudents] = useState([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -172,6 +98,26 @@ const Students = () => {
   const [importFiles, setImportFiles] = useState([]);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get("/api/students")
+      .then((response) => {
+        if (!cancelled) setStudents(response.data.students || []);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Unable to load students:", error);
+          toast.error(error.response?.data?.message || "Unable to load students.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {

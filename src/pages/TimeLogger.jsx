@@ -10,30 +10,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import Swal from "sweetalert2";
 
 import spryIcon from "../assets/Spryicon.png";
+import api from "../lib/api";
 
 /* =========================================================
    CONFIG
 ========================================================= */
 
-const TEST_RFID = "TEST0001";
-const TEST_STUDENT_ID = "20260000001";
-
 const SCAN_DEBOUNCE = 500;
 const DUPLICATE_COOLDOWN = 30000;
 const PROFILE_AUTO_HIDE = 5000;
 const SCREENSAVER_DELAY = 15000;
-
-/* =========================================================
-   BRAND
-========================================================= */
-
-const BRAND = {
-  orange: "#FD8901",
-  deepOrange: "#FC6D00",
-  cyan: "#04BDE8",
-  blue: "#0089BC",
-  deepBlue: "#286C8E",
-};
 
 /* =========================================================
    STUDENT DATA
@@ -56,20 +42,6 @@ const EMPTY_STUDENT = {
   monitoring_timestamp: "",
   monitoring_duration: "",
   monitoring_action_display: "",
-};
-
-const MOCK_STUDENT = {
-  student_id: TEST_STUDENT_ID,
-  first_name: "Juan",
-  middle_name: "Dela",
-  last_name: "Cruz",
-  academic_level: "College Department",
-  level: "1st Year",
-  course: "BS Information Technology - 1A",
-  email: "",
-  student_profile: "",
-  status: "officially_enrolled",
-  rfid: TEST_RFID,
 };
 
 /* =========================================================
@@ -520,8 +492,6 @@ export default function TimeLogger() {
 
   const cooldownMapRef = useRef({});
 
-  const mockLastActionRef = useRef("check-out");
-
   /* =========================================================
      DERIVED VALUES
   ========================================================= */
@@ -738,68 +708,17 @@ export default function TimeLogger() {
   ========================================================= */
 
   const addToMonitoringTable = useCallback(
-    async (studentIdValue, rfidValue, studentData) => {
-      const response = await fetch("databases/add_monitoring_log.php", {
-        method: "POST",
+    async (studentNumber, rfidValue) => {
+      const response = rfidValue
+        ? await api.post("/api/attendance/scan", { rfid_uid: rfidValue })
+        : await api.post("/api/attendance/manual", {
+            student_no: studentNumber,
+          });
 
-        headers: {
-          "Content-Type": "application/json",
-        },
-
-        body: JSON.stringify({
-          user_id: studentIdValue,
-          rfid: rfidValue,
-          student_data: studentData,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-
-      return response.json();
+      return response.data;
     },
     [],
   );
-
-  /* =========================================================
-     MOCK ATTENDANCE
-  ========================================================= */
-
-  const createMockMonitoringResponse = useCallback(() => {
-    const action =
-      mockLastActionRef.current === "check-in" ? "check-out" : "check-in";
-
-    mockLastActionRef.current = action;
-
-    return {
-      success: true,
-
-      action,
-
-      message:
-        action === "check-in"
-          ? "Student checked in successfully."
-          : "Student checked out successfully.",
-
-      timestamp: new Date().toLocaleString("en-PH", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      }),
-
-      duration:
-        action === "check-out"
-          ? {
-              formatted: "00:04:32",
-            }
-          : null,
-    };
-  }, []);
 
   /* =========================================================
      EMAIL
@@ -873,31 +792,17 @@ export default function TimeLogger() {
   ========================================================= */
 
   const recordAttendance = useCallback(
-    async ({ foundStudent, cooldownKey, scannedRFID = "", mock = false }) => {
+    async ({ cooldownKey, scannedRFID = "", studentNumber = "" }) => {
       if (isCoolingDown(cooldownKey)) {
         return;
       }
 
-      if (foundStudent.status !== "officially_enrolled") {
-        resetStudent();
-
-        showAlert(
-          "warning",
-          "Account Inactive",
-          "This student account is not officially enrolled.",
-        );
-
-        return;
-      }
-
       try {
-        const monitoringResponse = mock
-          ? createMockMonitoringResponse()
-          : await addToMonitoringTable(
-              foundStudent.student_id,
-              scannedRFID,
-              foundStudent,
-            );
+        const monitoringResponse = await addToMonitoringTable(
+          studentNumber,
+          scannedRFID,
+        );
+        const foundStudent = normalizeStudent(monitoringResponse.student);
 
         if (!monitoringResponse.success) {
           resetStudent();
@@ -915,7 +820,7 @@ export default function TimeLogger() {
 
         displayAttendance(foundStudent, monitoringResponse);
 
-        if (!mock && scannedRFID && foundStudent.email) {
+        if (scannedRFID && foundStudent.email) {
           sendEmail(scannedRFID, foundStudent.email);
         }
       } catch (error) {
@@ -923,22 +828,32 @@ export default function TimeLogger() {
 
         resetStudent();
 
+        if (error.response?.data?.code === "duplicate_scan") {
+          cooldownMapRef.current[cooldownKey] =
+            Date.now() +
+            (error.response.data.cooldown_seconds || 30) * 1000;
+          showCooldown(cooldownKey);
+          return;
+        }
+
         showAlert(
           "error",
-          "Monitoring Error",
-          "Unable to record attendance. Please try again.",
+          error.response?.status === 404 ? "Student Not Found" : "Monitoring Error",
+          error.response?.data?.message ||
+            "Unable to record attendance. Please try again.",
         );
       }
     },
     [
       addToMonitoringTable,
       createCooldown,
-      createMockMonitoringResponse,
       displayAttendance,
       isCoolingDown,
+      normalizeStudent,
       resetStudent,
       sendEmail,
       showAlert,
+      showCooldown,
     ],
   );
 
@@ -965,52 +880,7 @@ export default function TimeLogger() {
       });
 
       try {
-        /* TEST RFID */
-
-        if (scannedRFID === TEST_RFID) {
-          await recordAttendance({
-            foundStudent: normalizeStudent(MOCK_STUDENT),
-
-            cooldownKey: scannedRFID,
-
-            scannedRFID,
-
-            mock: true,
-          });
-
-          return;
-        }
-
-        /* REAL RFID */
-
-        const response = await fetch(
-          `getData/student-table-data.php?get_data=students&rfid=${encodeURIComponent(
-            scannedRFID,
-          )}`,
-        );
-
-        if (!response.ok) {
-          throw new Error("Network response was not ok");
-        }
-
-        const data = await response.json();
-
-        if (data.error || !Array.isArray(data) || data.length === 0) {
-          resetStudent();
-
-          showAlert(
-            "error",
-            "RFID Not Found",
-            "This RFID is not registered in the system.",
-          );
-
-          return;
-        }
-
-        const foundStudent = normalizeStudent(data[0]);
-
         await recordAttendance({
-          foundStudent,
           cooldownKey: scannedRFID,
           scannedRFID,
         });
@@ -1033,7 +903,6 @@ export default function TimeLogger() {
     [
       cleanRFID,
       focusRFID,
-      normalizeStudent,
       recordAttendance,
       resetStudent,
       showAlert,
@@ -1065,52 +934,9 @@ export default function TimeLogger() {
     });
 
     try {
-      /* TEST STUDENT */
-
-      if (inputId === TEST_STUDENT_ID) {
-        await recordAttendance({
-          foundStudent: normalizeStudent(MOCK_STUDENT),
-
-          cooldownKey: inputId,
-
-          mock: true,
-        });
-
-        return;
-      }
-
-      /* REAL STUDENT */
-
-      const response = await fetch(
-        "getData/student-table-data.php?get_data=students&all=true",
-      );
-
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
-
-      const students = await response.json();
-
-      const foundStudentRaw = Array.isArray(students)
-        ? students.find((item) => item.student_id === inputId)
-        : null;
-
-      if (!foundStudentRaw) {
-        resetStudent();
-
-        showAlert(
-          "error",
-          "Student Not Found",
-          "This student number is not registered.",
-        );
-
-        return;
-      }
-
       await recordAttendance({
-        foundStudent: normalizeStudent(foundStudentRaw),
-
         cooldownKey: inputId,
+        studentNumber: inputId,
       });
     } catch (error) {
       console.error("Student lookup error:", error);
@@ -1129,7 +955,6 @@ export default function TimeLogger() {
     }
   }, [
     focusRFID,
-    normalizeStudent,
     recordAttendance,
     resetStudent,
     showAlert,

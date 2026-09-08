@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\Api\AcademicSetupController;
 use App\Http\Controllers\Api\AdminUserController;
+use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\DirectoryController;
 use App\Http\Controllers\Api\GuardUserController;
 use App\Http\Controllers\Api\RegistrarUserController;
 use App\Http\Controllers\Api\StaffMetadataController;
-use App\Http\Controllers\Api\AcademicSetupController;
 use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +17,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/staff-metadata', StaffMetadataController::class);
+    Route::get('/students', [DirectoryController::class, 'students']);
+    Route::get('/teachers', [DirectoryController::class, 'teachers']);
+
+    Route::prefix('attendance')->controller(AttendanceController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::get('/logs', 'logs');
+        Route::get('/history', 'history');
+        Route::get('/students/{student:student_no}', 'studentHistory');
+        Route::post('/scan', 'scan')->middleware('throttle:120,1');
+        Route::post('/manual', 'manual')->middleware('throttle:30,1');
+        Route::post('/records/status', 'updateStatus');
+    });
 
     Route::prefix('academic-setup')->controller(AcademicSetupController::class)->group(function () {
         Route::get('/', 'index');

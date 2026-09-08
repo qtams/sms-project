@@ -27,7 +27,7 @@ import UserManagementDetails from "../pages/UserManagementDetails";
 | FULL SCREEN LOG MONITORING PAGE
 |--------------------------------------------------------------------------
 */
-import LogMonitoring from "../pages/LogMonitoring";
+import AttendanceMonitoring from "../pages/AttendanceMonitoring";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -106,7 +106,7 @@ const AppRoutes = () => {
             Access:
             /log-monitoring
         ============================================================== */}
-        <Route path="/log-monitoring" element={<LogMonitoring />} />
+        <Route path="/log-monitoring" element={<AttendanceMonitoring />} />
 
         {/* ==============================================================
             ADMIN PAGES
