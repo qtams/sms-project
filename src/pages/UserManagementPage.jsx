@@ -11,14 +11,13 @@ import {
   FiMail,
   FiPhone,
   FiPlus,
-  FiShield,
   FiTrash2,
   FiUser,
   FiUsers,
   FiXCircle,
 } from "react-icons/fi";
 import UserManagementModal from "../components/modals/UserManagementModal";
-import { csvValue, getInitials, roleConfigs } from "../data/userManagementData";
+import { csvValue, roleConfigs } from "../data/userManagementData";
 
 const UserManagementPage = ({ role }) => {
   const navigate = useNavigate();
@@ -386,7 +385,10 @@ const UserManagementPage = ({ role }) => {
   };
 
   return (
-    <div data-aos="fade-up" className="space-y-5">
+    <div
+      data-aos="fade-up"
+      className="space-y-5 [font-family:'Poppins',sans-serif]"
+    >
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-semibold text-slate-950">
@@ -433,15 +435,15 @@ const UserManagementPage = ({ role }) => {
                 {config.roleLabel} Accounts
               </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
+              {/* <p className="mt-1 text-sm text-slate-500">
                 Search, view, add, edit, deactivate, or remove users.
-              </p>
+              </p> */}
             </div>
 
-            <span className="inline-flex w-fit items-center gap-2 rounded-md bg-cyan-50 px-3 py-2 text-xs font-medium text-cyan-700">
+            {/* <span className="inline-flex w-fit items-center gap-2 rounded-md bg-cyan-50 px-3 py-2 text-xs font-medium text-cyan-700">
               <FiShield />
               {config.roleLabel}
-            </span>
+            </span> */}
           </div>
 
           <div className="grid gap-3 md:grid-cols-[1fr_180px]">
@@ -453,7 +455,7 @@ const UserManagementPage = ({ role }) => {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search name, username, email, or staff ID..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
 
@@ -470,16 +472,18 @@ const UserManagementPage = ({ role }) => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1050px] border-collapse text-left">
+          <table className="w-full min-w-[1250px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                <TableHeader label="User" />
+                <TableHeader label="User ID" />
+                <TableHeader label="Name" />
                 <TableHeader label="Username" />
-                <TableHeader label="Contact" />
+                <TableHeader label="Email" />
+                <TableHeader label="Mobile Number" />
                 <TableHeader label="Role" />
                 <TableHeader label="Status" />
 
-                <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500">
+                <th className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wide text-slate-500">
                   Action
                 </th>
               </tr>
@@ -488,7 +492,7 @@ const UserManagementPage = ({ role }) => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="px-5 py-12 text-center">
+                  <td colSpan="8" className="px-5 py-12 text-center">
                     <p className="text-sm font-medium text-slate-500">
                       Loading {config.roleLabel.toLowerCase()} accounts...
                     </p>
@@ -500,40 +504,30 @@ const UserManagementPage = ({ role }) => {
                     key={user.id}
                     className="border-b border-slate-100 transition hover:bg-slate-50"
                   >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-sm font-semibold text-cyan-700 ring-4 ring-cyan-100">
-                          {getInitials(user.fullName)}
-                        </div>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                      {user.userId}
+                    </td>
 
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {user.fullName}
-                          </p>
-
-                          <p className="mt-1 font-mono text-xs font-medium text-slate-400">
-                            {user.userId}
-                          </p>
-                        </div>
-                      </div>
+                    <td className="px-5 py-4 text-sm font-normal text-slate-900">
+                      {user.fullName}
                     </td>
 
                     <td className="px-5 py-4 text-sm font-medium text-slate-600">
                       @{user.username}
                     </td>
 
-                    <td className="px-5 py-4">
-                      <div className="space-y-1">
-                        <p className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                          <FiMail className="text-slate-400" />
-                          {user.email || "-"}
-                        </p>
+                    <td className="px-5 py-4 text-sm font-normal text-slate-600">
+                      <span className="flex items-center gap-2">
+                        <FiMail className="shrink-0 text-slate-400" />
+                        {user.email || "-"}
+                      </span>
+                    </td>
 
-                        <p className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                          <FiPhone />
-                          {user.mobile || "-"}
-                        </p>
-                      </div>
+                    <td className="px-5 py-4 text-sm font-normal text-slate-600">
+                      <span className="flex items-center gap-2">
+                        <FiPhone className="shrink-0 text-slate-400" />
+                        {user.mobile || "-"}
+                      </span>
                     </td>
 
                     <td className="px-5 py-4">
@@ -582,7 +576,7 @@ const UserManagementPage = ({ role }) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="8">
                     <EmptyState />
                   </td>
                 </tr>

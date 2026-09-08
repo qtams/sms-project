@@ -2,7 +2,6 @@ export const roleConfigs = {
   admin: {
     title: "Admin Users",
     detailTitle: "Admin Details",
-    description: "Manage administrator accounts and system access.",
     roleLabel: "Admin",
     storageKey: "spry_admin_users",
     idPrefix: "ADM",
