@@ -41,7 +41,7 @@ export const roleConfigs = {
   guard: {
     title: "Guard Users",
     detailTitle: "Guard Details",
-    description: "Manage guard accounts for RFID and entry monitoring.",
+    // description: "Manage guard accounts for RFID and entry monitoring.",
     roleLabel: "Guard",
     storageKey: "spry_guard_users",
     idPrefix: "GRD",
@@ -80,7 +80,7 @@ export const roleConfigs = {
   registrar: {
     title: "Registrar Users",
     detailTitle: "Registrar Details",
-    description: "Manage registrar accounts for enrollment and verification.",
+    // description: "Manage registrar accounts for enrollment and verification.",
     roleLabel: "Registrar",
     storageKey: "spry_registrar_users",
     idPrefix: "REG",

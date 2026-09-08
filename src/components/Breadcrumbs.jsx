@@ -52,8 +52,8 @@ const Breadcrumbs = () => {
 
   if (currentPath === "/dashboard" || currentPath === "/") {
     return (
-      <nav className="mb-5 flex items-center gap-2 text-sm">
-        <span className="flex items-center gap-2 font-bold text-slate-900">
+      <nav className="mb-5 flex items-center gap-2 text-sm [font-family:'Poppins',sans-serif]">
+        <span className="flex items-center gap-2 font-normal text-slate-900">
           <FiHome className="text-slate-500" />
           Dashboard
         </span>
@@ -62,10 +62,10 @@ const Breadcrumbs = () => {
   }
 
   return (
-    <nav className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+    <nav className="mb-5 flex flex-wrap items-center gap-2 text-sm [font-family:'Poppins',sans-serif]">
       <Link
         to="/dashboard"
-        className="flex items-center gap-2 font-bold text-slate-600 transition hover:text-cyan-600"
+        className="flex items-center gap-2 font-normal text-slate-600 transition hover:text-cyan-600"
       >
         <FiHome className="text-slate-500" />
         Dashboard
@@ -78,12 +78,12 @@ const Breadcrumbs = () => {
           {parent.path ? (
             <Link
               to={parent.path}
-              className="font-bold text-slate-600 transition hover:text-cyan-600"
+              className="font-normal text-slate-600 transition hover:text-cyan-600"
             >
               {parent.label}
             </Link>
           ) : (
-            <span className="font-bold text-slate-500">{parent.label}</span>
+            <span className="font-normal text-slate-500">{parent.label}</span>
           )}
         </div>
       ))}
@@ -91,7 +91,7 @@ const Breadcrumbs = () => {
       <div className="flex items-center gap-2">
         <FiChevronRight size={14} className="text-slate-400" />
 
-        <span className="font-black text-cyan-700">{currentLabel}</span>
+        <span className="font-normal text-cyan-700">{currentLabel}</span>
       </div>
     </nav>
   );
