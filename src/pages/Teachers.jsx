@@ -99,12 +99,6 @@ const getTeacherDisplayName = (teacher) => {
   return `${teacher.lastName}, ${teacher.firstName}`;
 };
 
-const getFullName = (teacher) => {
-  return [teacher.firstName, teacher.middleName, teacher.lastName]
-    .filter(Boolean)
-    .join(" ");
-};
-
 const getInitials = (teacher) => {
   const firstInitial = teacher.firstName?.[0] || "";
   const lastInitial = teacher.lastName?.[0] || "";
@@ -114,16 +108,6 @@ const getInitials = (teacher) => {
 
 const getAvatarStyle = (teacherId) => {
   return avatarStyles[teacherId % avatarStyles.length];
-};
-
-const formatFileSize = (file) => {
-  const sizeInMb = file.size / 1024 / 1024;
-
-  if (sizeInMb >= 1) {
-    return `${sizeInMb.toFixed(2)} MB`;
-  }
-
-  return `${Math.max(1, Math.round(file.size / 1024))} KB`;
 };
 
 const csvValue = (value) => {
@@ -154,11 +138,21 @@ const Teachers = () => {
 
       const matchesSearch =
         getTeacherDisplayName(teacher).toLowerCase().includes(searchValue) ||
-        teacher.teacherId.toLowerCase().includes(searchValue) ||
-        teacher.rfid.toLowerCase().includes(searchValue) ||
-        teacher.department.toLowerCase().includes(searchValue) ||
-        teacher.email.toLowerCase().includes(searchValue) ||
-        teacher.mobile.toLowerCase().includes(searchValue);
+        String(teacher.teacherId || "")
+          .toLowerCase()
+          .includes(searchValue) ||
+        String(teacher.rfid || "")
+          .toLowerCase()
+          .includes(searchValue) ||
+        String(teacher.department || "")
+          .toLowerCase()
+          .includes(searchValue) ||
+        String(teacher.email || "")
+          .toLowerCase()
+          .includes(searchValue) ||
+        String(teacher.mobile || "")
+          .toLowerCase()
+          .includes(searchValue);
 
       const matchesStatus =
         statusFilter === "All" || teacher.status === statusFilter;
@@ -181,11 +175,14 @@ const Teachers = () => {
     1,
     Math.ceil(displayedTeachers.length / rowsPerPage),
   );
+
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
+
   const paginatedTeachers = displayedTeachers.slice(startIndex, endIndex);
 
   const showingStart = displayedTeachers.length === 0 ? 0 : startIndex + 1;
+
   const showingEnd = Math.min(endIndex, displayedTeachers.length);
 
   useEffect(() => {
@@ -261,17 +258,21 @@ const Teachers = () => {
   };
 
   const handleViewTeacher = async (teacher) => {
-    await apiDebugRequest({
-      module: "teacher",
-      action: "view-details-page",
-      method: "GET",
-      payload: {
-        id: teacher.id,
-        teacherId: teacher.teacherId,
-      },
-    });
+    try {
+      await apiDebugRequest({
+        module: "teacher",
+        action: "view-details-page",
+        method: "GET",
+        payload: {
+          id: teacher.id,
+          teacherId: teacher.teacherId,
+        },
+      });
 
-    navigate(`/teachers/${teacher.teacherId}`);
+      navigate(`/teachers/${teacher.teacherId}`);
+    } catch (error) {
+      toast.error(error?.message || "Unable to open teacher details.");
+    }
   };
 
   const handleTeacherSubmit = async (event) => {
@@ -315,66 +316,94 @@ const Teachers = () => {
       ...cleanedData,
     };
 
-    await apiDebugRequest({
-      module: "teacher",
-      action: "create",
-      method: "POST",
-      payload: {
-        id: newTeacher.id,
-        teacherId: cleanedData.teacherId,
-        rfid: cleanedData.rfid,
-        firstName: cleanedData.firstName,
-        middleName: cleanedData.middleName,
-        lastName: cleanedData.lastName,
-        displayName: `${cleanedData.lastName}, ${cleanedData.firstName}`,
-        department: cleanedData.department,
-        email: cleanedData.email,
-        mobile: cleanedData.mobile,
-        status: cleanedData.status,
-        teacherPhoto: cleanedData.photoFile,
-        photoRemoved: cleanedData.photoRemoved,
-        createdAt: new Date().toISOString(),
-      },
-    });
+    try {
+      await apiDebugRequest({
+        module: "teacher",
+        action: "create",
+        method: "POST",
+        payload: {
+          id: newTeacher.id,
+          teacherId: cleanedData.teacherId,
+          rfid: cleanedData.rfid,
+          firstName: cleanedData.firstName,
+          middleName: cleanedData.middleName,
+          lastName: cleanedData.lastName,
+          displayName: `${cleanedData.lastName}, ${cleanedData.firstName}`,
+          department: cleanedData.department,
+          email: cleanedData.email,
+          mobile: cleanedData.mobile,
+          status: cleanedData.status,
+          teacherPhoto: cleanedData.photoFile,
+          photoRemoved: cleanedData.photoRemoved,
+          createdAt: new Date().toISOString(),
+        },
+      });
 
-    setTeachers((current) => [newTeacher, ...current]);
-    toast.success("Teacher added successfully.");
-    closeTeacherModal();
+      setTeachers((current) => [newTeacher, ...current]);
+
+      closeTeacherModal();
+
+      toast.success("Teacher added successfully.");
+    } catch (error) {
+      toast.error(error?.message || "Unable to add teacher.");
+    }
   };
 
   const handleDeleteTeacher = async (teacher) => {
     const result = await Swal.fire({
-      title: "Delete teacher?",
-      text: `${getTeacherDisplayName(teacher)} will be removed.`,
+      title: "Delete Teacher?",
+      text: `${getTeacherDisplayName(teacher)} will be permanently removed.`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Yes, delete",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#64748b",
+      reverseButtons: true,
+      focusCancel: true,
     });
 
     if (!result.isConfirmed) return;
 
-    await apiDebugRequest({
-      module: "teacher",
-      action: "delete",
-      method: "DELETE",
-      payload: {
-        id: teacher.id,
-        teacherId: teacher.teacherId,
-        displayName: getTeacherDisplayName(teacher),
-      },
-    });
+    try {
+      Swal.fire({
+        title: "Deleting Teacher",
+        text: "Please wait...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
 
-    setTeachers((current) =>
-      current.filter((currentTeacher) => currentTeacher.id !== teacher.id),
-    );
+      await apiDebugRequest({
+        module: "teacher",
+        action: "delete",
+        method: "DELETE",
+        payload: {
+          id: teacher.id,
+          teacherId: teacher.teacherId,
+          displayName: getTeacherDisplayName(teacher),
+        },
+      });
 
-    setSelectedTeacherIds((current) =>
-      current.filter((id) => id !== teacher.id),
-    );
+      setTeachers((current) =>
+        current.filter((currentTeacher) => currentTeacher.id !== teacher.id),
+      );
 
-    toast.success("Teacher deleted successfully.");
+      setSelectedTeacherIds((current) =>
+        current.filter((id) => id !== teacher.id),
+      );
+
+      Swal.close();
+
+      toast.success(`${getTeacherDisplayName(teacher)} deleted successfully.`);
+    } catch (error) {
+      Swal.close();
+
+      toast.error(error?.message || "Unable to delete teacher.");
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -388,37 +417,62 @@ const Teachers = () => {
     );
 
     const result = await Swal.fire({
-      title: "Delete selected teachers?",
-      text: `${selectedTeachers.length} teacher record(s) will be removed.`,
+      title: "Delete Selected Teachers?",
+      text: `${selectedTeachers.length} teacher record(s) will be permanently removed.`,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Yes, delete",
+      confirmButtonText: "Yes, delete all",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#64748b",
+      reverseButtons: true,
+      focusCancel: true,
     });
 
     if (!result.isConfirmed) return;
 
-    await apiDebugRequest({
-      module: "teacher",
-      action: "bulk-delete",
-      method: "DELETE",
-      payload: {
-        ids: selectedTeacherIds,
-        teachers: selectedTeachers.map((teacher) => ({
-          id: teacher.id,
-          teacherId: teacher.teacherId,
-          displayName: getTeacherDisplayName(teacher),
-        })),
-      },
-    });
+    try {
+      Swal.fire({
+        title: "Deleting Teachers",
+        text: "Please wait...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
 
-    setTeachers((current) =>
-      current.filter((teacher) => !selectedTeacherIds.includes(teacher.id)),
-    );
+      await apiDebugRequest({
+        module: "teacher",
+        action: "bulk-delete",
+        method: "DELETE",
+        payload: {
+          ids: selectedTeacherIds,
+          teachers: selectedTeachers.map((teacher) => ({
+            id: teacher.id,
+            teacherId: teacher.teacherId,
+            displayName: getTeacherDisplayName(teacher),
+          })),
+        },
+      });
 
-    setSelectedTeacherIds([]);
-    toast.success("Selected teachers deleted successfully.");
+      setTeachers((current) =>
+        current.filter((teacher) => !selectedTeacherIds.includes(teacher.id)),
+      );
+
+      setSelectedTeacherIds([]);
+
+      Swal.close();
+
+      toast.success(
+        `${selectedTeachers.length} teacher record(s) deleted successfully.`,
+      );
+    } catch (error) {
+      Swal.close();
+
+      toast.error(error?.message || "Unable to delete selected teachers.");
+    }
   };
 
   const handleToggleTeacherStatus = async (teacher) => {
@@ -426,104 +480,140 @@ const Teachers = () => {
 
     const nextStatus = teacher.status === "Active" ? "Inactive" : "Active";
 
-    await apiDebugRequest({
-      module: "teacher",
-      action: "toggle-status",
-      method: "PATCH",
-      payload: {
-        id: teacher.id,
-        teacherId: teacher.teacherId,
-        previousStatus: teacher.status,
-        nextStatus,
-      },
+    const result = await Swal.fire({
+      title:
+        nextStatus === "Active" ? "Activate Teacher?" : "Deactivate Teacher?",
+      text: `Set ${getTeacherDisplayName(teacher)} as ${nextStatus}?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText:
+        nextStatus === "Active" ? "Yes, activate" : "Yes, deactivate",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: nextStatus === "Active" ? "#059669" : "#f97316",
+      cancelButtonColor: "#64748b",
+      reverseButtons: true,
     });
 
-    setMovingTeacherId(teacher.id);
+    if (!result.isConfirmed) return;
 
-    window.setTimeout(() => {
-      setTeachers((current) =>
-        current.map((currentTeacher) =>
-          currentTeacher.id === teacher.id
-            ? {
-                ...currentTeacher,
-                status: nextStatus,
-              }
-            : currentTeacher,
-        ),
-      );
+    try {
+      await apiDebugRequest({
+        module: "teacher",
+        action: "toggle-status",
+        method: "PATCH",
+        payload: {
+          id: teacher.id,
+          teacherId: teacher.teacherId,
+          previousStatus: teacher.status,
+          nextStatus,
+        },
+      });
 
-      setMovingTeacherId(null);
-      setPoppedTeacherId(teacher.id);
+      setMovingTeacherId(teacher.id);
 
       window.setTimeout(() => {
-        setPoppedTeacherId(null);
-      }, 450);
-    }, 260);
+        setTeachers((current) =>
+          current.map((currentTeacher) =>
+            currentTeacher.id === teacher.id
+              ? {
+                  ...currentTeacher,
+                  status: nextStatus,
+                }
+              : currentTeacher,
+          ),
+        );
 
-    toast.success(`Teacher marked as ${nextStatus}.`);
+        setMovingTeacherId(null);
+        setPoppedTeacherId(teacher.id);
+
+        window.setTimeout(() => {
+          setPoppedTeacherId(null);
+        }, 450);
+      }, 260);
+
+      toast.success(`${getTeacherDisplayName(teacher)} is now ${nextStatus}.`);
+    } catch (error) {
+      toast.error(error?.message || "Unable to change teacher status.");
+    }
   };
 
   const handleExportTeachers = async () => {
-    const rows = teachers.map((teacher) => ({
-      teacherId: teacher.teacherId,
-      rfid: teacher.rfid,
-      name: getTeacherDisplayName(teacher),
-      department: teacher.department,
-      email: teacher.email,
-      mobile: teacher.mobile,
-      status: teacher.status,
-    }));
+    if (teachers.length === 0) {
+      toast.warning("No teacher records available to export.");
+      return;
+    }
 
-    await apiDebugRequest({
-      module: "teacher",
-      action: "export",
-      method: "POST",
-      payload: {
-        totalRows: rows.length,
-        rows,
-        exportedAt: new Date().toISOString(),
-      },
-    });
+    try {
+      const rows = teachers.map((teacher) => ({
+        teacherId: teacher.teacherId,
+        rfid: teacher.rfid,
+        name: getTeacherDisplayName(teacher),
+        department: teacher.department,
+        email: teacher.email,
+        mobile: teacher.mobile,
+        status: teacher.status,
+      }));
 
-    const header = [
-      "Teacher ID",
-      "RFID",
-      "Name",
-      "Department",
-      "Email",
-      "Mobile",
-      "Status",
-    ];
+      await apiDebugRequest({
+        module: "teacher",
+        action: "export",
+        method: "POST",
+        payload: {
+          totalRows: rows.length,
+          rows,
+          exportedAt: new Date().toISOString(),
+        },
+      });
 
-    const csvRows = rows.map((row) =>
-      [
-        row.teacherId,
-        row.rfid,
-        row.name,
-        row.department,
-        row.email,
-        row.mobile,
-        row.status,
-      ]
-        .map(csvValue)
-        .join(","),
-    );
+      const header = [
+        "Teacher ID",
+        "RFID",
+        "Name",
+        "Department",
+        "Email",
+        "Mobile",
+        "Status",
+      ];
 
-    const csvContent = [header.map(csvValue).join(","), ...csvRows].join("\n");
+      const csvRows = rows.map((row) =>
+        [
+          row.teacherId,
+          row.rfid,
+          row.name,
+          row.department,
+          row.email,
+          row.mobile,
+          row.status,
+        ]
+          .map(csvValue)
+          .join(","),
+      );
 
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
+      const csvContent = [header.map(csvValue).join(","), ...csvRows].join(
+        "\n",
+      );
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
 
-    link.href = url;
-    link.download = "teachers-export.csv";
-    link.click();
+      const url = URL.createObjectURL(blob);
 
-    URL.revokeObjectURL(url);
-    toast.success("Teachers exported successfully.");
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "teachers-export.csv";
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      toast.success("Teachers exported successfully.");
+    } catch (error) {
+      toast.error(error?.message || "Unable to export teachers.");
+    }
   };
 
   return (
@@ -571,8 +661,11 @@ const Teachers = () => {
 
       <div className="grid gap-3 md:grid-cols-4">
         <SummaryCard label="Total Teachers" value={teachers.length} />
+
         <SummaryCard label="Active" value={activeTeachers} />
+
         <SummaryCard label="Inactive" value={inactiveTeachers} />
+
         <SummaryCard label="Departments" value={departmentsCount} />
       </div>
 
@@ -582,6 +675,7 @@ const Teachers = () => {
             <h2 className="text-lg font-semibold text-slate-950">
               Teacher List
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
               Teacher ID is under the name. RFID, department, and contact have
               separate columns.
@@ -607,6 +701,7 @@ const Teachers = () => {
               className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50 lg:w-44"
             >
               <option value="All">All Status</option>
+
               {teacherStatusOptions.map((status) => (
                 <option key={status} value={status}>
                   {status}
@@ -698,6 +793,7 @@ const Teachers = () => {
               opacity: 1;
               transform: scale(1) translateY(0);
             }
+
             100% {
               opacity: 0.35;
               transform: scale(0.96) translateY(14px);
@@ -709,10 +805,12 @@ const Teachers = () => {
               opacity: 0;
               transform: scale(0.94) translateY(-10px);
             }
+
             70% {
               opacity: 1;
               transform: scale(1.03) translateY(0);
             }
+
             100% {
               opacity: 1;
               transform: scale(1) translateY(0);
@@ -724,7 +822,12 @@ const Teachers = () => {
           }
 
           .teacher-pop-in {
-            animation: teacherPopIn 420ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+            animation: teacherPopIn 420ms cubic-bezier(
+              0.2,
+              0.9,
+              0.25,
+              1.15
+            ) both;
           }
         `}
       </style>
@@ -755,6 +858,7 @@ const RfidInfo = ({ rfid }) => {
   return (
     <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
       <FiCreditCard className="shrink-0 text-slate-400" />
+
       <span>{rfid || "No RFID"}</span>
     </div>
   );
@@ -764,6 +868,7 @@ const DepartmentInfo = ({ department }) => {
   return (
     <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
       <FiBriefcase className="shrink-0 text-slate-400" />
+
       <span>{department || "-"}</span>
     </div>
   );
@@ -775,6 +880,7 @@ const ContactInfo = ({ teacher }) => {
       {teacher.email ? (
         <div className="flex items-center gap-2">
           <FiMail className="shrink-0 text-slate-400" />
+
           <span className="truncate">{teacher.email}</span>
         </div>
       ) : (
@@ -784,6 +890,7 @@ const ContactInfo = ({ teacher }) => {
       {teacher.mobile ? (
         <div className="flex items-center gap-2">
           <FiPhone className="shrink-0 text-slate-400" />
+
           <span>{teacher.mobile}</span>
         </div>
       ) : (
@@ -811,8 +918,11 @@ const TeacherGrid = ({
     <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {teachers.map((teacher) => {
         const isInactive = teacher.status === "Inactive";
+
         const isMoving = movingTeacherId === teacher.id;
+
         const isPopped = poppedTeacherId === teacher.id;
+
         const isSelected = selectedTeacherIds.includes(teacher.id);
 
         return (
@@ -836,6 +946,7 @@ const TeacherGrid = ({
 
               <div className="flex gap-2">
                 <IconButton type="view" onClick={() => onView(teacher)} />
+
                 <IconButton type="delete" onClick={() => onDelete(teacher)} />
               </div>
             </div>
@@ -857,6 +968,7 @@ const TeacherGrid = ({
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
                   RFID
                 </p>
+
                 <RfidInfo rfid={teacher.rfid} />
               </div>
 
@@ -864,6 +976,7 @@ const TeacherGrid = ({
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
                   Department
                 </p>
+
                 <DepartmentInfo department={teacher.department} />
               </div>
 
@@ -871,6 +984,7 @@ const TeacherGrid = ({
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
                   Contact
                 </p>
+
                 <ContactInfo teacher={teacher} />
               </div>
             </div>
@@ -931,8 +1045,11 @@ const TeacherTable = ({
           {teachers.length > 0 ? (
             teachers.map((teacher) => {
               const isInactive = teacher.status === "Inactive";
+
               const isMoving = movingTeacherId === teacher.id;
+
               const isPopped = poppedTeacherId === teacher.id;
+
               const isSelected = selectedTeacherIds.includes(teacher.id);
 
               return (
@@ -956,6 +1073,7 @@ const TeacherTable = ({
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <TeacherAvatar teacher={teacher} inactive={isInactive} />
+
                       <TeacherNameBlock
                         teacher={teacher}
                         inactive={isInactive}
@@ -986,6 +1104,7 @@ const TeacherTable = ({
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
                       <IconButton type="view" onClick={() => onView(teacher)} />
+
                       <IconButton
                         type="delete"
                         onClick={() => onDelete(teacher)}
@@ -1156,6 +1275,7 @@ const StatusButton = ({ status, disabled = false, onClick }) => {
           status === "Active" ? "bg-emerald-500" : "bg-slate-400"
         }`}
       />
+
       {status}
     </button>
   );
@@ -1165,6 +1285,7 @@ const SummaryCard = ({ label, value }) => {
   return (
     <div className="rounded-md bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{label}</p>
+
       <h2 className="mt-2 text-2xl font-semibold text-slate-950">{value}</h2>
     </div>
   );

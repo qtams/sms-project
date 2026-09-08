@@ -8,7 +8,6 @@ import {
   FiEdit2,
   FiHash,
   FiMail,
-  FiPhone,
   FiSave,
   FiUser,
 } from "react-icons/fi";
@@ -77,7 +76,9 @@ const departmentOptions = [
 ];
 
 const statusOptions = ["Active", "Inactive"];
+
 const genderOptions = ["Male", "Female"];
+
 const positionOptions = [
   "Teacher",
   "Adviser",
@@ -111,8 +112,12 @@ const TeacherDetails = () => {
   }, [teacherId]);
 
   const [teacher, setTeacher] = useState(selectedTeacher || {});
+
   const [draftTeacher, setDraftTeacher] = useState(selectedTeacher || {});
+
   const [editingSection, setEditingSection] = useState("");
+
+  const [savingSection, setSavingSection] = useState("");
 
   const [rfidModal, setRfidModal] = useState({
     isOpen: false,
@@ -138,6 +143,7 @@ const TeacherDetails = () => {
           <h1 className="text-2xl font-medium text-slate-900">
             Teacher not found
           </h1>
+
           <p className="mt-2 text-sm text-slate-500">
             The selected teacher record does not exist.
           </p>
@@ -164,22 +170,53 @@ const TeacherDetails = () => {
   };
 
   const saveSection = async (section) => {
-    await apiDebugRequest({
-      module: "teacher",
-      action: `update-${section}`,
-      method: "PATCH",
-      payload: {
-        id: teacher.id,
-        teacherId: teacher.teacherId,
-        section,
-        data: draftTeacher,
-        updatedAt: new Date().toISOString(),
-      },
-    });
+    if (
+      section === "teacher" &&
+      (!draftTeacher.firstName?.trim() || !draftTeacher.lastName?.trim())
+    ) {
+      toast.error("First name and last name are required.");
+      return;
+    }
 
-    setTeacher(draftTeacher);
-    setEditingSection("");
-    toast.success("Teacher details updated.");
+    if (section === "work" && !draftTeacher.teacherId?.trim()) {
+      toast.error("Teacher ID is required.");
+      return;
+    }
+
+    setSavingSection(section);
+
+    try {
+      await apiDebugRequest({
+        module: "teacher",
+        action: `update-${section}`,
+        method: "PATCH",
+        payload: {
+          id: teacher.id,
+          teacherId: teacher.teacherId,
+          section,
+          data: draftTeacher,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+
+      setTeacher(draftTeacher);
+      setEditingSection("");
+
+      const sectionLabels = {
+        teacher: "Teacher information",
+        contact: "Contact information",
+        work: "Work information",
+        rfid: "RFID information",
+      };
+
+      toast.success(
+        `${sectionLabels[section] || "Teacher details"} updated successfully.`,
+      );
+    } catch (error) {
+      toast.error(error?.message || "Unable to update teacher details.");
+    } finally {
+      setSavingSection("");
+    }
   };
 
   const openRfidModal = () => {
@@ -203,6 +240,8 @@ const TeacherDetails = () => {
   };
 
   const handleRfidSaved = ({ rfid }) => {
+    const previousRfid = teacher.rfid;
+
     setTeacher((current) => ({
       ...current,
       rfid,
@@ -212,58 +251,74 @@ const TeacherDetails = () => {
       ...current,
       rfid,
     }));
+
+    closeRfidModal();
+
+    if (previousRfid) {
+      toast.success("Teacher RFID updated successfully.");
+    } else {
+      toast.success("Teacher RFID uploaded successfully.");
+    }
   };
 
   const handleExportTeacher = async () => {
-    const row = {
-      teacherId: teacher.teacherId,
-      rfid: teacher.rfid,
-      fullName: getFullName(teacher),
-      firstName: teacher.firstName,
-      middleName: teacher.middleName,
-      lastName: teacher.lastName,
-      gender: teacher.gender,
-      department: teacher.department,
-      position: teacher.position,
-      email: teacher.email,
-      mobile: teacher.mobile,
-      address: teacher.address,
-      status: teacher.status,
-    };
-
-    await apiDebugRequest({
-      module: "teacher",
-      action: "export-single",
-      method: "POST",
-      payload: {
+    try {
+      const row = {
         teacherId: teacher.teacherId,
-        data: row,
-        exportedAt: new Date().toISOString(),
-      },
-    });
+        rfid: teacher.rfid,
+        fullName: getFullName(teacher),
+        firstName: teacher.firstName,
+        middleName: teacher.middleName,
+        lastName: teacher.lastName,
+        gender: teacher.gender,
+        department: teacher.department,
+        position: teacher.position,
+        email: teacher.email,
+        mobile: teacher.mobile,
+        address: teacher.address,
+        status: teacher.status,
+      };
 
-    const header = Object.keys(row);
-    const values = Object.values(row);
+      await apiDebugRequest({
+        module: "teacher",
+        action: "export-single",
+        method: "POST",
+        payload: {
+          teacherId: teacher.teacherId,
+          data: row,
+          exportedAt: new Date().toISOString(),
+        },
+      });
 
-    const csvContent = [
-      header.map(csvValue).join(","),
-      values.map(csvValue).join(","),
-    ].join("\n");
+      const header = Object.keys(row);
+      const values = Object.values(row);
 
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
+      const csvContent = [
+        header.map(csvValue).join(","),
+        values.map(csvValue).join(","),
+      ].join("\n");
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
 
-    link.href = url;
-    link.download = `${teacher.teacherId}-details.csv`;
-    link.click();
+      const url = URL.createObjectURL(blob);
 
-    URL.revokeObjectURL(url);
+      const link = document.createElement("a");
 
-    toast.success("Teacher details exported.");
+      link.href = url;
+      link.download = `${teacher.teacherId}-details.csv`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      toast.success("Teacher details exported successfully.");
+    } catch (error) {
+      toast.error(error?.message || "Unable to export teacher details.");
+    }
   };
 
   return (
@@ -273,6 +328,7 @@ const TeacherDetails = () => {
           <h1 className="text-2xl font-medium text-slate-950">
             Teacher Details
           </h1>
+
           <p className="mt-1 text-sm text-slate-500">
             View and update teacher profile, RFID, department, and contact
             details.
@@ -336,6 +392,7 @@ const TeacherDetails = () => {
 
           <div className="rounded-md bg-slate-50 px-4 py-3">
             <p className="text-xs font-medium text-slate-500">RFID</p>
+
             <p className="mt-1 text-sm font-medium text-slate-900">
               {teacher.rfid || "No RFID assigned"}
             </p>
@@ -349,6 +406,7 @@ const TeacherDetails = () => {
             color="cyan"
             section="teacher"
             editingSection={editingSection}
+            savingSection={savingSection}
             onEdit={startEdit}
             onCancel={cancelEdit}
             onSave={saveSection}
@@ -401,6 +459,7 @@ const TeacherDetails = () => {
             color="orange"
             section="contact"
             editingSection={editingSection}
+            savingSection={savingSection}
             onEdit={startEdit}
             onCancel={cancelEdit}
             onSave={saveSection}
@@ -413,6 +472,7 @@ const TeacherDetails = () => {
             <div className="grid gap-4 sm:grid-cols-2">
               <FormInput
                 label="Email Address"
+                type="email"
                 value={draftTeacher.email}
                 onChange={(value) => updateDraft("email", value)}
               />
@@ -439,6 +499,7 @@ const TeacherDetails = () => {
             color="violet"
             section="work"
             editingSection={editingSection}
+            savingSection={savingSection}
             onEdit={startEdit}
             onCancel={cancelEdit}
             onSave={saveSection}
@@ -484,6 +545,7 @@ const TeacherDetails = () => {
             color="emerald"
             section="rfid"
             editingSection={editingSection}
+            savingSection={savingSection}
             onEdit={startEdit}
             onCancel={cancelEdit}
             onSave={saveSection}
@@ -543,6 +605,7 @@ const DetailCard = ({
   color,
   section,
   editingSection,
+  savingSection,
   onEdit,
   onCancel,
   onSave,
@@ -551,6 +614,8 @@ const DetailCard = ({
 }) => {
   const isEditing = editingSection === section;
 
+  const isSaving = savingSection === section;
+
   const colorClass = {
     cyan: "bg-cyan-50 text-cyan-600",
     orange: "bg-orange-50 text-orange-600",
@@ -558,9 +623,9 @@ const DetailCard = ({
     emerald: "bg-emerald-50 text-emerald-600",
   };
 
-  const visibleItems = viewItems.filter(([, value]) => {
-    return value !== "" && value !== null && value !== undefined;
-  });
+  const visibleItems = viewItems.filter(
+    ([, value]) => value !== "" && value !== null && value !== undefined,
+  );
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
@@ -597,19 +662,22 @@ const DetailCard = ({
             <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={onCancel}
-                className="rounded-md bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
+                className="rounded-md bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
+                disabled={isSaving}
                 onClick={() => onSave(section)}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FiSave />
-                Save
+
+                {isSaving ? "Saving..." : "Save"}
               </button>
             </div>
           </div>
@@ -618,6 +686,7 @@ const DetailCard = ({
             {visibleItems.map(([label, value]) => (
               <div key={label}>
                 <p className="text-xs font-medium text-slate-500">{label}</p>
+
                 <p className="mt-1 break-words text-sm font-medium text-slate-900">
                   {value}
                 </p>
@@ -696,6 +765,7 @@ const StatusBadge = ({ status }) => {
           status === "Active" ? "bg-emerald-500" : "bg-slate-400"
         }`}
       />
+
       {status}
     </span>
   );

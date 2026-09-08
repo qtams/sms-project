@@ -1,23 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
+import { toast } from "react-toastify";
 import api from "../lib/api";
 import {
   FiArrowLeft,
-  FiCalendar,
   FiCreditCard,
   FiDownload,
   FiEdit2,
   FiHash,
   FiKey,
   FiMail,
-  FiPhone,
   FiShield,
   FiUser,
 } from "react-icons/fi";
-import { toast } from "react-toastify";
 import UserManagementModal from "../components/modals/UserManagementModal";
-import { apiDebugRequest } from "../utils/apiDebugger";
 import {
   csvValue,
   formatBirthday,
@@ -32,23 +29,32 @@ const UserManagementDetails = ({ role }) => {
   const { userId } = useParams();
   const config = roleConfigs[role];
 
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [isSaving, setIsSaving] = useState(false);
+
   const [modalState, setModalState] = useState({
     isOpen: false,
     mode: "edit",
     user: null,
   });
 
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [isLoading, setIsLoading] =useState(true);
-
   useEffect(() => {
     const loadUser = async () => {
+      setIsLoading(true);
+
       try {
         const response = await api.get(`${config.apiPath}/${userId}`);
 
         setSelectedUser(response.data.data);
-      } catch(error) {
+      } catch (error) {
         setSelectedUser(null);
+
+        toast.error(
+          error.response?.data?.message || "Unable to load user details.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -74,10 +80,16 @@ const UserManagementDetails = ({ role }) => {
   };
 
   const handleSaveUser = async (formData) => {
-    if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.username.trim()) {
+    if (
+      !formData.firstName.trim() ||
+      !formData.lastName.trim() ||
+      !formData.username.trim()
+    ) {
       toast.error("First name, last name, and username are required.");
       return;
     }
+
+    setIsSaving(true);
 
     try {
       const response = await api.put(
@@ -87,98 +99,188 @@ const UserManagementDetails = ({ role }) => {
 
       setSelectedUser(response.data.user);
 
-      toast.success(response.data.message || 'User details updated.');
       closeModal();
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message || 
-        "Unable to update user details.",
+
+      toast.success(
+        response.data.message || "User details updated successfully.",
       );
+    } catch (error) {
+      const validationErrors = error.response?.data?.errors;
+
+      if (validationErrors) {
+        const firstMessage = Object.values(validationErrors).flat()[0];
+
+        toast.error(firstMessage || "Validation failed.");
+
+        return;
+      }
+
+      toast.error(
+        error.response?.data?.message || "Unable to update user details.",
+      );
+    } finally {
+      setIsSaving(false);
     }
-    
-
-    await Swal.fire({
-      title: "Password Reset",
-      html: `
-        <div style="text-align:center">
-          <p style="margin:0 0 10px;color:#64748b;font-size:14px">
-            Temporary password for <b>${selectedUser.username}</b>
-          </p>
-          <div style="padding:12px 14px;border-radius:8px;background:#f1f5f9;color:#0f172a;font-weight:700;font-size:18px">
-            ${TEMPORARY_PASSWORD}
-          </div>
-          <p style="margin:10px 0 0;color:#64748b;font-size:13px">
-            Ask the user to change this after login.
-          </p>
-        </div>
-      `,
-      icon: "success",
-      confirmButtonText: "Done",
-      confirmButtonColor: "#0891b2",
-    });
-
-    toast.success("Password reset successfully.");
   };
 
-  const handleExportUser = async () => {
-    if (!selectedUser) return;
+  const handleResetPassword = async () => {
+    const result = await Swal.fire({
+      title: "Reset Password?",
+      html: `
+        <div style="font-size:14px;color:#64748b;line-height:1.6;">
+          Reset the password for
+          <strong style="color:#0f172a;">
+            ${selectedUser.fullName}
+          </strong>?
+          <br />
+          The temporary password will be
+          <strong style="color:#0f172a;">
+            ${TEMPORARY_PASSWORD}
+          </strong>.
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, reset password",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#f97316",
+      cancelButtonColor: "#64748b",
+      reverseButtons: true,
+    });
 
-    const row = {
-      userId: selectedUser.userId,
-      fullName: selectedUser.fullName,
-      username: selectedUser.username,
-      email: selectedUser.email,
-      mobile: selectedUser.mobile,
-      birthday: selectedUser.birthday,
-      rfid: selectedUser.rfid,
-      department: selectedUser.department,
-      position: selectedUser.position,
-      role: config.roleLabel,
-      status: selectedUser.status,
-    };
+    if (!result.isConfirmed) return;
 
-    await apiDebugRequest({
-      module: "user-management",
-      action: `export-${role}-single`,
-      method: "POST",
-      payload: {
-        role,
+    try {
+      Swal.fire({
+        title: "Resetting Password",
+        text: "Please wait...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      /*
+        If your backend reset-password route is named
+        differently, change only this URL.
+      */
+      const response = await api.post(
+        `${config.apiPath}/${selectedUser.id}/reset-password`,
+        {
+          password: TEMPORARY_PASSWORD,
+          password_confirmation: TEMPORARY_PASSWORD,
+        },
+      );
+
+      Swal.close();
+
+      await Swal.fire({
+        title: "Password Reset",
+        html: `
+          <div style="text-align:center;">
+            <p style="
+              margin:0 0 10px;
+              color:#64748b;
+              font-size:14px;
+            ">
+              Temporary password for
+              <b>${selectedUser.username}</b>
+            </p>
+
+            <div style="
+              padding:12px 14px;
+              border-radius:8px;
+              background:#f1f5f9;
+              color:#0f172a;
+              font-weight:700;
+              font-size:18px;
+              letter-spacing:1px;
+            ">
+              ${TEMPORARY_PASSWORD}
+            </div>
+
+            <p style="
+              margin:10px 0 0;
+              color:#64748b;
+              font-size:13px;
+            ">
+              Ask the user to change this password
+              after login.
+            </p>
+          </div>
+        `,
+        icon: "success",
+        confirmButtonText: "Done",
+        confirmButtonColor: "#0891b2",
+      });
+
+      toast.success(response.data?.message || "Password reset successfully.");
+    } catch (error) {
+      Swal.close();
+
+      toast.error(error.response?.data?.message || "Unable to reset password.");
+    }
+  };
+
+  const handleExportUser = () => {
+    if (!selectedUser) {
+      toast.error("No user information available to export.");
+      return;
+    }
+
+    try {
+      const row = {
         userId: selectedUser.userId,
-        data: row,
-        exportedAt: new Date().toISOString(),
-      },
-    });
+        fullName: selectedUser.fullName,
+        username: selectedUser.username,
+        email: selectedUser.email,
+        mobile: selectedUser.mobile,
+        birthday: selectedUser.birthday,
+        rfid: selectedUser.rfid,
+        department: selectedUser.department,
+        position: selectedUser.position,
+        role: config.roleLabel,
+        status: selectedUser.status,
+      };
 
-    const header = Object.keys(row);
-    const values = Object.values(row);
+      const header = Object.keys(row);
+      const values = Object.values(row);
 
-    const csvContent = [
-      header.map(csvValue).join(","),
-      values.map(csvValue).join(","),
-    ].join("\n");
+      const csvContent = [
+        header.map(csvValue).join(","),
+        values.map(csvValue).join(","),
+      ].join("\n");
 
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
 
-    link.href = url;
-    link.download = `${selectedUser.userId}-details.csv`;
-    link.click();
+      link.href = url;
+      link.download = `${selectedUser.userId}-details.csv`;
 
-    URL.revokeObjectURL(url);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-    toast.success("User details exported.");
+      URL.revokeObjectURL(url);
+
+      toast.success("User details exported successfully.");
+    } catch {
+      toast.error("Unable to export user details.");
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="p-10 text-center">
-          Loading user...
+      <div className="p-10 text-center text-sm font-medium text-slate-500">
+        Loading user...
       </div>
-    )
+    );
   }
 
   if (!selectedUser) {
@@ -197,6 +299,7 @@ const UserManagementDetails = ({ role }) => {
           <h1 className="text-2xl font-medium text-slate-900">
             User not found
           </h1>
+
           <p className="mt-2 text-sm text-slate-500">
             The selected user record does not exist.
           </p>
@@ -353,6 +456,7 @@ const UserManagementDetails = ({ role }) => {
         mode="edit"
         roleLabel={config.roleLabel}
         user={modalState.user}
+        isSaving={isSaving}
         onClose={closeModal}
         onSave={handleSaveUser}
       />
@@ -368,9 +472,9 @@ const DetailCard = ({ title, icon, color, onEdit, viewItems }) => {
     emerald: "bg-emerald-50 text-emerald-600",
   };
 
-  const visibleItems = viewItems.filter(([, value]) => {
-    return value !== "" && value !== null && value !== undefined;
-  });
+  const visibleItems = viewItems.filter(
+    ([, value]) => value !== "" && value !== null && value !== undefined,
+  );
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
@@ -401,6 +505,7 @@ const DetailCard = ({ title, icon, color, onEdit, viewItems }) => {
         {visibleItems.map(([label, value]) => (
           <div key={label}>
             <p className="text-xs font-medium text-slate-500">{label}</p>
+
             <p className="mt-1 break-words text-sm font-medium text-slate-900">
               {value}
             </p>
@@ -425,6 +530,7 @@ const StatusBadge = ({ status }) => {
           status === "Active" ? "bg-emerald-500" : "bg-slate-400"
         }`}
       />
+
       {status}
     </span>
   );

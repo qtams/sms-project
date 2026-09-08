@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
+import { toast } from "react-toastify";
 import api from "../lib/api";
 import {
   FiCheckCircle,
@@ -15,7 +17,6 @@ import {
   FiUsers,
   FiXCircle,
 } from "react-icons/fi";
-import { toast } from "react-toastify";
 import UserManagementModal from "../components/modals/UserManagementModal";
 import { csvValue, getInitials, roleConfigs } from "../data/userManagementData";
 
@@ -26,6 +27,14 @@ const UserManagementPage = ({ role }) => {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    mode: "create",
+    user: null,
+  });
 
   useEffect(() => {
     let isCurrent = true;
@@ -41,11 +50,12 @@ const UserManagementPage = ({ role }) => {
         const response = await api.get(config.apiPath);
 
         if (isCurrent) {
-          setUsers(response.data.data);
+          setUsers(response.data.data || []);
         }
       } catch (error) {
         if (isCurrent) {
           setUsers([]);
+
           toast.error(
             error.response?.data?.message ||
               error.message ||
@@ -66,24 +76,23 @@ const UserManagementPage = ({ role }) => {
     };
   }, [config.apiPath, config.roleLabel, role]);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-
-  const [modalState, setModalState] = useState({
-    isOpen: false,
-    mode: "create",
-    user: null,
-  });
-
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const searchValue = searchTerm.toLowerCase();
 
       const matchesSearch =
-        user.fullName.toLowerCase().includes(searchValue) ||
-        user.username.toLowerCase().includes(searchValue) ||
-        user.email.toLowerCase().includes(searchValue) ||
-        user.userId.toLowerCase().includes(searchValue) ||
+        String(user.fullName || "")
+          .toLowerCase()
+          .includes(searchValue) ||
+        String(user.username || "")
+          .toLowerCase()
+          .includes(searchValue) ||
+        String(user.email || "")
+          .toLowerCase()
+          .includes(searchValue) ||
+        String(user.userId || "")
+          .toLowerCase()
+          .includes(searchValue) ||
         String(user.mobile || "")
           .toLowerCase()
           .includes(searchValue);
@@ -96,6 +105,7 @@ const UserManagementPage = ({ role }) => {
   }, [users, searchTerm, statusFilter]);
 
   const activeCount = users.filter((user) => user.status === "Active").length;
+
   const inactiveCount = users.filter(
     (user) => user.status === "Inactive",
   ).length;
@@ -134,6 +144,18 @@ const UserManagementPage = ({ role }) => {
       return;
     }
 
+    if (modalState.mode === "create") {
+      if (!formData.password) {
+        toast.error("Password is required.");
+        return;
+      }
+
+      if (formData.password !== formData.password_confirmation) {
+        toast.error("Passwords do not match.");
+        return;
+      }
+    }
+
     setIsSaving(true);
 
     try {
@@ -151,7 +173,11 @@ const UserManagementPage = ({ role }) => {
           ),
         );
 
-        toast.success(response.data.message);
+        closeModal();
+
+        toast.success(
+          response.data.message || `${config.roleLabel} updated successfully.`,
+        );
       } else {
         const response = await api.post(config.apiPath, formData);
 
@@ -159,17 +185,20 @@ const UserManagementPage = ({ role }) => {
 
         setUsers((current) => [createdUser, ...current]);
 
-        toast.success(response.data.message);
-      }
+        closeModal();
 
-      closeModal();
+        toast.success(
+          response.data.message || `${config.roleLabel} created successfully.`,
+        );
+      }
     } catch (error) {
       const validationErrors = error.response?.data?.errors;
 
       if (validationErrors) {
         const firstMessage = Object.values(validationErrors).flat()[0];
 
-        toast.error(firstMessage);
+        toast.error(firstMessage || "Validation failed.");
+
         return;
       }
 
@@ -185,6 +214,21 @@ const UserManagementPage = ({ role }) => {
   const handleStatusToggle = async (user) => {
     const nextStatus = user.status === "Active" ? "Inactive" : "Active";
 
+    const result = await Swal.fire({
+      title: nextStatus === "Inactive" ? "Deactivate User?" : "Activate User?",
+      text: `Are you sure you want to set ${user.fullName} as ${nextStatus}?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText:
+        nextStatus === "Inactive" ? "Yes, deactivate" : "Yes, activate",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: nextStatus === "Inactive" ? "#f97316" : "#059669",
+      cancelButtonColor: "#64748b",
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
       const response = await api.patch(`${config.apiPath}/${user.id}/status`, {
         status: nextStatus,
@@ -198,7 +242,9 @@ const UserManagementPage = ({ role }) => {
         ),
       );
 
-      toast.success(response.data.message);
+      toast.success(
+        response.data.message || `${user.fullName} is now ${nextStatus}.`,
+      );
     } catch (error) {
       toast.error(
         error.response?.data?.message ||
@@ -208,17 +254,54 @@ const UserManagementPage = ({ role }) => {
   };
 
   const handleDelete = async (user) => {
-    const confirmed = window.confirm(`Delete ${user.fullName}?`);
+    const result = await Swal.fire({
+      title: "Delete User?",
+      html: `
+        <div style="font-size:14px;color:#64748b;line-height:1.6;">
+          Are you sure you want to delete
+          <strong style="color:#0f172a;">
+            ${user.fullName}
+          </strong>?
+          <br />
+          This action cannot be undone.
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#64748b",
+      reverseButtons: true,
+      focusCancel: true,
+    });
 
-    if (!confirmed) return;
+    if (!result.isConfirmed) return;
 
     try {
+      Swal.fire({
+        title: "Deleting User",
+        text: "Please wait...",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
       const response = await api.delete(`${config.apiPath}/${user.id}`);
 
       setUsers((current) => current.filter((item) => item.id !== user.id));
 
-      toast.success(response.data.message);
+      Swal.close();
+
+      toast.success(
+        response.data.message || `${user.fullName} deleted successfully.`,
+      );
     } catch (error) {
+      Swal.close();
+
       toast.error(
         error.response?.data?.message ||
           `Unable to delete ${config.roleLabel.toLowerCase()}.`,
@@ -226,65 +309,80 @@ const UserManagementPage = ({ role }) => {
     }
   };
 
-  const handleExport = async () => {
-    const rows = filteredUsers.map((user) => ({
-      userId: user.userId,
-      fullName: user.fullName,
-      username: user.username,
-      email: user.email,
-      mobile: user.mobile,
-      birthday: user.birthday,
-      department: user.department,
-      position: user.position,
-      role: config.roleLabel,
-      status: user.status,
-    }));
+  const handleExport = () => {
+    try {
+      const rows = filteredUsers.map((user) => ({
+        userId: user.userId,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        mobile: user.mobile,
+        birthday: user.birthday,
+        department: user.department,
+        position: user.position,
+        role: config.roleLabel,
+        status: user.status,
+      }));
 
-    const header = [
-      "User ID",
-      "Full Name",
-      "Username",
-      "Email",
-      "Mobile",
-      "Birthday",
-      "Department",
-      "Position",
-      "Role",
-      "Status",
-    ];
+      if (rows.length === 0) {
+        toast.warning("No users available to export.");
+        return;
+      }
 
-    const csvRows = rows.map((row) =>
-      [
-        row.userId,
-        row.fullName,
-        row.username,
-        row.email,
-        row.mobile,
-        row.birthday,
-        row.department,
-        row.position,
-        row.role,
-        row.status,
-      ]
-        .map(csvValue)
-        .join(","),
-    );
+      const header = [
+        "User ID",
+        "Full Name",
+        "Username",
+        "Email",
+        "Mobile",
+        "Birthday",
+        "Department",
+        "Position",
+        "Role",
+        "Status",
+      ];
 
-    const csvContent = [header.map(csvValue).join(","), ...csvRows].join("\n");
+      const csvRows = rows.map((row) =>
+        [
+          row.userId,
+          row.fullName,
+          row.username,
+          row.email,
+          row.mobile,
+          row.birthday,
+          row.department,
+          row.position,
+          row.role,
+          row.status,
+        ]
+          .map(csvValue)
+          .join(","),
+      );
 
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
+      const csvContent = [header.map(csvValue).join(","), ...csvRows].join(
+        "\n",
+      );
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
 
-    link.href = url;
-    link.download = `${role}-users.csv`;
-    link.click();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
 
-    URL.revokeObjectURL(url);
-    toast.success("Users exported.");
+      link.href = url;
+      link.download = `${role}-users.csv`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      toast.success("Users exported successfully.");
+    } catch {
+      toast.error("Unable to export users.");
+    }
   };
 
   return (
@@ -321,7 +419,9 @@ const UserManagementPage = ({ role }) => {
 
       <div className="grid gap-3 md:grid-cols-3">
         <SummaryCard label="Total Users" value={users.length} />
+
         <SummaryCard label="Active" value={activeCount} />
+
         <SummaryCard label="Inactive" value={inactiveCount} />
       </div>
 
@@ -509,6 +609,7 @@ const SummaryCard = ({ label, value }) => {
   return (
     <div className="rounded-md bg-white p-4 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{label}</p>
+
       <h2 className="mt-2 text-2xl font-semibold text-slate-950">{value}</h2>
     </div>
   );
@@ -534,6 +635,7 @@ const StatusBadge = ({ status }) => {
       }`}
     >
       {isActive ? <FiCheckCircle /> : <FiXCircle />}
+
       {status}
     </span>
   );
@@ -556,7 +658,9 @@ const EmptyState = () => {
   return (
     <div className="px-5 py-12 text-center">
       <FiUsers className="mx-auto text-3xl text-slate-300" />
+
       <p className="mt-3 font-semibold text-slate-900">No users found</p>
+
       <p className="mt-1 text-sm text-slate-500">
         Try changing your search or status filter.
       </p>
