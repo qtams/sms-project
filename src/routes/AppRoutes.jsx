@@ -31,6 +31,11 @@ import LogMonitoring from "../pages/LogMonitoring";
 
 import { useAuth } from "../context/AuthContext";
 
+/* =========================================================
+   TIME LOGGER
+========================================================= */
+import TimeLogger from "../pages/TimeLogger";
+
 const ComingSoon = ({ title }) => {
   return (
     <div data-aos="fade-up">
@@ -111,6 +116,15 @@ const AppRoutes = () => {
             - Sidebar
             - Header
         ============================================================== */}
+        {/* ===================================================
+            TIME LOGGER
+
+            This is outside AdminLayout so it will display
+            fullscreen without admin sidebar/header.
+        =================================================== */}
+
+        <Route path="/time-logger" element={<TimeLogger />} />
+
         <Route element={<AdminLayout />}>
           {/* DEFAULT */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
