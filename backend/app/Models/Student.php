@@ -11,7 +11,7 @@ class Student extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['student_no', 'lrn', 'first_name', 'middle_name', 'last_name', 'suffix', 'birth_date', 'gender', 'email', 'mobile', 'address', 'photo_path', 'status'];
+    protected $fillable = ['student_no', 'lrn', 'first_name', 'middle_name', 'last_name', 'suffix', 'birth_date', 'gender', 'email', 'mobile', 'address', 'guardian_name', 'guardian_relationship', 'guardian_contact', 'guardian_email', 'photo_path', 'status'];
 
     protected function casts(): array
     {

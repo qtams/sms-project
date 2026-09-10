@@ -45,7 +45,7 @@ class AttendanceTestStudentSeeder extends Seeder
                 'birth_date' => '2013-05-10',
                 'gender' => 'male',
                 'email' => 'juan.cruz@example.test',
-                'mobile' => '09123456789',
+                'mobile' => '09274158625',
                 'address' => 'Cagayan de Oro City',
                 'status' => 'active',
             ],

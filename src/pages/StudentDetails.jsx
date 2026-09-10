@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FiArrowLeft,
@@ -19,103 +19,9 @@ import {
 import { toast } from "react-toastify";
 import { apiDebugRequest } from "../utils/apiDebugger";
 import DocumentUploadModal from "../components/modals/DocumentUploadModal";
+import api from "../lib/api";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
-
-const initialStudents = [
-  {
-    id: 1,
-    studentId: "STD-0001",
-    rfid: "RFID-000001",
-    firstName: "Juan",
-    middleName: "",
-    lastName: "Dela Cruz",
-    gender: "Male",
-    birthDate: "2013-05-10",
-    email: "juan.delacruz@email.com",
-    mobile: "09123456789",
-    address: "Cagayan de Oro City",
-    guardianName: "Maria Dela Cruz",
-    relationship: "Mother",
-    guardianContact: "09123456789",
-    guardianEmail: "maria.delacruz@email.com",
-    gradeLevel: "Grade 7",
-    section: "A",
-    department: "Junior High School",
-    schoolYear: "2026 - 2027",
-    status: "Enrolled",
-    photoPreview: "",
-  },
-  {
-    id: 2,
-    studentId: "STD-0002",
-    rfid: "RFID-000002",
-    firstName: "Ana",
-    middleName: "",
-    lastName: "Santos",
-    gender: "Female",
-    birthDate: "2012-03-18",
-    email: "ana.santos@email.com",
-    mobile: "09987654321",
-    address: "Misamis Oriental",
-    guardianName: "Pedro Santos",
-    relationship: "Father",
-    guardianContact: "09987654321",
-    guardianEmail: "pedro.santos@email.com",
-    gradeLevel: "Grade 8",
-    section: "B",
-    department: "Junior High School",
-    schoolYear: "2026 - 2027",
-    status: "Enrolled",
-    photoPreview: "",
-  },
-  {
-    id: 3,
-    studentId: "STD-0003",
-    rfid: "RFID-000003",
-    firstName: "Carlo",
-    middleName: "",
-    lastName: "Reyes",
-    gender: "Male",
-    birthDate: "2010-08-22",
-    email: "",
-    mobile: "",
-    address: "",
-    guardianName: "",
-    relationship: "",
-    guardianContact: "",
-    guardianEmail: "",
-    gradeLevel: "Grade 11",
-    section: "STEM A",
-    department: "Senior High School",
-    schoolYear: "2026 - 2027",
-    status: "Unenrolled",
-    photoPreview: "",
-  },
-  {
-    id: 4,
-    studentId: "STD-0004",
-    rfid: "RFID-000004",
-    firstName: "Mark",
-    middleName: "",
-    lastName: "Villanueva",
-    gender: "Male",
-    birthDate: "2011-11-14",
-    email: "",
-    mobile: "",
-    address: "",
-    guardianName: "",
-    relationship: "",
-    guardianContact: "",
-    guardianEmail: "",
-    gradeLevel: "Grade 9",
-    section: "C",
-    department: "Junior High School",
-    schoolYear: "2026 - 2027",
-    status: "Inactive",
-    photoPreview: "",
-  },
-];
 
 const defaultDocuments = [
   {
@@ -297,12 +203,10 @@ const StudentDetails = () => {
   const navigate = useNavigate();
   const { studentId } = useParams();
 
-  const selectedStudent = useMemo(() => {
-    return initialStudents.find((student) => student.studentId === studentId);
-  }, [studentId]);
-
-  const [student, setStudent] = useState(selectedStudent || {});
-  const [draftStudent, setDraftStudent] = useState(selectedStudent || {});
+  const [student, setStudent] = useState(null);
+  const [draftStudent, setDraftStudent] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [editingSection, setEditingSection] = useState("");
   const [documents, setDocuments] = useState(defaultDocuments);
 
@@ -323,9 +227,45 @@ const StudentDetails = () => {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-  if (!selectedStudent) {
+  useEffect(() => {
+    let cancelled = false;
+
+    setIsLoading(true);
+    setLoadError("");
+    api
+      .get(`/api/students/${encodeURIComponent(studentId)}`)
+      .then((response) => {
+        if (cancelled) return;
+        setStudent(response.data.student);
+        setDraftStudent(response.data.student);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLoadError(
+            error.response?.data?.message || "The selected student record does not exist.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId]);
+
+  if (isLoading) {
     return (
-      <div data-aos="fade-up" className="space-y-5">
+      <div className="rounded-md bg-white p-10 text-center shadow-sm">
+        <p className="text-sm text-slate-500">Loading student details...</p>
+      </div>
+    );
+  }
+
+  if (!student) {
+    return (
+      <div className="space-y-5">
         <button
           type="button"
           onClick={() => navigate("/students")}
@@ -340,7 +280,7 @@ const StudentDetails = () => {
             Student not found
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            The selected student record does not exist.
+            {loadError}
           </p>
         </div>
       </div>
@@ -365,22 +305,24 @@ const StudentDetails = () => {
   };
 
   const saveSection = async (section) => {
-    await apiDebugRequest({
-      module: "student",
-      action: `update-${section}`,
-      method: "PATCH",
-      payload: {
-        id: student.id,
-        studentId: student.studentId,
-        section,
-        data: draftStudent,
-        updatedAt: new Date().toISOString(),
-      },
-    });
-
-    setStudent(draftStudent);
-    setEditingSection("");
-    toast.success("Student details updated.");
+    try {
+      const response = await api.patch(
+        `/api/students/${encodeURIComponent(student.studentId)}`,
+        draftStudent,
+      );
+      setStudent(response.data.student);
+      setDraftStudent(response.data.student);
+      setEditingSection("");
+      toast.success(response.data.message || "Student details updated.");
+    } catch (error) {
+      const validationErrors = error.response?.data?.errors;
+      const firstError = validationErrors
+        ? Object.values(validationErrors).flat()[0]
+        : null;
+      toast.error(
+        firstError || error.response?.data?.message || "Unable to update student details.",
+      );
+    }
   };
 
   const openUploadModal = (documentItem) => {
@@ -567,7 +509,7 @@ const StudentDetails = () => {
   };
 
   return (
-    <div data-aos="fade-up" className="space-y-5">
+    <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-medium text-slate-950">
@@ -774,6 +716,7 @@ const StudentDetails = () => {
             onEdit={startEdit}
             onCancel={cancelEdit}
             onSave={saveSection}
+            editable={false}
             viewItems={[
               ["Student ID", student.studentId],
               ["RFID", student.rfid],
@@ -882,6 +825,7 @@ const DetailCard = ({
   onEdit,
   onCancel,
   onSave,
+  editable = true,
   viewItems,
   children,
 }) => {
@@ -913,7 +857,7 @@ const DetailCard = ({
           <h3 className="font-medium text-slate-950">{title}</h3>
         </div>
 
-        {!isEditing && (
+        {!isEditing && editable && (
           <button
             type="button"
             onClick={() => onEdit(section)}

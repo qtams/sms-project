@@ -18,6 +18,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/staff-metadata', StaffMetadataController::class);
     Route::get('/students', [DirectoryController::class, 'students']);
+    Route::get('/students/{student:student_no}', [DirectoryController::class, 'student']);
+    Route::patch('/students/{student:student_no}', [DirectoryController::class, 'updateStudent']);
     Route::get('/teachers', [DirectoryController::class, 'teachers']);
 
     Route::prefix('attendance')->controller(AttendanceController::class)->group(function () {
