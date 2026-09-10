@@ -29,4 +29,9 @@ class AttendanceRecord extends Model
     {
         return $this->hasMany(AttendanceCorrection::class);
     }
+
+    public function smsNotifications(): HasMany
+    {
+        return $this->hasMany(SmsNotification::class);
+    }
 }

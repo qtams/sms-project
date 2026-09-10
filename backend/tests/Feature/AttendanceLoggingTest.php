@@ -14,6 +14,7 @@ use App\Models\Student;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AttendanceLoggingTest extends TestCase
@@ -95,6 +96,48 @@ class AttendanceLoggingTest extends TestCase
             ->assertJsonPath('success', false);
 
         $this->assertDatabaseHas('rfid_scan_events', ['scanned_uid' => 'UNKNOWN-CARD', 'event_type' => 'unknown_card', 'result' => 'rejected']);
+    }
+
+    public function test_successful_check_in_sends_sms_to_the_students_mobile_number(): void
+    {
+        config()->set('services.unisms', [
+            'enabled' => true,
+            'base_url' => 'https://unismsapi.com/api',
+            'secret_key' => 'test-secret',
+            'sender_id' => 'Unisoft',
+            'recipient' => 'student',
+        ]);
+        Http::fake([
+            'unismsapi.com/api/sms' => Http::response([
+                'message' => [
+                    'reference_id' => 'msg_test_123',
+                    'status' => 'sent',
+                    'fail_reason' => null,
+                ],
+            ], 201),
+        ]);
+
+        [$user, $student] = $this->attendanceFixture();
+        $student->update(['mobile' => '09274158625']);
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-08 07:30:00', 'Asia/Manila'));
+
+        $this->actingAs($user)
+            ->postJson('/api/attendance/manual', ['student_no' => $student->student_no])
+            ->assertOk()
+            ->assertJsonPath('action', 'check-in');
+
+        Http::assertSent(fn ($request) =>
+            $request->url() === 'https://unismsapi.com/api/sms'
+            && $request['recipient'] === '+639274158625'
+            && $request['sender_id'] === 'Unisoft'
+            && $request['metadata']['event'] === 'student_check_in'
+        );
+        $this->assertDatabaseHas('sms_notifications', [
+            'student_id' => $student->id,
+            'recipient' => '+639274158625',
+            'provider_reference_id' => 'msg_test_123',
+            'status' => 'sent',
+        ]);
     }
 
     private function attendanceFixture(): array

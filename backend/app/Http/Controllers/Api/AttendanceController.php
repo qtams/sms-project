@@ -9,6 +9,7 @@ use App\Models\Enrollment;
 use App\Models\RfidAssignment;
 use App\Models\RfidScanEvent;
 use App\Models\Student;
+use App\Services\UniSmsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,10 @@ class AttendanceController extends Controller
     private const TIMEZONE = 'Asia/Manila';
 
     private const DUPLICATE_COOLDOWN_SECONDS = 30;
+
+    public function __construct(private readonly UniSmsService $uniSms)
+    {
+    }
 
     public function scan(Request $request): JsonResponse
     {
@@ -292,6 +297,10 @@ class AttendanceController extends Controller
 
         $message = $action === 'check-in' ? 'Student checked in successfully.' : 'Student checked out successfully.';
         $this->logEvent($student, $assignment, $assignment?->card?->uid, str_replace('-', '_', $action), 'success', $message, $now, $request, $eventUuid, $record);
+
+        if ($action === 'check-in') {
+            $this->uniSms->sendCheckIn($student, $record, $now);
+        }
 
         $duration = $record->first_in_at && $record->last_out_at
             ? $record->first_in_at->diff($record->last_out_at)->format('%H:%I:%S')

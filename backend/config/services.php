@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'unisms' => [
+        'enabled' => env('UNISMS_ENABLED', false),
+        'base_url' => env('UNISMS_BASE_URL', 'https://unismsapi.com/api'),
+        'secret_key' => env('UNISMS_SECRET_KEY'),
+        'sender_id' => env('UNISMS_SENDER_ID'),
+        'recipient' => env('UNISMS_RECIPIENT', 'student'),
+        'ca_bundle' => env('UNISMS_CA_BUNDLE'),
+    ],
+
 ];
