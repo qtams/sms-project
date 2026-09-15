@@ -122,6 +122,10 @@ const Sidebar = () => {
               label: "Attendance",
               path: "/attendance",
             },
+            {
+              label: "Log Monitoring",
+              path: "/log-monitoring",
+            },
           ],
         },
       ],
@@ -147,7 +151,7 @@ const Sidebar = () => {
         key={item.label}
         to={item.path}
         className={({ isActive }) =>
-          `group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition ${
+          `group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
             isActive
               ? "bg-cyan-50 text-cyan-700"
               : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
@@ -157,13 +161,13 @@ const Sidebar = () => {
         {({ isActive }) => (
           <>
             <span
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition ${
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
                 isActive
                   ? "bg-white text-cyan-600 shadow-sm"
                   : "bg-transparent text-slate-400 group-hover:bg-white group-hover:text-slate-500"
               }`}
             >
-              <Icon size={17} />
+              <Icon size={16} />
             </span>
 
             <span className="truncate">{item.label}</span>
@@ -179,7 +183,7 @@ const Sidebar = () => {
         key={item.label}
         to={item.path}
         className={({ isActive }) =>
-          `relative block rounded-md px-3 py-2 text-sm font-medium transition ${
+          `relative block rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
             isActive
               ? "bg-cyan-50 text-cyan-700"
               : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
@@ -205,21 +209,22 @@ const Sidebar = () => {
         <button
           type="button"
           onClick={() => toggleDropdown(section.key)}
-          className={`group flex w-full items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium transition ${
+          aria-expanded={isOpen}
+          className={`group flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
             isOpen
               ? "bg-cyan-50 text-cyan-700"
               : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
           }`}
         >
-          <span className="flex min-w-0 items-center gap-3">
+          <span className="flex min-w-0 items-center gap-2.5">
             <span
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition ${
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
                 isOpen
                   ? "bg-white text-cyan-600 shadow-sm"
                   : "bg-transparent text-slate-400 group-hover:bg-white group-hover:text-slate-500"
               }`}
             >
-              <Icon size={17} />
+              <Icon size={16} />
             </span>
 
             <span className="truncate">{section.label}</span>
@@ -234,8 +239,8 @@ const Sidebar = () => {
         </button>
 
         {isOpen && (
-          <div className="ml-7 mt-1 border-l border-slate-100 pl-3">
-            <div className="space-y-1 py-1">
+          <div className="ml-6 mt-1 border-l border-slate-200 pl-3">
+            <div className="space-y-0.5 py-0.5">
               {section.items.map((item) => renderChildLink(item))}
             </div>
           </div>
@@ -257,15 +262,15 @@ const Sidebar = () => {
   }
 
   return (
-    <aside className="no-scrollbar hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-5 text-slate-900 lg:block">
-      <nav className="space-y-6">
+    <aside className="no-scrollbar hidden h-full w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-3 py-4 text-slate-900 [font-family:'Poppins',sans-serif] lg:block">
+      <nav aria-label="Main navigation" className="space-y-5">
         {menuSections.map((group) => (
           <div key={group.title}>
-            <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
               {group.title}
             </p>
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {group.items.map((item) => renderMenuItem(item))}
             </div>
           </div>
@@ -277,8 +282,8 @@ const Sidebar = () => {
 
 const SidebarSkeleton = () => {
   return (
-    <aside className="no-scrollbar hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-5 lg:block">
-      <nav className="space-y-6">
+    <aside className="no-scrollbar hidden h-full w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-3 py-4 lg:block">
+      <nav className="space-y-5">
         {Array.from({ length: 3 }).map((_, sectionIndex) => (
           <div key={sectionIndex}>
             <div className="mb-2 px-3">

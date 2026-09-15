@@ -1113,6 +1113,7 @@
             <UserManagementModal
               isOpen={state.modal.isOpen}
               mode={state.modal.mode}
+              role={role}
               roleLabel={config.roleLabel}
               user={state.modal.user}
               isSaving={state.isSaving}

@@ -300,7 +300,7 @@ const AttendanceDetails = () => {
 
   if (!student) {
     return (
-      <div data-aos="fade-up" className="space-y-5">
+      <div className="space-y-5">
         <button
           type="button"
           onClick={() => navigate("/attendance")}
@@ -323,7 +323,7 @@ const AttendanceDetails = () => {
   }
 
   return (
-    <div data-aos="fade-up" className="space-y-5">
+    <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-semibold text-slate-950">

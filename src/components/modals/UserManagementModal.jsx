@@ -102,6 +102,7 @@ const STEP_FIELDS = {
 const UserManagementModal = ({
   isOpen,
   mode = "create",
+  role,
   roleLabel = "User",
   user = null,
   isSaving = false,
@@ -242,20 +243,41 @@ const UserManagementModal = ({
   ======================================================= */
 
   const departmentOptions = useMemo(() => {
-    return metadata.departments.map((item) => ({
-      value: String(item.id),
+    const departmentCode = {
+      admin: "ADMIN",
+      registrar: "REG",
+      guard: "SEC",
+    }[role];
 
-      label: item.name || item.label || "Department",
-    }));
-  }, [metadata.departments]);
+    return metadata.departments
+      .filter((item) => !departmentCode || item.code === departmentCode)
+      .map((item) => ({
+        value: String(item.id),
+
+        label: item.name || item.label || "Department",
+      }));
+  }, [metadata.departments, role]);
 
   const positionOptions = useMemo(() => {
-    return metadata.positions.map((item) => ({
-      value: String(item.id),
+    const positionCodes = {
+      admin: ["SUPER_ADMIN", "SYS_ADMIN"],
+      registrar: ["REGISTRAR"],
+      guard: ["GUARD"],
+    }[role];
 
-      label: item.name || item.label || "Position",
-    }));
-  }, [metadata.positions]);
+    return metadata.positions
+      .filter(
+        (item) =>
+          String(item.department_id ?? item.departmentId ?? "") ===
+            formData.departmentId &&
+          (!positionCodes || positionCodes.includes(item.code)),
+      )
+      .map((item) => ({
+        value: String(item.id),
+
+        label: item.name || item.label || "Position",
+      }));
+  }, [formData.departmentId, metadata.positions, role]);
 
   /* =======================================================
      GENERATED PASSWORD
@@ -274,6 +296,8 @@ const UserManagementModal = ({
       ...current,
 
       [field]: value,
+
+      ...(field === "departmentId" ? { positionId: "" } : {}),
     }));
   };
 
@@ -928,7 +952,11 @@ const UserManagementModal = ({
                     onBlur={() => touchField("positionId")}
                     error={getError("positionId")}
                     options={positionOptions}
-                    placeholder="Select position"
+                    placeholder={
+                      formData.departmentId
+                        ? "Select position"
+                        : "Select department first"
+                    }
                   />
 
                   <FormInput

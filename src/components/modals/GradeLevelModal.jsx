@@ -26,7 +26,7 @@ const GradeLevelModal = ({
       <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col">
         <div className="flex-1 overflow-y-auto py-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Academic Unit">
+            <FormField label="Academic Home">
               <select
                 className={inputClass}
                 required
@@ -40,19 +40,23 @@ const GradeLevelModal = ({
                   })
                 }
               >
-                <option value="">Select academic unit</option>
+                <option value="">Select department or college</option>
 
                 {data.academicUnits
-                  .filter((item) => item.is_active)
+                  .filter(
+                    (item) =>
+                      item.is_active && ["college", "department"].includes(item.type),
+                  )
                   .map((item) => (
                     <option key={item.id} value={item.id}>
+                      {item.parent?.name ? `${item.parent.name} → ` : ""}
                       {item.name}
                     </option>
                   ))}
               </select>
             </FormField>
 
-            <FormField label="Program / Track">
+            <FormField label="Program / Strand / Specialization">
               <select
                 className={inputClass}
                 disabled={submitting}
@@ -64,22 +68,25 @@ const GradeLevelModal = ({
                   })
                 }
               >
-                <option value="">No program / track</option>
+                <option value="">Directly under academic home</option>
 
-                {programs.map((item) => (
+                {programs
+                  .filter((item) => item.children_count === 0)
+                  .map((item) => (
                   <option key={item.id} value={item.id}>
+                    {item.parent?.name ? `${item.parent.name} → ` : ""}
                     {item.name}
                   </option>
-                ))}
+                  ))}
               </select>
             </FormField>
 
-            <FormField label="Grade Level">
+            <FormField label="Grade / Year Level">
               <input
                 className={inputClass}
                 required
                 disabled={submitting}
-                placeholder="Grade 7 or First Year"
+                placeholder="e.g. Grade 7 or 1st Year"
                 value={value.name}
                 onChange={(event) =>
                   setValue({ ...value, name: event.target.value })
@@ -106,7 +113,7 @@ const GradeLevelModal = ({
         <ModalFooter
           onCancel={onClose}
           submitting={submitting}
-          label="Save Grade Level"
+          label="Save Level"
         />
       </form>
     </BaseModal>

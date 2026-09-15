@@ -82,27 +82,27 @@ export default function AttendanceMonitoring() {
   );
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
             <div className="flex items-center gap-2 text-cyan-600">
               <FiActivity />
-              <span className="text-xs font-bold uppercase tracking-[0.25em]">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em]">
                 Live attendance feed
               </span>
             </div>
-            <h1 className="mt-2 text-3xl font-bold">Attendance Monitoring</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="mt-1 text-2xl font-semibold">Attendance Monitoring</h1>
+            {/* <p className="mt-1 text-sm text-slate-500">
               RFID and manual time-logger events refresh every three seconds.
-            </p>
+            </p> */}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setAutoRefresh((value) => !value)}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+              aria-pressed={autoRefresh}
+              className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                 autoRefresh
                   ? "border border-cyan-200 bg-cyan-50 text-cyan-700"
                   : "border border-slate-200 bg-white text-slate-600"
@@ -113,12 +113,13 @@ export default function AttendanceMonitoring() {
             <button
               type="button"
               onClick={() => loadLogs()}
-              className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-cyan-700"
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-wait disabled:opacity-70"
             >
               <FiRefreshCw className={loading ? "animate-spin" : ""} /> Refresh
             </button>
           </div>
-        </header>
+      </header>
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
@@ -153,56 +154,64 @@ export default function AttendanceMonitoring() {
           ].map(([label, value, Icon, color, iconBackground]) => (
             <article
               key={label}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
             >
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBackground}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconBackground}`}
               >
-                <Icon className={`text-xl ${color}`} />
+                <Icon className={`text-lg ${color}`} />
               </div>
-              <p className="mt-3 text-2xl font-bold text-slate-900">{value}</p>
-              <p className="text-sm text-slate-500">{label}</p>
+              <div>
+                <p className="text-xl font-semibold leading-none text-slate-900">
+                  {value}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">{label}</p>
+              </div>
             </article>
           ))}
         </section>
 
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           {error && (
-            <div className="border-b border-rose-200 bg-rose-50 p-4 text-rose-700">
+            <div
+              role="alert"
+              className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+            >
               {error}
             </div>
           )}
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="border-b border-blue-100 bg-blue-50 text-xs uppercase tracking-wider text-blue-700">
                 <tr>
-                  <th className="px-5 py-4">Student</th>
-                  <th className="px-5 py-4">Event</th>
-                  <th className="px-5 py-4">RFID</th>
-                  <th className="px-5 py-4">Result</th>
-                  <th className="px-5 py-4">Time</th>
-                  <th className="px-5 py-4">Message</th>
+                  <th className="px-4 py-3">Student Number</th>
+                  <th className="px-4 py-3">Student Name</th>
+                  <th className="px-4 py-3">Event</th>
+                  <th className="px-4 py-3">RFID</th>
+                  <th className="px-4 py-3">Result</th>
+                  <th className="px-4 py-3">Time</th>
+                  <th className="px-4 py-3">Message</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {logs.map((log) => (
                   <tr key={log.id} className="transition hover:bg-cyan-50/60">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold">{studentName(log.student)}</p>
-                      <p className="text-xs text-slate-500">
-                        {log.student?.student_no || "No student match"}
-                      </p>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-slate-600">
+                      {log.student?.student_no || "No student match"}
                     </td>
-                    <td className="px-5 py-4 font-medium">
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold">
+                      {studentName(log.student)}
+                    </td>
+                    <td className="px-4 py-3 font-medium">
                       {eventLabel(log.event_type)}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-2 font-mono text-slate-600">
                         <FiCreditCard /> {log.scanned_uid || "Manual"}
                       </span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-bold ${
                           log.result === "success"
@@ -213,10 +222,10 @@ export default function AttendanceMonitoring() {
                         {log.result}
                       </span>
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-slate-600">
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                       {formatTimestamp(log.scanned_at)}
                     </td>
-                    <td className="max-w-xs px-5 py-4 text-slate-500">
+                    <td className="max-w-xs px-4 py-3 text-slate-500">
                       {log.message || "—"}
                     </td>
                   </tr>
@@ -226,17 +235,19 @@ export default function AttendanceMonitoring() {
           </div>
 
           {!loading && logs.length === 0 && (
-            <div className="p-12 text-center text-slate-500">
+            <div className="p-10 text-center text-sm text-slate-500">
               No attendance events have been recorded yet.
             </div>
           )}
           {loading && logs.length === 0 && (
-            <div className="p-12 text-center text-slate-500">
+            <div
+              role="status"
+              className="p-10 text-center text-sm text-slate-500"
+            >
               Loading attendance events…
             </div>
           )}
         </section>
-      </div>
-    </main>
+    </div>
   );
 }

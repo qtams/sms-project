@@ -19,7 +19,7 @@ const SectionModal = ({
     <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col">
       <div className="flex-1 overflow-y-auto py-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <FormField label="Grade Level" className="sm:col-span-2">
+          <FormField label="Academic Level" className="sm:col-span-2">
             <select
               className={inputClass}
               required
@@ -29,14 +29,19 @@ const SectionModal = ({
                 setValue({ ...value, grade_level_id: event.target.value })
               }
             >
-              <option value="">Select grade level</option>
+              <option value="">Select a grade or year level</option>
 
               {data.gradeLevels
                 .filter((item) => item.is_active)
                 .map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name} ·{" "}
-                    {item.academic_program?.name || item.academic_unit?.name}
+                    {item.academic_unit?.parent?.name
+                      ? `${item.academic_unit.parent.name} → `
+                      : ""}
+                    {item.academic_unit?.name} → {item.academic_program?.name
+                      ? `${item.academic_program.name} → `
+                      : ""}
+                    {item.name}
                   </option>
                 ))}
             </select>

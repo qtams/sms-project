@@ -699,10 +699,11 @@ const AttendanceGrid = ({ records, onView, onUpdateStatus }) => {
 const AttendanceTable = ({ records, onView, onUpdateStatus }) => {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1080px] border-collapse text-left">
+      <table className="w-full min-w-[1180px] border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50">
-            <TableHeader label="Student" />
+            <TableHeader label="Student Number" />
+            <TableHeader label="Student Name" />
             <TableHeader label="Section" />
             <TableHeader label="Date" />
             <TableHeader label="Time In" />
@@ -722,6 +723,10 @@ const AttendanceTable = ({ records, onView, onUpdateStatus }) => {
                 key={record.studentId}
                 className="border-b border-slate-100 transition hover:bg-slate-50"
               >
+                <td className="whitespace-nowrap px-5 py-4 font-mono text-sm font-medium text-slate-600">
+                  {record.studentId}
+                </td>
+
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
                     <div
@@ -732,15 +737,9 @@ const AttendanceTable = ({ records, onView, onUpdateStatus }) => {
                       {getInitials(record)}
                     </div>
 
-                    <div>
-                      <p className="text-sm font-normal text-slate-900">
-                        {getDisplayName(record)}
-                      </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-xs font-normal text-slate-400">
-                        <FiHash />
-                        {record.studentId}
-                      </p>
-                    </div>
+                    <p className="whitespace-nowrap text-sm font-normal text-slate-900">
+                      {getDisplayName(record)}
+                    </p>
                   </div>
                 </td>
 
@@ -785,7 +784,7 @@ const AttendanceTable = ({ records, onView, onUpdateStatus }) => {
             ))
           ) : (
             <tr>
-              <td colSpan="7">
+              <td colSpan="8">
                 <EmptyState />
               </td>
             </tr>

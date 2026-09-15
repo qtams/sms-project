@@ -8,7 +8,6 @@ import {
   FiPlus,
   FiSearch,
   FiTrash2,
-  FiX,
   FiXCircle,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
@@ -44,6 +43,7 @@ const emptyUnit = {
 
 const emptyProgram = {
   academic_unit_id: "",
+  parent_id: "",
   code: "",
   name: "",
   program_type: "program",
@@ -103,10 +103,11 @@ export default function GradeSections() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingActionId, setPendingActionId] = useState(null);
 
-  const [activeView, setActiveView] = useState("sections");
+  const [activeView, setActiveView] = useState("academicUnits");
   const [showAddForm, setShowAddForm] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [hierarchyFilters, setHierarchyFilters] = useState({});
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -165,41 +166,38 @@ export default function GradeSections() {
      CARDS
   ======================================================= */
 
-  const cards = useMemo(
-    () => [
+  const cards = [
       {
         key: "academicUnits",
-        label: "Academic Units",
-        singular: "Academic Unit",
-        count: data.academicUnits.length,
+        label: "Structure",
+        singular: "Organizational Unit",
+        description: "Divisions, colleges, and departments",
       },
       {
         key: "academicPrograms",
-        label: "Programs / Tracks",
-        singular: "Program / Track",
-        count: data.academicPrograms.length,
+        label: "Offerings",
+        singular: "Academic Offering",
+        description: "Programs, tracks, strands, and specializations",
+      },
+      {
+        key: "gradeLevels",
+        label: "Levels",
+        singular: "Grade / Year Level",
+        description: "Ordered grade and year levels",
       },
       {
         key: "schoolYears",
         label: "School Years",
         singular: "School Year",
-        count: data.schoolYears.length,
-      },
-      {
-        key: "gradeLevels",
-        label: "Grade Levels",
-        singular: "Grade Level",
-        count: data.gradeLevels.length,
+        description: "Academic delivery periods",
       },
       {
         key: "sections",
         label: "Sections",
         singular: "Section",
-        count: data.sections.length,
+        description: "Classes, capacity, and teachers",
       },
-    ],
-    [data],
-  );
+    ];
 
   const activeCard = cards.find((card) => card.key === activeView) || cards[0];
 
@@ -212,6 +210,7 @@ export default function GradeSections() {
     setShowAddForm(false);
     setSearch("");
     setStatusFilter("All");
+    setHierarchyFilters({});
     setCurrentPage(1);
   };
 
@@ -229,6 +228,31 @@ export default function GradeSections() {
     setCurrentPage(1);
   };
 
+  const handleHierarchyFilterChange = (key, value) => {
+    setHierarchyFilters((current) => {
+      const next = { ...current, [key]: value };
+
+      if (key === "academicUnitId") {
+        next.academicProgramId = "";
+        next.gradeLevelId = "";
+      }
+
+      if (key === "academicProgramId") {
+        next.gradeLevelId = "";
+      }
+
+      return next;
+    });
+    setCurrentPage(1);
+  };
+
+  const resetViewFilters = () => {
+    setSearch("");
+    setStatusFilter("All");
+    setHierarchyFilters({});
+    setCurrentPage(1);
+  };
+
   /* =======================================================
      FILTERING
   ======================================================= */
@@ -242,8 +266,8 @@ export default function GradeSections() {
       }
 
       return statusFilter === "Active"
-        ? Boolean(row.is_active)
-        : !Boolean(row.is_active);
+        ? row.is_active
+        : !row.is_active;
     };
 
     const matchesSearch = (values) =>
@@ -255,16 +279,42 @@ export default function GradeSections() {
         .includes(term);
 
     if (activeView === "academicUnits") {
-      return data.academicUnits.filter(
-        (row) =>
-          matchesSearch([
-            row.code,
-            row.name,
-            row.type,
-            row.education_level,
-            row.parent?.name,
-          ]) && matchesStatus(row),
-      );
+      const unitMap = new Map(data.academicUnits.map((item) => [item.id, item]));
+      const withPath = (row) => {
+        const path = [];
+        const visited = new Set();
+        let current = row;
+
+        while (current && !visited.has(current.id)) {
+          visited.add(current.id);
+          path.unshift(current.name);
+          current = current.parent_id ? unitMap.get(current.parent_id) : null;
+        }
+
+        return { ...row, hierarchyPath: path.join(" / "), hierarchyDepth: path.length - 1 };
+      };
+
+      return data.academicUnits
+        .filter(
+          (row) =>
+            matchesSearch([
+              row.code,
+              row.name,
+              row.type,
+              row.education_level,
+              row.parent?.name,
+            ]) &&
+            matchesStatus(row) &&
+            (!hierarchyFilters.educationLevel ||
+              row.education_level === hierarchyFilters.educationLevel) &&
+            (!hierarchyFilters.unitType || row.type === hierarchyFilters.unitType) &&
+            (!hierarchyFilters.parentUnitId ||
+              (hierarchyFilters.parentUnitId === "root"
+                ? !row.parent_id
+                : String(row.parent_id) === hierarchyFilters.parentUnitId)),
+        )
+        .map(withPath)
+        .sort((a, b) => a.hierarchyPath.localeCompare(b.hierarchyPath));
     }
 
     if (activeView === "academicPrograms") {
@@ -275,7 +325,17 @@ export default function GradeSections() {
             row.name,
             row.program_type,
             row.academic_unit?.name,
-          ]) && matchesStatus(row),
+            row.parent?.name,
+          ]) &&
+          matchesStatus(row) &&
+          (!hierarchyFilters.academicUnitId ||
+            String(row.academic_unit_id) === hierarchyFilters.academicUnitId) &&
+          (!hierarchyFilters.programType ||
+            row.program_type === hierarchyFilters.programType) &&
+          (!hierarchyFilters.parentProgramId ||
+            (hierarchyFilters.parentProgramId === "root"
+              ? !row.parent_id
+              : String(row.parent_id) === hierarchyFilters.parentProgramId)),
       );
     }
 
@@ -283,7 +343,9 @@ export default function GradeSections() {
       return data.schoolYears.filter(
         (row) =>
           matchesSearch([row.name, row.start_date, row.end_date]) &&
-          matchesStatus(row),
+          matchesStatus(row) &&
+          (!hierarchyFilters.schoolYearId ||
+            String(row.id) === hierarchyFilters.schoolYearId),
       );
     }
 
@@ -295,7 +357,15 @@ export default function GradeSections() {
             row.academic_unit?.name,
             row.academic_program?.name,
             row.sort_order,
-          ]) && matchesStatus(row),
+          ]) &&
+          matchesStatus(row) &&
+          (!hierarchyFilters.academicUnitId ||
+            String(row.academic_unit_id) === hierarchyFilters.academicUnitId) &&
+          (!hierarchyFilters.academicProgramId ||
+            (hierarchyFilters.academicProgramId === "direct"
+              ? !row.academic_program_id
+              : String(row.academic_program_id) ===
+                hierarchyFilters.academicProgramId)),
       );
     }
 
@@ -313,9 +383,22 @@ export default function GradeSections() {
             teacher.staff_profile?.first_name,
             teacher.staff_profile?.last_name,
           ]),
-        ]) && matchesStatus(row),
+        ]) &&
+        matchesStatus(row) &&
+        (!hierarchyFilters.schoolYearId ||
+          String(row.school_year_id) === hierarchyFilters.schoolYearId) &&
+        (!hierarchyFilters.academicUnitId ||
+          String(row.grade_level?.academic_unit_id) ===
+            hierarchyFilters.academicUnitId) &&
+        (!hierarchyFilters.academicProgramId ||
+          (hierarchyFilters.academicProgramId === "direct"
+            ? !row.grade_level?.academic_program_id
+            : String(row.grade_level?.academic_program_id) ===
+              hierarchyFilters.academicProgramId)) &&
+        (!hierarchyFilters.gradeLevelId ||
+          String(row.grade_level_id) === hierarchyFilters.gradeLevelId),
     );
-  }, [activeView, data, search, statusFilter]);
+  }, [activeView, data, hierarchyFilters, search, statusFilter]);
 
   /* =======================================================
      PAGINATION
@@ -384,8 +467,9 @@ export default function GradeSections() {
       academicPrograms: {
         headers: [
           "Code",
-          "Program / Track",
-          "Academic Unit",
+          "Academic Offering",
+          "Parent Offering",
+          "Academic Home",
           "Type",
           "Grade Levels",
           "Status",
@@ -393,6 +477,7 @@ export default function GradeSections() {
         row: (item) => [
           item.code,
           item.name,
+          item.parent?.name,
           item.academic_unit?.name,
           item.program_type,
           item.grade_levels_count || 0,
@@ -624,10 +709,8 @@ export default function GradeSections() {
           <h1 className="text-2xl font-medium text-slate-950">
             Academic Setup
           </h1>
-
           <p className="mt-1 text-sm font-normal text-slate-500">
-            Manage academic units, programs, school years, grade levels,
-            sections, and teacher assignments.
+            Build the academic structure from parent units down to yearly sections.
           </p>
         </div>
 
@@ -657,8 +740,8 @@ export default function GradeSections() {
           NAVIGATION / SUMMARY CARDS
       ================================================= */}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-        {cards.map(({ key, label, count }) => {
+      <div className="grid gap-2 md:grid-cols-5">
+        {cards.map(({ key, label, description }) => {
           const active = activeView === key;
 
           return (
@@ -667,19 +750,16 @@ export default function GradeSections() {
               type="button"
               aria-pressed={active}
               onClick={() => selectView(key)}
-              className={`rounded-md border bg-white p-4 text-left shadow-sm transition ${
+              className={`rounded-lg border bg-white p-3 text-left transition ${
                 active
                   ? "border-cyan-500 ring-4 ring-cyan-50"
                   : "border-transparent hover:border-slate-200 hover:bg-slate-50"
               }`}
             >
-              <p className="truncate text-sm font-normal text-slate-500">
+              <p className="truncate text-sm font-medium text-slate-800">
                 {label}
               </p>
-
-              <p className="mt-2 text-2xl font-medium text-slate-950">
-                {count}
-              </p>
+              <p className="mt-1 hidden text-xs text-slate-500 xl:block">{description}</p>
             </button>
           );
         })}
@@ -693,9 +773,30 @@ export default function GradeSections() {
         {/* HEADER / FILTER */}
 
         <div className="border-b border-slate-100 p-4">
-          <p className="text-base font-medium text-slate-900">
-            {activeCard.label}
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-base font-medium text-slate-900">
+                {activeCard.label}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Filter this stage using its parent relationships.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={resetViewFilters}
+              className="shrink-0 rounded-md px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            >
+              Clear filters
+            </button>
+          </div>
+
+          <HierarchyFilters
+            activeView={activeView}
+            data={data}
+            filters={hierarchyFilters}
+            onChange={handleHierarchyFilterChange}
+          />
 
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px]">
             <div className="relative">
@@ -796,6 +897,7 @@ export default function GradeSections() {
         value={unit}
         setValue={setUnit}
         units={data.academicUnits}
+        programs={data.academicPrograms}
         submitting={submitting}
         onSubmit={(event) =>
           submit(
@@ -815,8 +917,11 @@ export default function GradeSections() {
         units={data.academicUnits}
         submitting={submitting}
         onSubmit={(event) =>
-          submit(event, "academic-programs", program, () =>
-            setProgram(emptyProgram),
+          submit(
+            event,
+            "academic-programs",
+            { ...program, parent_id: program.parent_id || null },
+            () => setProgram(emptyProgram),
           )
         }
       />
@@ -873,6 +978,159 @@ export default function GradeSections() {
 }
 
 /* =========================================================
+   CONTEXTUAL HIERARCHY FILTERS
+========================================================= */
+
+const filterSelectClass =
+  "h-10 min-w-0 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50";
+
+const FilterSelect = ({ label, value, onChange, children }) => (
+  <label className="min-w-0 space-y-1">
+    <span className="block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+      {label}
+    </span>
+    <select
+      className={`${filterSelectClass} w-full`}
+      value={value || ""}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      {children}
+    </select>
+  </label>
+);
+
+const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
+  const activeUnits = data.academicUnits.filter((item) => item.is_active);
+  const activePrograms = data.academicPrograms.filter((item) => item.is_active);
+
+  const scopedPrograms = activePrograms.filter(
+    (item) =>
+      !filters.academicUnitId ||
+      String(item.academic_unit_id) === filters.academicUnitId,
+  );
+
+  const scopedLevels = data.gradeLevels.filter(
+    (item) =>
+      item.is_active &&
+      (!filters.academicUnitId ||
+        String(item.academic_unit_id) === filters.academicUnitId) &&
+      (!filters.academicProgramId ||
+        (filters.academicProgramId === "direct"
+          ? !item.academic_program_id
+          : String(item.academic_program_id) === filters.academicProgramId)),
+  );
+
+  if (activeView === "academicUnits") {
+    return (
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <FilterSelect label="Education Level" value={filters.educationLevel} onChange={(value) => onChange("educationLevel", value)}>
+          <option value="">All education levels</option>
+          <option value="basic">Basic Education</option>
+          <option value="higher_education">Higher Education</option>
+        </FilterSelect>
+        <FilterSelect label="Unit Type" value={filters.unitType} onChange={(value) => onChange("unitType", value)}>
+          <option value="">All unit types</option>
+          <option value="division">Divisions</option>
+          <option value="college">Colleges</option>
+          <option value="department">Departments</option>
+        </FilterSelect>
+        <FilterSelect label="Parent Unit" value={filters.parentUnitId} onChange={(value) => onChange("parentUnitId", value)}>
+          <option value="">All parents</option>
+          <option value="root">Top-level units</option>
+          {activeUnits.filter((item) => ["division", "college"].includes(item.type)).map((item) => (
+            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+          ))}
+        </FilterSelect>
+      </div>
+    );
+  }
+
+  if (activeView === "academicPrograms") {
+    return (
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <FilterSelect label="Academic Home" value={filters.academicUnitId} onChange={(value) => onChange("academicUnitId", value)}>
+          <option value="">All academic homes</option>
+          {activeUnits.filter((item) => ["college", "department"].includes(item.type)).map((item) => (
+            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+          ))}
+        </FilterSelect>
+        <FilterSelect label="Offering Type" value={filters.programType} onChange={(value) => onChange("programType", value)}>
+          <option value="">All offering types</option>
+          <option value="program">Degree Programs</option>
+          <option value="track">Tracks</option>
+          <option value="strand">Strands</option>
+          <option value="specialization">Specializations</option>
+        </FilterSelect>
+        <FilterSelect label="Parent Offering" value={filters.parentProgramId} onChange={(value) => onChange("parentProgramId", value)}>
+          <option value="">All parents</option>
+          <option value="root">Top-level offerings</option>
+          {scopedPrograms.filter((item) => ["track", "strand"].includes(item.program_type)).map((item) => (
+            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+          ))}
+        </FilterSelect>
+      </div>
+    );
+  }
+
+  if (activeView === "gradeLevels") {
+    return (
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <FilterSelect label="Academic Home" value={filters.academicUnitId} onChange={(value) => onChange("academicUnitId", value)}>
+          <option value="">All academic homes</option>
+          {activeUnits.filter((item) => ["college", "department"].includes(item.type)).map((item) => (
+            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+          ))}
+        </FilterSelect>
+        <FilterSelect label="Parent Offering" value={filters.academicProgramId} onChange={(value) => onChange("academicProgramId", value)}>
+          <option value="">All offerings</option>
+          <option value="direct">Directly under academic home</option>
+          {scopedPrograms.filter((item) => item.children_count === 0).map((item) => (
+            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+          ))}
+        </FilterSelect>
+      </div>
+    );
+  }
+
+  if (activeView === "schoolYears") {
+    return (
+      <div className="mt-3 grid gap-3 sm:max-w-xs">
+        <FilterSelect label="School Year" value={filters.schoolYearId} onChange={(value) => onChange("schoolYearId", value)}>
+          <option value="">All school years</option>
+          {data.schoolYears.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </FilterSelect>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <FilterSelect label="School Year" value={filters.schoolYearId} onChange={(value) => onChange("schoolYearId", value)}>
+        <option value="">All school years</option>
+        {data.schoolYears.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+      </FilterSelect>
+      <FilterSelect label="Academic Home" value={filters.academicUnitId} onChange={(value) => onChange("academicUnitId", value)}>
+        <option value="">All academic homes</option>
+        {activeUnits.filter((item) => ["college", "department"].includes(item.type)).map((item) => (
+          <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+        ))}
+      </FilterSelect>
+      <FilterSelect label="Parent Offering" value={filters.academicProgramId} onChange={(value) => onChange("academicProgramId", value)}>
+        <option value="">All offerings</option>
+        <option value="direct">Directly under academic home</option>
+        {scopedPrograms.filter((item) => item.children_count === 0).map((item) => (
+          <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+        ))}
+      </FilterSelect>
+      <FilterSelect label="Grade / Year Level" value={filters.gradeLevelId} onChange={(value) => onChange("gradeLevelId", value)}>
+        <option value="">All levels</option>
+        {scopedLevels.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+      </FilterSelect>
+    </div>
+  );
+};
+
+/* =========================================================
    TABLE HEADER
 ========================================================= */
 
@@ -918,13 +1176,16 @@ const AcademicUnitTable = ({ rows, onDelete, pendingActionId }) => (
               key={row.id}
               className="border-b border-slate-100 transition hover:bg-slate-50"
             >
-              <td className="px-5 py-4">
+              <td
+                className="px-5 py-4"
+                style={{ paddingLeft: `${20 + (row.hierarchyDepth || 0) * 20}px` }}
+              >
                 <p className="text-sm font-medium text-slate-900">
                   {row.name || "-"}
                 </p>
 
                 <p className="mt-1 text-xs font-normal text-slate-400">
-                  {row.code || "-"}
+                  {row.code || "-"} · {row.hierarchyPath}
                 </p>
               </td>
 
@@ -976,11 +1237,12 @@ const AcademicUnitTable = ({ rows, onDelete, pendingActionId }) => (
 ========================================================= */
 
 const AcademicProgramTable = ({ rows, onDelete, pendingActionId }) => (
-  <table className="w-full min-w-[900px] border-collapse text-left">
+  <table className="w-full min-w-[1050px] border-collapse text-left">
     <thead>
       <tr className="border-b border-slate-100 bg-slate-50">
-        <TableHeader label="Program / Track" />
-        <TableHeader label="Academic Unit" />
+        <TableHeader label="Academic Offering" />
+        <TableHeader label="Parent Offering" />
+        <TableHeader label="Academic Home" />
         <TableHeader label="Type" />
         <TableHeader label="Grade Levels" />
         <TableHeader label="Status" />
@@ -1009,6 +1271,13 @@ const AcademicProgramTable = ({ rows, onDelete, pendingActionId }) => (
               </td>
 
               <td className="px-5 py-4 text-sm font-normal text-slate-600">
+                {row.parent?.name || "Top level"}
+              </td>
+
+              <td className="px-5 py-4 text-sm font-normal text-slate-600">
+                {row.academic_unit?.parent?.name
+                  ? `${row.academic_unit.parent.name} → `
+                  : ""}
                 {row.academic_unit?.name || "—"}
               </td>
 
@@ -1037,7 +1306,7 @@ const AcademicProgramTable = ({ rows, onDelete, pendingActionId }) => (
           );
         })
       ) : (
-        <EmptyRow columns={6} label="programs or tracks" />
+        <EmptyRow columns={7} label="academic offerings" />
       )}
     </tbody>
   </table>

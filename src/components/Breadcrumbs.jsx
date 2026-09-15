@@ -3,6 +3,7 @@ import { FiChevronRight, FiHome } from "react-icons/fi";
 
 const routeLabels = {
   "/dashboard": "Dashboard",
+  "/log-monitoring": "Log Monitoring",
   "/account-information": "Account Information",
 
   "/students": "Students",

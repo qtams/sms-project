@@ -22,11 +22,6 @@ import GuardUsers from "../pages/GuardUsers";
 import RegistrarUsers from "../pages/RegistrarUsers";
 import UserManagementDetails from "../pages/UserManagementDetails";
 
-/*
-|--------------------------------------------------------------------------
-| FULL SCREEN LOG MONITORING PAGE
-|--------------------------------------------------------------------------
-*/
 import AttendanceMonitoring from "../pages/AttendanceMonitoring";
 
 import { useAuth } from "../context/AuthContext";
@@ -97,18 +92,6 @@ const AppRoutes = () => {
       ================================================================= */}
       <Route element={<ProtectedRoute />}>
         {/* ==============================================================
-            FULL SCREEN / STANDALONE PAGE
-
-            NO AdminLayout
-            NO Sidebar
-            NO Admin Header
-
-            Access:
-            /log-monitoring
-        ============================================================== */}
-        <Route path="/log-monitoring" element={<AttendanceMonitoring />} />
-
-        {/* ==============================================================
             ADMIN PAGES
 
             These routes use:
@@ -131,6 +114,9 @@ const AppRoutes = () => {
 
           {/* DASHBOARD */}
           <Route path="/dashboard" element={<Dashboard />} />
+
+          {/* LOG MONITORING */}
+          <Route path="/log-monitoring" element={<AttendanceMonitoring />} />
 
           {/* ACCOUNT */}
           <Route path="/account-information" element={<AccountInformation />} />

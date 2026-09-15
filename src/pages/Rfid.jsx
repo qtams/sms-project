@@ -535,9 +535,9 @@ const Rfid = () => {
             RFID Attendance
           </h1>
 
-          <p className="mt-1 text-sm font-normal text-slate-500">
+          {/* <p className="mt-1 text-sm font-normal text-slate-500">
             View the latest RFID attendance summary per student.
-          </p>
+          </p> */}
         </div>
 
         <button
@@ -578,10 +578,10 @@ const Rfid = () => {
                 Student RFID Summary
               </p>
 
-              <p className="mt-1 text-sm font-normal text-slate-500">
+              {/* <p className="mt-1 text-sm font-normal text-slate-500">
                 Click the eye button to view the student's complete time in and
                 time out history.
-              </p>
+              </p> */}
             </div>
 
             {/* VIEW MODE */}

@@ -10,7 +10,6 @@ import {
   FiDownload,
   FiEye,
   FiGrid,
-  FiHash,
   FiList,
   FiSearch,
   FiTrash2,
@@ -775,10 +774,10 @@ const Students = () => {
         <div>
           <h1 className="text-2xl font-medium text-slate-950">Students</h1>
 
-          <p className="mt-1 text-sm font-normal text-slate-500">
+          {/* <p className="mt-1 text-sm font-normal text-slate-500">
             Manage imported students, enrollment status, RFID, and class
             details.
-          </p>
+          </p> */}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -837,9 +836,10 @@ const Students = () => {
         <div className="border-b border-slate-100 p-4">
           <p className="text-base font-medium text-slate-900">Student List</p>
 
-          <p className="mt-1 text-sm font-normal text-slate-500">
-            Student ID is under the name. RFID and class have separate columns.
-          </p>
+          {/* <p className="mt-1 text-sm font-normal text-slate-500">
+            Student numbers, names, RFID assignments, and classes are shown in
+            separate columns.
+          </p> */}
 
           <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_auto]">
             {/* SEARCH */}
@@ -1017,21 +1017,13 @@ const Students = () => {
 
 const StudentNameBlock = ({ student, inactive = false }) => {
   return (
-    <div>
-      <p
-        className={`text-sm font-normal ${
-          inactive ? "text-slate-500" : "text-slate-900"
-        }`}
-      >
-        {getStudentDisplayName(student)}
-      </p>
-
-      <div className="mt-1 flex items-center gap-1.5 text-xs font-normal text-slate-400">
-        <FiHash className="shrink-0" />
-
-        <span>{student.studentId}</span>
-      </div>
-    </div>
+    <p
+      className={`whitespace-nowrap text-sm font-normal ${
+        inactive ? "text-slate-500" : "text-slate-900"
+      }`}
+    >
+      {getStudentDisplayName(student)}
+    </p>
   );
 };
 
@@ -1190,7 +1182,7 @@ const StudentTable = ({
 }) => {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[940px] border-collapse text-left">
+      <table className="w-full min-w-[1080px] border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50">
             <th className="w-14 px-5 py-3">
@@ -1202,7 +1194,9 @@ const StudentTable = ({
               />
             </th>
 
-            <TableHeader label="Student" />
+            <TableHeader label="Student Number" />
+
+            <TableHeader label="Student Name" />
 
             <TableHeader label="RFID" />
 
@@ -1243,6 +1237,10 @@ const StudentTable = ({
                       onChange={() => onSelect(student.id)}
                       className="h-4 w-4 cursor-pointer accent-cyan-600"
                     />
+                  </td>
+
+                  <td className="whitespace-nowrap px-5 py-4 font-mono text-sm font-medium text-slate-600">
+                    {student.studentId}
                   </td>
 
                   <td className="px-5 py-4">
@@ -1287,7 +1285,7 @@ const StudentTable = ({
             })
           ) : (
             <tr>
-              <td colSpan="6">
+              <td colSpan="7">
                 <EmptyState />
               </td>
             </tr>
@@ -1609,11 +1607,11 @@ const StudentsSkeleton = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[940px]">
+          <table className="w-full min-w-[1080px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 {Array.from({
-                  length: 6,
+                  length: 7,
                 }).map((_, index) => (
                   <th key={index} className="px-5 py-4">
                     <Skeleton className="h-3 w-16" />
@@ -1632,14 +1630,14 @@ const StudentsSkeleton = () => {
                   </td>
 
                   <td className="px-5 py-5">
+                    <Skeleton className="h-4 w-24" />
+                  </td>
+
+                  <td className="px-5 py-5">
                     <div className="flex items-center gap-3">
                       <Skeleton className="h-10 w-10 rounded-full" />
 
-                      <div>
-                        <Skeleton className="h-4 w-32" />
-
-                        <Skeleton className="mt-2 h-3 w-20" />
-                      </div>
+                      <Skeleton className="h-4 w-32" />
                     </div>
                   </td>
 
