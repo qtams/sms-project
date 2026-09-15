@@ -4,7 +4,7 @@ import AdminLayout from "../layouts/AdminLayout";
 
 import Dashboard from "../pages/Dashboard";
 import AccountInformation from "../pages/AccountInformation";
-import GradeSections from "../pages/GradeSections";
+import AcademicSetup from "../pages/AcademicSetup.jsx";
 import Teachers from "../pages/Teachers";
 import Students from "../pages/Students";
 import Application from "../pages/Application";
@@ -181,7 +181,7 @@ const AppRoutes = () => {
           <Route path="/teachers/:teacherId" element={<TeacherDetails />} />
 
           {/* CLASSES */}
-          <Route path="/classes" element={<GradeSections />} />
+          <Route path="/academic-setup" element={<AcademicSetup />} />
 
           {/* RFID */}
           <Route path="/rfid" element={<Rfid />} />

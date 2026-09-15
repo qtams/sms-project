@@ -622,7 +622,7 @@ export default function GradeSections() {
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-medium text-slate-950">
-            Grade & Sections
+            Academic Setup
           </h1>
 
           <p className="mt-1 text-sm font-normal text-slate-500">

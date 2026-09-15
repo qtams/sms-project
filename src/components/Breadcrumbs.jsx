@@ -7,7 +7,7 @@ const routeLabels = {
 
   "/students": "Students",
   "/teachers": "Teachers",
-  "/classes": "Grade & Sections",
+  "/academic-setup": "Academic Setup",
 
   "/enrollment": "Enrollment",
   "/enrollment/application": "Application",
@@ -24,7 +24,7 @@ const routeLabels = {
 const routeParents = {
   "/students": [{ label: "School Management", path: null }],
   "/teachers": [{ label: "School Management", path: null }],
-  "/classes": [{ label: "School Management", path: null }],
+  "/academic-setup": [{ label: "School Management", path: null }],
 
   "/enrollment/application": [{ label: "Enrollment", path: "/enrollment" }],
   "/enrollment/verification": [{ label: "Enrollment", path: "/enrollment" }],

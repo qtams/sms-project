@@ -74,8 +74,8 @@ const Sidebar = () => {
               path: "/teachers",
             },
             {
-              label: "Grade & Sections",
-              path: "/classes",
+              label: "Academic Setup",
+              path: "/academic-setup",
             },
             {
               label: "RFID",

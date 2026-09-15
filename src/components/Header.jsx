@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from "react";
+
 import { LogOut, User, UserCircle } from "lucide-react";
+
 import Swal from "sweetalert2";
+
 import { toast } from "react-toastify";
+
 import spryIcon from "../assets/Sprytechicon.webp";
+
 import { useAuth } from "../context/AuthContext";
 
 const Header = () => {
   const { user, logout } = useAuth();
+
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+
   const dropdownRef = useRef(null);
 
   const handleLogout = async () => {
@@ -25,8 +32,11 @@ const Header = () => {
 
     try {
       await logout();
+
       toast.success("Logged out successfully");
+
       setIsAccountOpen(false);
+
       window.location.href = "/login";
     } catch {
       toast.error("Unable to log out. Please try again.");
@@ -52,39 +62,45 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6 md:px-5">
       <div className="flex items-center justify-between gap-4">
+        {/* BRAND */}
+
         <div className="flex min-w-0 items-center gap-3">
           <img
             src={spryIcon}
             alt="SPRYtech Icon"
-            className="h-11 w-11 shrink-0 object-contain"
+            className="h-10 w-10 shrink-0 object-contain"
           />
 
           <div className="min-w-0">
-            <h1 className="truncate text-base font-black text-slate-950 sm:text-xl">
+            <h1 className="truncate text-base font-semibold text-slate-900 sm:text-lg">
               School Management System
             </h1>
-            <p className="truncate text-xs font-medium text-slate-500">
+
+            <p className="truncate text-xs font-normal text-slate-500">
               SPRYtech Solutions
             </p>
           </div>
         </div>
 
+        {/* ACCOUNT */}
+
         <div ref={dropdownRef} className="relative shrink-0">
           <button
             type="button"
             onClick={() => setIsAccountOpen((current) => !current)}
-            className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+            className="flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
           >
-            <User size={21} />
+            <User size={20} />
           </button>
 
           {isAccountOpen && (
-            <div className="absolute right-0 top-14 w-80 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
-              <div className="border-b border-slate-200 p-5">
-                <h2 className="text-sm font-black text-slate-950">
+            <div className="absolute right-0 top-14 w-80 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+              <div className="border-b border-slate-100 p-5">
+                <h2 className="text-sm font-semibold text-slate-900">
                   {user?.name || "Account"}
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+
+                <p className="mt-1 text-sm font-normal text-slate-500">
                   {user?.email || ""}
                 </p>
               </div>
@@ -93,18 +109,18 @@ const Header = () => {
                 <a
                   href="/account-information"
                   onClick={() => setIsAccountOpen(false)}
-                  className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950"
+                  className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
                 >
-                  <UserCircle size={20} className="text-slate-500" />
+                  <UserCircle size={19} className="text-slate-500" />
                   Account Information
                 </a>
 
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-3 rounded-md px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-red-50 hover:text-red-600"
+                  className="flex w-full items-center gap-3 rounded-md px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-red-50 hover:text-red-600"
                 >
-                  <LogOut size={20} className="text-slate-500" />
+                  <LogOut size={19} className="text-slate-500" />
                   Log out
                 </button>
               </div>
