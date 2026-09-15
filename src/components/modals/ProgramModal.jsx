@@ -1,60 +1,37 @@
 import BaseModal from "./BaseModal";
 import { FormField, ModalFooter, inputClass } from "./ModalFormElements";
 
-const SectionModal = ({
+const ProgramModal = ({
   isOpen,
   onClose,
   value,
   setValue,
-  data,
+  units,
   submitting,
   onSubmit,
 }) => (
   <BaseModal
     isOpen={isOpen}
     onClose={onClose}
-    title="Add Section"
+    title="Add Program / Track"
     description="Complete the required information below."
   >
     <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col">
       <div className="flex-1 overflow-y-auto py-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <FormField label="Grade Level" className="sm:col-span-2">
+          <FormField label="Academic Unit" className="sm:col-span-2">
             <select
               className={inputClass}
               required
               disabled={submitting}
-              value={value.grade_level_id}
+              value={value.academic_unit_id}
               onChange={(event) =>
-                setValue({ ...value, grade_level_id: event.target.value })
+                setValue({ ...value, academic_unit_id: event.target.value })
               }
             >
-              <option value="">Select grade level</option>
+              <option value="">Select academic unit</option>
 
-              {data.gradeLevels
-                .filter((item) => item.is_active)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} ·{" "}
-                    {item.academic_program?.name || item.academic_unit?.name}
-                  </option>
-                ))}
-            </select>
-          </FormField>
-
-          <FormField label="School Year">
-            <select
-              className={inputClass}
-              required
-              disabled={submitting}
-              value={value.school_year_id}
-              onChange={(event) =>
-                setValue({ ...value, school_year_id: event.target.value })
-              }
-            >
-              <option value="">Select school year</option>
-
-              {data.schoolYears
+              {units
                 .filter((item) => item.is_active)
                 .map((item) => (
                   <option key={item.id} value={item.id}>
@@ -64,29 +41,43 @@ const SectionModal = ({
             </select>
           </FormField>
 
-          <FormField label="Section Name">
+          <FormField label="Code">
             <input
               className={inputClass}
               required
               disabled={submitting}
-              placeholder="Section name"
-              value={value.name}
+              placeholder="e.g. BSCE"
+              value={value.code}
               onChange={(event) =>
-                setValue({ ...value, name: event.target.value })
+                setValue({ ...value, code: event.target.value.toUpperCase() })
               }
             />
           </FormField>
 
-          <FormField label="Capacity" className="sm:col-span-2">
+          <FormField label="Program Type">
+            <select
+              className={inputClass}
+              disabled={submitting}
+              value={value.program_type}
+              onChange={(event) =>
+                setValue({ ...value, program_type: event.target.value })
+              }
+            >
+              <option value="program">Program</option>
+              <option value="track">Track</option>
+              <option value="strand">Strand</option>
+            </select>
+          </FormField>
+
+          <FormField label="Program / Track Name" className="sm:col-span-2">
             <input
               className={inputClass}
-              min="1"
-              type="number"
+              required
               disabled={submitting}
-              placeholder="Capacity"
-              value={value.capacity}
+              placeholder="Program or track name"
+              value={value.name}
               onChange={(event) =>
-                setValue({ ...value, capacity: event.target.value })
+                setValue({ ...value, name: event.target.value })
               }
             />
           </FormField>
@@ -96,10 +87,10 @@ const SectionModal = ({
       <ModalFooter
         onCancel={onClose}
         submitting={submitting}
-        label="Save Section"
+        label="Save Program / Track"
       />
     </form>
   </BaseModal>
 );
 
-export default SectionModal;
+export default ProgramModal;
