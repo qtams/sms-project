@@ -33,7 +33,7 @@ abstract class RoleUserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $this->authorizeAdministrator($request);
-        $validated = $request->validate($this->validationRules());
+        $validated = $request->validate($this->validationRules(null, $request->integer('departmentId') ?: null));
         $user = DB::transaction(function () use ($validated) {
             $user = User::create($this->accountAttributes($validated) + [
                 'password' => $validated['password'],
@@ -61,7 +61,7 @@ abstract class RoleUserController extends Controller
     {
         $this->authorizeAdministrator($request);
         $this->ensureManagedRole($user);
-        $validated = $request->validate($this->validationRules($user));
+        $validated = $request->validate($this->validationRules($user, $request->integer('departmentId') ?: null));
         DB::transaction(function () use ($user, $validated) {
             $user->update($this->accountAttributes($validated));
             $user->staffProfile()->updateOrCreate(
@@ -114,8 +114,14 @@ abstract class RoleUserController extends Controller
         return response()->json(['message' => $this->accountLabel().' archived successfully.']);
     }
 
-    private function validationRules(?User $user = null): array
+    private function validationRules(?User $user = null, ?int $departmentId = null): array
     {
+        [$departmentCode, $positionCodes] = match ($this->managedRole()) {
+            Role::ADMIN => ['ADMIN', ['SUPER_ADMIN', 'SYS_ADMIN']],
+            Role::REGISTRAR => ['REG', ['REGISTRAR']],
+            Role::GUARD => ['SEC', ['GUARD']],
+        };
+
         $rules = [
             'firstName' => ['required', 'string', 'max:100'],
             'middleName' => ['nullable', 'string', 'max:100'],
@@ -126,8 +132,15 @@ abstract class RoleUserController extends Controller
             'mobile' => ['nullable', 'string', 'max:30'],
             'birthday' => ['nullable', 'date', 'before:today'],
             'address' => ['nullable', 'string', 'max:2000'],
-            'departmentId' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('is_active', true)],
-            'positionId' => ['nullable', 'integer', Rule::exists('positions', 'id')->where('is_active', true)],
+            'departmentId' => ['nullable', 'integer', Rule::exists('departments', 'id')->where(
+                fn ($query) => $query->where('is_active', true)->where('code', $departmentCode)
+            )],
+            'positionId' => ['nullable', 'integer', Rule::exists('positions', 'id')->where(
+                fn ($query) => $query
+                    ->where('is_active', true)
+                    ->where('department_id', $departmentId)
+                    ->whereIn('code', $positionCodes)
+            )],
             'employmentStatus' => ['nullable', Rule::in(['active', 'inactive', 'on_leave', 'separated'])],
             'hireDate' => ['nullable', 'date'],
             'status' => ['required', Rule::in(['Active', 'Inactive'])],

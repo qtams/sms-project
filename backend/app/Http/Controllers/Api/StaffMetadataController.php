@@ -17,7 +17,7 @@ class StaffMetadataController extends Controller
 
         return response()->json([
             'departments' => Department::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-            'positions' => Position::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'positions' => Position::query()->where('is_active', true)->orderBy('name')->get(['id', 'department_id', 'code', 'name']),
             'employmentStatuses' => ['active', 'inactive', 'on_leave', 'separated'],
         ]);
     }

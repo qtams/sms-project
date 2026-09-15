@@ -27,13 +27,15 @@ class AcademicSetupController extends Controller
 
         return response()->json([
             'schoolYears' => SchoolYear::query()->withCount('sections')->orderByDesc('start_date')->orderByDesc('id')->get(),
-            'academicUnits' => AcademicUnit::query()->with('parent:id,name')->withCount(['children', 'programs', 'gradeLevels'])->orderBy('education_level')->orderBy('name')->get(),
-            'academicPrograms' => AcademicProgram::query()->with('academicUnit:id,parent_id,code,name,type,education_level')->withCount('gradeLevels')->orderBy('name')->get(),
-            'gradeLevels' => GradeLevel::query()->with(['academicUnit:id,parent_id,code,name,type,education_level', 'academicProgram:id,academic_unit_id,code,name,program_type'])->withCount('sections')->orderBy('sort_order')->orderBy('name')->get(),
+            'academicUnits' => AcademicUnit::query()->with('parent:id,parent_id,code,name,type')->withCount(['children', 'programs', 'gradeLevels'])->orderBy('education_level')->orderBy('name')->get(),
+            'academicPrograms' => AcademicProgram::query()->with(['academicUnit:id,parent_id,code,name,type,education_level', 'academicUnit.parent:id,code,name,type', 'parent:id,academic_unit_id,code,name,program_type'])->withCount(['children', 'gradeLevels'])->orderBy('name')->get(),
+            'gradeLevels' => GradeLevel::query()->with(['academicUnit:id,parent_id,code,name,type,education_level', 'academicUnit.parent:id,parent_id,code,name,type', 'academicProgram:id,academic_unit_id,parent_id,code,name,program_type', 'academicProgram.parent:id,code,name,program_type'])->withCount('sections')->orderBy('sort_order')->orderBy('name')->get(),
             'sections' => Section::query()->with([
                 'gradeLevel:id,academic_unit_id,academic_program_id,name,sort_order,is_active',
                 'gradeLevel.academicUnit:id,parent_id,code,name,type,education_level',
-                'gradeLevel.academicProgram:id,academic_unit_id,code,name,program_type',
+                'gradeLevel.academicUnit.parent:id,parent_id,code,name,type',
+                'gradeLevel.academicProgram:id,academic_unit_id,parent_id,code,name,program_type',
+                'gradeLevel.academicProgram.parent:id,code,name,program_type',
                 'schoolYear:id,name,start_date,end_date,is_active',
                 'teachers:id,username,email',
                 'teachers.staffProfile:id,user_id,first_name,middle_name,last_name,suffix,employment_status',
@@ -61,7 +63,7 @@ class AcademicSetupController extends Controller
 
     private function validateAcademicUnit(Request $request, ?AcademicUnit $academicUnit = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'parent_id' => ['nullable', 'integer', Rule::exists('academic_units', 'id')->whereNull('deleted_at'), Rule::notIn(array_filter([$academicUnit?->id]))],
             'code' => ['required', 'string', 'max:30', Rule::unique('academic_units', 'code')->ignore($academicUnit)],
             'name' => ['required', 'string', 'max:150', Rule::unique('academic_units', 'name')->where(fn ($query) => $query->where('parent_id', $request->input('parent_id')))->ignore($academicUnit)],
@@ -70,6 +72,32 @@ class AcademicSetupController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
+
+        $parent = empty($data['parent_id']) ? null : AcademicUnit::find($data['parent_id']);
+
+        if ($data['type'] === 'division') {
+            abort_if($parent, 422, 'A division must be a top-level academic unit.');
+        } elseif ($data['type'] === 'college') {
+            abort_unless($parent?->type === 'division' && $parent->education_level === 'higher_education', 422, 'A college must belong to the Higher Education division.');
+            $data['education_level'] = 'higher_education';
+        } else {
+            $validParent = $parent && (
+                ($parent->type === 'division' && $parent->education_level === 'basic') ||
+                ($parent->type === 'college' && $parent->education_level === 'higher_education')
+            );
+            abort_unless($validParent, 422, 'A department must belong to Basic Education or to a higher-education college.');
+            $data['education_level'] = $parent->education_level;
+        }
+
+        if ($academicUnit && $parent) {
+            $ancestor = $parent;
+            while ($ancestor) {
+                abort_if($ancestor->is($academicUnit), 422, 'An academic unit cannot be moved beneath one of its descendants.');
+                $ancestor = $ancestor->parent;
+            }
+        }
+
+        return $data;
     }
 
     public function destroyAcademicUnit(Request $request, AcademicUnit $academicUnit): JsonResponse
@@ -85,7 +113,7 @@ class AcademicSetupController extends Controller
     {
         $this->authorizeAdmin($request);
 
-        return response()->json(AcademicProgram::create($this->validateAcademicProgram($request))->load('academicUnit:id,code,name,type,education_level'), 201);
+        return response()->json(AcademicProgram::create($this->validateAcademicProgram($request))->load(['academicUnit:id,code,name,type,education_level', 'parent:id,code,name,program_type']), 201);
     }
 
     public function updateAcademicProgram(Request $request, AcademicProgram $academicProgram): JsonResponse
@@ -93,25 +121,43 @@ class AcademicSetupController extends Controller
         $this->authorizeAdmin($request);
         $academicProgram->update($this->validateAcademicProgram($request, $academicProgram));
 
-        return response()->json($academicProgram->fresh()->load('academicUnit:id,code,name,type,education_level'));
+        return response()->json($academicProgram->fresh()->load(['academicUnit:id,code,name,type,education_level', 'parent:id,code,name,program_type']));
     }
 
     private function validateAcademicProgram(Request $request, ?AcademicProgram $academicProgram = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'academic_unit_id' => ['required', 'integer', Rule::exists('academic_units', 'id')->whereNull('deleted_at')],
+            'parent_id' => ['nullable', 'integer', Rule::exists('academic_programs', 'id')->whereNull('deleted_at'), Rule::notIn(array_filter([$academicProgram?->id]))],
             'code' => ['required', 'string', 'max:30', Rule::unique('academic_programs', 'code')->ignore($academicProgram)],
             'name' => ['required', 'string', 'max:150', Rule::unique('academic_programs', 'name')->where(fn ($query) => $query->where('academic_unit_id', $request->integer('academic_unit_id')))->ignore($academicProgram)],
-            'program_type' => ['required', Rule::in(['program', 'track', 'strand'])],
+            'program_type' => ['required', Rule::in(['program', 'track', 'strand', 'specialization'])],
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
+
+        $unit = AcademicUnit::findOrFail($data['academic_unit_id']);
+        $parent = empty($data['parent_id']) ? null : AcademicProgram::find($data['parent_id']);
+
+        if ($data['program_type'] === 'program') {
+            abort_if($parent, 422, 'A degree program cannot have a parent offering.');
+            abort_unless($unit->education_level === 'higher_education' && in_array($unit->type, ['college', 'department'], true), 422, 'A degree program must belong to a higher-education college or department.');
+        } elseif ($data['program_type'] === 'track') {
+            abort_if($parent, 422, 'A track cannot have a parent offering.');
+            abort_unless($unit->code === 'SHS', 422, 'A track must belong to Senior High School.');
+        } else {
+            $allowedParentTypes = $data['program_type'] === 'strand' ? ['track'] : ['track', 'strand'];
+            abort_unless($parent && in_array($parent->program_type, $allowedParentTypes, true), 422, ucfirst($data['program_type']).' requires a valid parent offering.');
+            abort_unless($parent->academic_unit_id === $unit->id, 422, 'The parent offering must belong to the same academic unit.');
+        }
+
+        return $data;
     }
 
     public function destroyAcademicProgram(Request $request, AcademicProgram $academicProgram): JsonResponse
     {
         $this->authorizeAdmin($request);
-        abort_if($academicProgram->gradeLevels()->exists(), 422, 'This program or track has grade levels and cannot be deleted.');
+        abort_if($academicProgram->children()->exists() || $academicProgram->gradeLevels()->exists(), 422, 'This offering has child offerings or grade levels and cannot be deleted.');
         $academicProgram->delete();
 
         return response()->json(status: 204);
@@ -171,13 +217,20 @@ class AcademicSetupController extends Controller
 
     private function validateGradeLevel(Request $request, ?GradeLevel $gradeLevel = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'academic_unit_id' => ['required', 'integer', Rule::exists('academic_units', 'id')->whereNull('deleted_at')],
             'academic_program_id' => ['nullable', 'integer', Rule::exists('academic_programs', 'id')->where(fn ($query) => $query->where('academic_unit_id', $request->integer('academic_unit_id'))->whereNull('deleted_at'))],
             'name' => ['required', 'string', 'max:100', Rule::unique('grade_levels')->where(fn ($query) => $query->where('academic_unit_id', $request->integer('academic_unit_id'))->where('academic_program_id', $request->input('academic_program_id')))->ignore($gradeLevel)],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:65535'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
+
+        if (! empty($data['academic_program_id'])) {
+            $program = AcademicProgram::findOrFail($data['academic_program_id']);
+            $data['academic_unit_id'] = $program->academic_unit_id;
+        }
+
+        return $data;
     }
 
     public function destroyGradeLevel(Request $request, GradeLevel $gradeLevel): JsonResponse
@@ -241,6 +294,6 @@ class AcademicSetupController extends Controller
 
     private function loadSection(Section $section): Section
     {
-        return $section->load(['gradeLevel.academicUnit:id,code,name,type,education_level', 'gradeLevel.academicProgram:id,code,name,program_type', 'schoolYear:id,name,start_date,end_date,is_active', 'teachers.staffProfile']);
+        return $section->load(['gradeLevel.academicUnit:id,parent_id,code,name,type,education_level', 'gradeLevel.academicUnit.parent:id,code,name,type', 'gradeLevel.academicProgram:id,academic_unit_id,parent_id,code,name,program_type', 'gradeLevel.academicProgram.parent:id,code,name,program_type', 'schoolYear:id,name,start_date,end_date,is_active', 'teachers.staffProfile']);
     }
 }

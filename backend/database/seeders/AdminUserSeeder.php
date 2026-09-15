@@ -24,9 +24,10 @@ class AdminUserSeeder extends Seeder
             ]
         );
 
-        $position = Position::firstOrCreate(
+        $position = Position::updateOrCreate(
             ['code' => 'SYS_ADMIN'],
             [
+                'department_id' => $department->id,
                 'name' => 'System Administrator',
                 'is_active' => true,
             ]

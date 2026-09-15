@@ -5,12 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Position extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['code', 'name', 'description', 'is_active'];
+    protected $fillable = ['department_id', 'code', 'name', 'description', 'is_active'];
 
     protected function casts(): array
     {
@@ -20,5 +21,10 @@ class Position extends Model
     public function staffProfiles(): HasMany
     {
         return $this->hasMany(StaffProfile::class);
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 }

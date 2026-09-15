@@ -13,11 +13,40 @@ class StaffUserManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_staff_metadata_exposes_positions_under_their_departments(): void
+    {
+        $administrator = User::factory()->create(['role_id' => Role::idFor(Role::ADMIN)]);
+
+        $response = $this->actingAs($administrator)->getJson('/api/staff-metadata');
+
+        $response->assertOk();
+
+        foreach ([
+            ['ADMIN', 'Super Admin'],
+            ['ADMIN', 'System Administrator'],
+            ['REG', 'Registrar'],
+            ['SEC', 'Guard'],
+        ] as [$departmentCode, $positionName]) {
+            $department = Department::where('code', $departmentCode)->firstOrFail();
+
+            $this->assertDatabaseHas('positions', [
+                'department_id' => $department->id,
+                'name' => $positionName,
+                'is_active' => true,
+            ]);
+        }
+
+        $this->assertDatabaseHas('departments', [
+            'code' => 'REG',
+            'name' => 'Registration',
+        ]);
+    }
+
     public function test_administrator_can_create_a_normalized_guard_profile(): void
     {
         $administrator = User::factory()->create(['role_id' => Role::idFor(Role::ADMIN)]);
         $department = Department::where('code', 'SEC')->firstOrFail();
-        $position = Position::create(['code' => 'GUARD', 'name' => 'School Guard', 'is_active' => true]);
+        $position = Position::where('code', 'GUARD')->firstOrFail();
 
         $response = $this->actingAs($administrator)->postJson('/api/guard-users', [
             'firstName' => 'Pedro',
