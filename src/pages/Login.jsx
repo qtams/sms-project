@@ -1,9 +1,13 @@
 import { useMemo, useState } from "react";
+
 import { Navigate, useNavigate } from "react-router-dom";
+
 import { FiArrowRight, FiEye, FiEyeOff, FiLock, FiUser } from "react-icons/fi";
 
 import spryLogo from "../assets/Sprylogo.webp";
+
 import ForgotPasswordModal from "../components/modals/ForgotPasswordModal";
+
 import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
@@ -11,17 +15,28 @@ const Login = () => {
 
   const { user, isAuthLoading, login } = useAuth();
 
+  /* =========================================================
+     REMEMBERED USERNAME
+  ========================================================= */
+
   const savedUsername = useMemo(() => {
     return localStorage.getItem("spry_remembered_username") || "";
   }, []);
 
+  /* =========================================================
+     STATE
+  ========================================================= */
+
   const [formData, setFormData] = useState({
     username: savedUsername,
+
     password: "",
+
     rememberMe: Boolean(savedUsername),
   });
 
   const [showPassword, setShowPassword] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
 
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
@@ -31,12 +46,16 @@ const Login = () => {
     text: "",
   });
 
+  /* =========================================================
+     REDIRECT AUTHENTICATED USER
+  ========================================================= */
+
   if (!isAuthLoading && user) {
     return <Navigate to="/dashboard" replace />;
   }
 
   /* =========================================================
-     HANDLE INPUT CHANGE
+     INPUT CHANGE
   ========================================================= */
 
   const handleChange = (event) => {
@@ -49,6 +68,7 @@ const Login = () => {
 
     setFormData((current) => ({
       ...current,
+
       [name]: type === "checkbox" ? checked : value,
     }));
   };
@@ -61,11 +81,13 @@ const Login = () => {
     event.preventDefault();
 
     const username = formData.username.trim();
+
     const password = formData.password;
 
     if (!username || !password) {
       setMessage({
         type: "error",
+
         text: "Please enter username and password.",
       });
 
@@ -83,6 +105,7 @@ const Login = () => {
       await login({
         username,
         password,
+
         remember: formData.rememberMe,
       });
 
@@ -137,18 +160,18 @@ const Login = () => {
             <img
               src={spryLogo}
               alt="SPRYtech"
-              className="h-auto w-[180px] object-contain drop-shadow-sm"
+              className="h-auto w-[180px] object-contain"
             />
           </div>
 
           {/* HEADER */}
 
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+            <h1 className="text-2xl font-normal tracking-tight text-slate-950">
               Login to your Account
             </h1>
 
-            <p className="mt-2 text-sm font-semibold text-slate-500">
+            <p className="mt-2 text-sm font-normal text-slate-500">
               Welcome back. Please enter your details.
             </p>
           </div>
@@ -157,7 +180,7 @@ const Login = () => {
 
           {message.text && (
             <div
-              className={`mb-5 rounded-md border px-4 py-3 text-sm font-medium ${
+              className={`mb-5 rounded-md border px-4 py-3 text-sm font-normal ${
                 message.type === "success"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                   : "border-red-200 bg-red-50 text-red-700"
@@ -175,7 +198,7 @@ const Login = () => {
             {/* USERNAME */}
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-normal text-slate-700">
                 Username
               </label>
 
@@ -218,7 +241,7 @@ const Login = () => {
             {/* PASSWORD */}
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-2 block text-sm font-normal text-slate-700">
                 Password
               </label>
 
@@ -259,8 +282,9 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword((current) => !current)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 transition hover:text-slate-800"
                   title={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 transition hover:text-slate-700"
                 >
                   {showPassword ? <FiEyeOff /> : <FiEye />}
                 </button>
@@ -270,7 +294,7 @@ const Login = () => {
             {/* OPTIONS */}
 
             <div className="flex items-center justify-between gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-normal text-slate-600">
                 <input
                   type="checkbox"
                   name="rememberMe"
@@ -284,7 +308,7 @@ const Login = () => {
               <button
                 type="button"
                 onClick={() => setIsForgotPasswordOpen(true)}
-                className="cursor-pointer text-sm font-semibold text-[#2838b8] transition hover:text-cyan-600"
+                className="cursor-pointer text-sm font-normal text-[#2838b8] transition hover:text-cyan-600"
               >
                 Forgot password?
               </button>
@@ -306,7 +330,7 @@ const Login = () => {
                 rounded-md
                 bg-[#2838b8]
                 text-sm
-                font-semibold
+                font-normal
                 text-white
                 shadow-lg
                 shadow-blue-200/70
@@ -326,7 +350,7 @@ const Login = () => {
 
           {/* FOOTER */}
 
-          <p className="mt-10 text-center text-xs font-semibold text-slate-400">
+          <p className="mt-10 text-center text-xs font-normal text-slate-400">
             © {new Date().getFullYear()} SPRYtech. All rights reserved.
           </p>
         </div>

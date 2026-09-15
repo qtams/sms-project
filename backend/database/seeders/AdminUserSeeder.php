@@ -7,6 +7,7 @@ use App\Models\Position;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class AdminUserSeeder extends Seeder
 {
@@ -15,35 +16,47 @@ class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
-        $user = User::updateOrCreate(
-            ['username' => 'sprytech'],
+        $department = Department::firstOrCreate(
+            ['code' => 'ADMIN'],
             [
-                'email' => 'sprytechmail@gmail.com',
-                'password' => env('ADMIN_INITIAL_PASSWORD'),
+                'name' => 'Administration',
+                'is_active' => true,
+            ]
+        );
+
+        $position = Position::firstOrCreate(
+            ['code' => 'SYS_ADMIN'],
+            [
+                'name' => 'System Administrator',
+                'is_active' => true,
+            ]
+        );
+
+        $user = User::updateOrCreate(
+            ['username' => '@Tamahome'],
+            [
+                'email' => 'tamahome@gmail.com',
+                'password' => Hash::make(env('ADMIN_INITIAL_PASSWORD', '@Kulets12')),
                 'role_id' => Role::idFor(Role::ADMIN),
                 'is_active' => true,
             ]
         );
 
-        $department = Department::firstOrCreate(
-            ['code' => 'ADMIN'],
-            ['name' => 'Administration', 'is_active' => true],
-        );
-        $position = Position::firstOrCreate(
-            ['code' => 'SYS_ADMIN'],
-            ['name' => 'System Administrator', 'is_active' => true],
-        );
-
         $user->staffProfile()->updateOrCreate(
             ['user_id' => $user->id],
             [
-                'staff_no' => 'ADM-'.str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
-                'first_name' => 'SPRYtech',
+                'staff_no' => 'ADM-' . str_pad(
+                    (string) $user->id,
+                    4,
+                    '0',
+                    STR_PAD_LEFT
+                ),
+                'first_name' => 'Tamahome',
                 'last_name' => 'Administrator',
                 'department_id' => $department->id,
                 'position_id' => $position->id,
                 'employment_status' => 'active',
-            ],
+            ]
         );
     }
 }

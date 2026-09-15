@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useReducer, useRef } from "react";
+
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+
 import Swal from "sweetalert2";
-import { toast } from "react-toastify";
-import api from "../lib/api";
+
+import { ToastContainer, toast } from "react-toastify";
+
 import {
   FiArrowLeft,
   FiCreditCard,
@@ -14,162 +17,382 @@ import {
   FiShield,
   FiUser,
 } from "react-icons/fi";
+
+import api from "../lib/api";
+
 import UserManagementModal from "../components/modals/UserManagementModal";
+
 import {
   csvValue,
+  extractUser,
   formatBirthday,
+  formatUsername,
+  getApiErrorMessage,
   getInitials,
-  roleConfigs,
+  getRoleConfig,
+  normalizeUser,
 } from "../data/userManagementData";
 
 const TEMPORARY_PASSWORD = "Spry@12345";
 
+/* =========================================================
+   STATE
+========================================================= */
+
+const createInitialState = (navigationUser) => {
+  return {
+    user: normalizeUser(navigationUser),
+
+    isLoading: true,
+
+    isSaving: false,
+
+    modalOpen: false,
+  };
+};
+
+const reducer = (state, action) => {
+  switch (action.type) {
+    case "LOAD_START":
+      return {
+        ...state,
+        isLoading: true,
+      };
+
+    case "LOAD_SUCCESS":
+      return {
+        ...state,
+        user: action.payload,
+        isLoading: false,
+      };
+
+    case "LOAD_FAILED":
+      return {
+        ...state,
+        user: null,
+        isLoading: false,
+      };
+
+    case "OPEN_MODAL":
+      return {
+        ...state,
+        modalOpen: true,
+      };
+
+    case "CLOSE_MODAL":
+      return {
+        ...state,
+        modalOpen: false,
+      };
+
+    case "SAVE_START":
+      return {
+        ...state,
+        isSaving: true,
+      };
+
+    case "SAVE_SUCCESS":
+      return {
+        ...state,
+        user: action.payload,
+        isSaving: false,
+        modalOpen: false,
+      };
+
+    case "SAVE_END":
+      return {
+        ...state,
+        isSaving: false,
+      };
+
+    default:
+      return state;
+  }
+};
+
+/* =========================================================
+   COMPONENT
+========================================================= */
+
 const UserManagementDetails = ({ role }) => {
   const navigate = useNavigate();
+
+  const location = useLocation();
+
   const { userId } = useParams();
-  const config = roleConfigs[role];
 
-  const [selectedUser, setSelectedUser] = useState(null);
+  const config = getRoleConfig(role);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [state, dispatch] = useReducer(
+    reducer,
+    location.state?.user,
+    createInitialState,
+  );
 
-  const [isSaving, setIsSaving] = useState(false);
+  const requestIdRef = useRef(0);
 
-  const [modalState, setModalState] = useState({
-    isOpen: false,
-    mode: "edit",
-    user: null,
-  });
+  /* =======================================================
+     LOAD USER
+  ======================================================= */
 
-  useEffect(() => {
-    const loadUser = async () => {
-      setIsLoading(true);
+  const loadUser = useCallback(
+    async ({ showSkeleton = true } = {}) => {
+      if (!config?.apiPath || !userId) {
+        dispatch({
+          type: "LOAD_FAILED",
+        });
+
+        return null;
+      }
+
+      const requestId = ++requestIdRef.current;
+
+      if (showSkeleton) {
+        dispatch({
+          type: "LOAD_START",
+        });
+      }
 
       try {
-        const response = await api.get(`${config.apiPath}/${userId}`);
-
-        setSelectedUser(response.data.data);
-      } catch (error) {
-        setSelectedUser(null);
-
-        toast.error(
-          error.response?.data?.message || "Unable to load user details.",
+        const response = await api.get(
+          `${config.apiPath}/${encodeURIComponent(userId)}`,
         );
-      } finally {
-        setIsLoading(false);
+
+        if (requestId !== requestIdRef.current) {
+          return null;
+        }
+
+        const user = extractUser(response);
+
+        if (!user?.id) {
+          dispatch({
+            type: "LOAD_FAILED",
+          });
+
+          return null;
+        }
+
+        dispatch({
+          type: "LOAD_SUCCESS",
+
+          payload: user,
+        });
+
+        return user;
+      } catch (error) {
+        if (requestId !== requestIdRef.current) {
+          return null;
+        }
+
+        dispatch({
+          type: "LOAD_FAILED",
+        });
+
+        if (error?.response?.status !== 404) {
+          toast.error(
+            getApiErrorMessage(error, "Unable to load user details."),
+          );
+        }
+
+        return null;
       }
-    };
+    },
+    [config?.apiPath, userId],
+  );
 
+  useEffect(() => {
     loadUser();
-  }, [config.apiPath, userId]);
 
-  const openEditModal = () => {
-    setModalState({
-      isOpen: true,
-      mode: "edit",
-      user: selectedUser,
-    });
-  };
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [loadUser]);
 
-  const closeModal = () => {
-    setModalState({
-      isOpen: false,
-      mode: "edit",
-      user: null,
-    });
-  };
+  /* =======================================================
+     BACK
+  ======================================================= */
 
-  const handleSaveUser = async (formData) => {
-    if (
-      !formData.firstName.trim() ||
-      !formData.lastName.trim() ||
-      !formData.username.trim()
-    ) {
-      toast.error("First name, last name, and username are required.");
+  const handleBack = () => {
+    if (!config) {
+      navigate("/");
       return;
     }
 
-    setIsSaving(true);
-
-    try {
-      const response = await api.put(
-        `${config.apiPath}/${selectedUser.id}`,
-        formData,
-      );
-
-      setSelectedUser(response.data.user);
-
-      closeModal();
-
-      toast.success(
-        response.data.message || "User details updated successfully.",
-      );
-    } catch (error) {
-      const validationErrors = error.response?.data?.errors;
-
-      if (validationErrors) {
-        const firstMessage = Object.values(validationErrors).flat()[0];
-
-        toast.error(firstMessage || "Validation failed.");
-
-        return;
-      }
-
-      toast.error(
-        error.response?.data?.message || "Unable to update user details.",
-      );
-    } finally {
-      setIsSaving(false);
-    }
+    navigate(config.listPath);
   };
 
-  const handleResetPassword = async () => {
-    const result = await Swal.fire({
-      title: "Reset Password?",
-      html: `
-        <div style="font-size:14px;color:#64748b;line-height:1.6;">
-          Reset the password for
-          <strong style="color:#0f172a;">
-            ${selectedUser.fullName}
-          </strong>?
-          <br />
-          The temporary password will be
-          <strong style="color:#0f172a;">
-            ${TEMPORARY_PASSWORD}
-          </strong>.
-        </div>
-      `,
-      icon: "warning",
+  /* =======================================================
+     EDIT
+  ======================================================= */
+
+  const openEditModal = () => {
+    dispatch({
+      type: "OPEN_MODAL",
+    });
+  };
+
+  const closeEditModal = () => {
+    if (state.isSaving) {
+      return;
+    }
+
+    dispatch({
+      type: "CLOSE_MODAL",
+    });
+  };
+
+  /* =======================================================
+     SAVE USER
+  ======================================================= */
+
+  const handleSaveUser = async (formData) => {
+    if (!state.user?.id) {
+      toast.error("Unable to update this account.");
+
+      return false;
+    }
+
+    const confirmation = await Swal.fire({
+      title: "Save changes?",
+
+      text: `Save changes for ${formatUsername(formData.username)}?`,
+
+      icon: "question",
+
       showCancelButton: true,
-      confirmButtonText: "Yes, reset password",
+
+      confirmButtonText: "Save changes",
+
       cancelButtonText: "Cancel",
-      confirmButtonColor: "#f97316",
+
+      confirmButtonColor: "#0891b2",
+
       cancelButtonColor: "#64748b",
+
       reverseButtons: true,
     });
 
-    if (!result.isConfirmed) return;
+    if (!confirmation.isConfirmed) {
+      return false;
+    }
+
+    dispatch({
+      type: "SAVE_START",
+    });
+
+    try {
+      const response = await api.put(
+        `${config.apiPath}/${state.user.id}`,
+        formData,
+      );
+
+      let updatedUser = extractUser(response);
+
+      /*
+       * Some APIs return only:
+       *
+       * {
+       *   message: "Updated"
+       * }
+       *
+       * If that happens, fetch
+       * the user again.
+       */
+      if (!updatedUser?.id) {
+        const refreshResponse = await api.get(
+          `${config.apiPath}/${state.user.id}`,
+        );
+
+        updatedUser = extractUser(refreshResponse);
+      }
+
+      if (updatedUser?.id) {
+        dispatch({
+          type: "SAVE_SUCCESS",
+
+          payload: updatedUser,
+        });
+      } else {
+        dispatch({
+          type: "SAVE_END",
+        });
+
+        dispatch({
+          type: "CLOSE_MODAL",
+        });
+      }
+
+      toast.success(
+        response?.data?.message || "User details updated successfully.",
+      );
+
+      return true;
+    } catch (error) {
+      dispatch({
+        type: "SAVE_END",
+      });
+
+      toast.error(getApiErrorMessage(error, "Unable to update user details."));
+
+      return false;
+    }
+  };
+
+  /* =======================================================
+     RESET PASSWORD
+  ======================================================= */
+
+  const handleResetPassword = async () => {
+    if (!state.user?.id) {
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: "Reset password?",
+
+      text: `Reset the password for ${state.user.fullName}?`,
+
+      icon: "warning",
+
+      showCancelButton: true,
+
+      confirmButtonText: "Reset password",
+
+      cancelButtonText: "Cancel",
+
+      confirmButtonColor: "#f97316",
+
+      cancelButtonColor: "#64748b",
+
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
 
     try {
       Swal.fire({
-        title: "Resetting Password",
+        title: "Resetting password",
+
         text: "Please wait...",
+
         allowOutsideClick: false,
+
         allowEscapeKey: false,
+
         showConfirmButton: false,
+
         didOpen: () => {
           Swal.showLoading();
         },
       });
 
-      /*
-        If your backend reset-password route is named
-        differently, change only this URL.
-      */
       const response = await api.post(
-        `${config.apiPath}/${selectedUser.id}/reset-password`,
+        `${config.apiPath}/${state.user.id}/reset-password`,
         {
           password: TEMPORARY_PASSWORD,
+
           password_confirmation: TEMPORARY_PASSWORD,
         },
       );
@@ -177,80 +400,87 @@ const UserManagementDetails = ({ role }) => {
       Swal.close();
 
       await Swal.fire({
-        title: "Password Reset",
+        title: "Password reset",
+
         html: `
-          <div style="text-align:center;">
-            <p style="
-              margin:0 0 10px;
-              color:#64748b;
-              font-size:14px;
+            <div style="
+              font-size: 14px;
+              color: #64748b;
             ">
-              Temporary password for
-              <b>${selectedUser.username}</b>
-            </p>
+              Temporary password
+            </div>
 
             <div style="
-              padding:12px 14px;
-              border-radius:8px;
-              background:#f1f5f9;
-              color:#0f172a;
-              font-weight:700;
-              font-size:18px;
-              letter-spacing:1px;
+              margin-top: 10px;
+              padding: 12px 14px;
+              border-radius: 6px;
+              background: #f1f5f9;
+              color: #0f172a;
+              font-size: 17px;
+              font-weight: 500;
+              letter-spacing: 0.5px;
             ">
               ${TEMPORARY_PASSWORD}
             </div>
+          `,
 
-            <p style="
-              margin:10px 0 0;
-              color:#64748b;
-              font-size:13px;
-            ">
-              Ask the user to change this password
-              after login.
-            </p>
-          </div>
-        `,
         icon: "success",
+
         confirmButtonText: "Done",
+
         confirmButtonColor: "#0891b2",
       });
 
-      toast.success(response.data?.message || "Password reset successfully.");
+      toast.success(response?.data?.message || "Password reset successfully.");
     } catch (error) {
       Swal.close();
 
-      toast.error(error.response?.data?.message || "Unable to reset password.");
+      toast.error(getApiErrorMessage(error, "Unable to reset password."));
     }
   };
 
+  /* =======================================================
+     EXPORT
+  ======================================================= */
+
   const handleExportUser = () => {
-    if (!selectedUser) {
-      toast.error("No user information available to export.");
+    const user = state.user;
+
+    if (!user) {
+      toast.error("No user information available.");
+
       return;
     }
 
     try {
       const row = {
-        userId: selectedUser.userId,
-        fullName: selectedUser.fullName,
-        username: selectedUser.username,
-        email: selectedUser.email,
-        mobile: selectedUser.mobile,
-        birthday: selectedUser.birthday,
-        rfid: selectedUser.rfid,
-        department: selectedUser.department,
-        position: selectedUser.position,
+        userId: user.userId,
+
+        fullName: user.fullName,
+
+        username: user.username,
+
+        email: user.email,
+
+        mobile: user.mobile,
+
+        birthday: user.birthday,
+
+        rfid: user.rfid,
+
+        department: user.department,
+
+        position: user.position,
+
         role: config.roleLabel,
-        status: selectedUser.status,
+
+        status: user.status,
       };
 
-      const header = Object.keys(row);
-      const values = Object.values(row);
-
       const csvContent = [
-        header.map(csvValue).join(","),
-        values.map(csvValue).join(","),
+        Object.keys(row).map(csvValue).join(","),
+
+        Object.values(row).map(csvValue).join(","),
       ].join("\n");
 
       const blob = new Blob([csvContent], {
@@ -258,74 +488,107 @@ const UserManagementDetails = ({ role }) => {
       });
 
       const url = URL.createObjectURL(blob);
+
       const link = document.createElement("a");
 
       link.href = url;
-      link.download = `${selectedUser.userId}-details.csv`;
+
+      link.download = `${user.userId || user.id}-details.csv`;
 
       document.body.appendChild(link);
+
       link.click();
-      document.body.removeChild(link);
+
+      link.remove();
 
       URL.revokeObjectURL(url);
 
       toast.success("User details exported successfully.");
-    } catch {
+    } catch (error) {
+      console.error("Export failed:", error);
+
       toast.error("Unable to export user details.");
     }
   };
 
-  if (isLoading) {
+  /* =======================================================
+     INVALID ROLE
+  ======================================================= */
+
+  if (!config) {
     return (
-      <div className="p-10 text-center text-sm font-medium text-slate-500">
-        Loading user...
+      <div className="rounded-md bg-white p-6 text-sm font-normal text-slate-500 shadow-sm">
+        This user page is not available.
       </div>
     );
   }
 
-  if (!selectedUser) {
-    return (
-      <div className="space-y-5">
-        <button
-          type="button"
-          onClick={() => navigate(config.listPath)}
-          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-600"
-        >
-          <FiArrowLeft />
-          Back to {config.title}
-        </button>
-
-        <div className="rounded-md bg-white p-10 text-center shadow-sm">
-          <h1 className="text-2xl font-medium text-slate-900">
-            User not found
-          </h1>
-
-          <p className="mt-2 text-sm text-slate-500">
-            The selected user record does not exist.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
-    <div className="space-y-5">
+    <>
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        newestOnTop
+        closeOnClick
+        pauseOnHover
+        theme="light"
+      />
+
+      {state.isLoading ? (
+        <DetailsSkeleton />
+      ) : !state.user ? (
+        <NotFoundState roleLabel={config.roleLabel} onBack={handleBack} />
+      ) : (
+        <UserDetailsContent
+          user={state.user}
+          config={config}
+          isSaving={state.isSaving}
+          modalOpen={state.modalOpen}
+          onBack={handleBack}
+          onEdit={openEditModal}
+          onCloseEdit={closeEditModal}
+          onSave={handleSaveUser}
+          onExport={handleExportUser}
+          onResetPassword={handleResetPassword}
+        />
+      )}
+    </>
+  );
+};
+
+/* =========================================================
+   MAIN DETAILS CONTENT
+========================================================= */
+
+const UserDetailsContent = ({
+  user,
+  config,
+  isSaving,
+  modalOpen,
+  onBack,
+  onEdit,
+  onCloseEdit,
+  onSave,
+  onExport,
+  onResetPassword,
+}) => {
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h1 className="text-2xl font-medium text-slate-950">
-            {config.detailTitle}
-          </h1>
+        <h1 className="text-2xl font-medium text-slate-950">
+          {config.detailTitle}
+        </h1>
 
-          <p className="mt-1 text-sm text-slate-500">
-            View and update user account, RFID, contact, and access details.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleExportUser}
-            className="inline-flex w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            onClick={onExport}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
           >
             <FiDownload />
             Export
@@ -333,8 +596,8 @@ const UserManagementDetails = ({ role }) => {
 
           <button
             type="button"
-            onClick={handleResetPassword}
-            className="inline-flex w-fit items-center gap-2 rounded-md bg-orange-50 px-4 py-2.5 text-sm font-medium text-orange-600 transition hover:bg-orange-500 hover:text-white"
+            onClick={onResetPassword}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-50 px-4 text-sm font-normal text-orange-600 transition hover:bg-orange-500 hover:text-white"
           >
             <FiKey />
             Reset Password
@@ -342,17 +605,17 @@ const UserManagementDetails = ({ role }) => {
 
           <button
             type="button"
-            onClick={openEditModal}
-            className="inline-flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
+            onClick={onEdit}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-medium text-white transition hover:bg-cyan-700"
           >
             <FiEdit2 />
-            Edit User
+            Edit
           </button>
 
           <button
             type="button"
-            onClick={() => navigate(config.listPath)}
-            className="inline-flex w-fit items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            onClick={onBack}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-normal text-white transition hover:bg-slate-800"
           >
             <FiArrowLeft />
             Back
@@ -360,154 +623,159 @@ const UserManagementDetails = ({ role }) => {
         </div>
       </div>
 
+      {/* PROFILE */}
       <div className="rounded-md bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-medium text-cyan-700 ring-4 ring-cyan-100">
-              {getInitials(selectedUser.fullName)}
+              {getInitials(user.fullName)}
             </div>
 
             <div>
-              <p className="text-sm font-medium text-slate-500">
+              <p className="text-sm font-normal text-slate-500">
                 {config.roleLabel}
               </p>
 
-              <h2 className="text-xl font-medium text-slate-950">
-                {selectedUser.fullName}
-              </h2>
+              <p className="text-xl font-medium text-slate-950">
+                {user.fullName || "-"}
+              </p>
 
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-1 font-mono text-xs font-medium text-slate-600">
+                <span className="inline-flex items-center gap-1 text-xs font-normal text-slate-600">
                   <FiHash />
-                  {selectedUser.userId}
+
+                  {user.userId || "-"}
                 </span>
 
-                <StatusBadge status={selectedUser.status} />
+                <StatusBadge status={user.status} />
               </div>
             </div>
           </div>
 
           <div className="rounded-md bg-slate-50 px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">RFID</p>
+            <p className="text-xs font-normal text-slate-500">RFID</p>
 
-            <p className="mt-1 text-sm font-medium text-slate-900">
-              {selectedUser.rfid || "No RFID assigned"}
+            <p className="mt-1 text-sm font-normal text-slate-900">
+              {user.rfid || "Not assigned"}
             </p>
           </div>
         </div>
 
+        {/* CARDS */}
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
           <DetailCard
             title="User Information"
             icon={<FiUser />}
-            color="cyan"
-            onEdit={openEditModal}
-            viewItems={[
-              ["Full Name", selectedUser.fullName],
-              ["Username", `@${selectedUser.username}`],
-              ["User ID", selectedUser.userId],
-              ["Birthday", formatBirthday(selectedUser.birthday)],
-              ["Status", selectedUser.status],
+            onEdit={onEdit}
+            items={[
+              ["Full Name", user.fullName],
+
+              ["Username", formatUsername(user.username)],
+
+              ["User ID", user.userId],
+
+              ["Birthday", formatBirthday(user.birthday)],
+
+              ["Status", user.status],
             ]}
           />
 
           <DetailCard
             title="Contact Information"
             icon={<FiMail />}
-            color="orange"
-            onEdit={openEditModal}
-            viewItems={[
-              ["Email Address", selectedUser.email],
-              ["Mobile Number", selectedUser.mobile],
+            onEdit={onEdit}
+            items={[
+              ["Email", user.email],
+
+              ["Mobile Number", user.mobile],
+
+              ["Address", user.address],
             ]}
           />
 
           <DetailCard
             title="RFID Information"
             icon={<FiCreditCard />}
-            color="emerald"
-            onEdit={openEditModal}
-            viewItems={[
-              ["RFID Number", selectedUser.rfid || "No RFID assigned"],
-              ["Assigned To", selectedUser.fullName],
-              ["User ID", selectedUser.userId],
-              ["Role", config.roleLabel],
+            onEdit={onEdit}
+            items={[
+              ["RFID Number", user.rfid || "Not assigned"],
+
+              ["Assigned To", user.fullName],
+
+              ["User ID", user.userId],
             ]}
           />
 
           <DetailCard
             title="Access Information"
             icon={<FiShield />}
-            color="violet"
-            onEdit={openEditModal}
-            viewItems={[
+            onEdit={onEdit}
+            items={[
               ["Role", config.roleLabel],
-              ["Access Level", config.roleLabel],
-              ["Account Status", selectedUser.status],
-              ["Department", selectedUser.department],
-              ["Position", selectedUser.position],
+
+              ["Status", user.status],
+
+              ["Department", user.department],
+
+              ["Position", user.position],
+
+              [
+                "Employment Status",
+                formatEmploymentStatus(user.employmentStatus),
+              ],
+
+              ["Hire Date", formatBirthday(user.hireDate)],
             ]}
           />
         </div>
       </div>
 
       <UserManagementModal
-        isOpen={modalState.isOpen}
+        isOpen={modalOpen}
         mode="edit"
         roleLabel={config.roleLabel}
-        user={modalState.user}
+        user={user}
         isSaving={isSaving}
-        onClose={closeModal}
-        onSave={handleSaveUser}
+        onClose={onCloseEdit}
+        onSave={onSave}
       />
     </div>
   );
 };
 
-const DetailCard = ({ title, icon, color, onEdit, viewItems }) => {
-  const colorClass = {
-    cyan: "bg-cyan-50 text-cyan-600",
-    orange: "bg-orange-50 text-orange-600",
-    violet: "bg-violet-50 text-violet-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-  };
+/* =========================================================
+   DETAIL CARD
+========================================================= */
 
-  const visibleItems = viewItems.filter(
-    ([, value]) => value !== "" && value !== null && value !== undefined,
-  );
-
+const DetailCard = ({ title, icon, items, onEdit }) => {
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div
-            className={`flex h-9 w-9 items-center justify-center rounded-md ${
-              colorClass[color] || colorClass.cyan
-            }`}
-          >
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-600">
             {icon}
           </div>
 
-          <h3 className="font-medium text-slate-950">{title}</h3>
+          <p className="text-sm font-medium text-slate-900">{title}</p>
         </div>
 
         <button
           type="button"
           onClick={onEdit}
+          aria-label={`Edit ${title}`}
           className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-600 transition hover:bg-cyan-600 hover:text-white"
-          title="Edit"
         >
           <FiEdit2 />
         </button>
       </div>
 
       <div className="grid gap-5 p-5 sm:grid-cols-2">
-        {visibleItems.map(([label, value]) => (
+        {items.map(([label, value]) => (
           <div key={label}>
-            <p className="text-xs font-medium text-slate-500">{label}</p>
+            <p className="text-xs font-normal text-slate-500">{label}</p>
 
-            <p className="mt-1 break-words text-sm font-medium text-slate-900">
-              {value}
+            <p className="mt-1 break-words text-sm font-normal text-slate-900">
+              {value || "-"}
             </p>
           </div>
         ))}
@@ -516,24 +784,161 @@ const DetailCard = ({ title, icon, color, onEdit, viewItems }) => {
   );
 };
 
+/* =========================================================
+   STATUS
+========================================================= */
+
 const StatusBadge = ({ status }) => {
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${
+      className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-normal ${
         status === "Active"
           ? "bg-emerald-50 text-emerald-700"
           : "bg-slate-100 text-slate-500"
       }`}
     >
-      <span
-        className={`h-2 w-2 rounded-full ${
-          status === "Active" ? "bg-emerald-500" : "bg-slate-400"
-        }`}
-      />
-
-      {status}
+      {status || "Inactive"}
     </span>
   );
+};
+
+/* =========================================================
+   NOT FOUND
+========================================================= */
+
+const NotFoundState = ({ roleLabel, onBack }) => {
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-50"
+      >
+        <FiArrowLeft />
+        Back
+      </button>
+
+      <div className="rounded-md bg-white px-6 py-12 text-center shadow-sm">
+        <p className="text-sm font-normal text-slate-600">
+          No {String(roleLabel || "user").toLowerCase()} account found.
+        </p>
+
+        <p className="mt-1 text-xs font-normal text-slate-400">
+          The account may have been removed or is no longer available.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+/* =========================================================
+   SKELETON
+========================================================= */
+
+const Skeleton = ({ className = "" }) => {
+  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
+};
+
+const DetailsSkeleton = () => {
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <Skeleton className="h-8 w-44" />
+
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-10 w-24 rounded-md" />
+
+          <Skeleton className="h-10 w-36 rounded-md" />
+
+          <Skeleton className="h-10 w-20 rounded-md" />
+
+          <Skeleton className="h-10 w-20 rounded-md" />
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div className="rounded-md bg-white p-5 shadow-sm">
+        {/* PROFILE */}
+        <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
+
+            <div>
+              <Skeleton className="h-4 w-20" />
+
+              <Skeleton className="mt-2 h-6 w-48" />
+
+              <div className="mt-2 flex gap-3">
+                <Skeleton className="h-4 w-24" />
+
+                <Skeleton className="h-7 w-20 rounded-md" />
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full rounded-md bg-slate-50 p-4 lg:w-52">
+            <Skeleton className="h-3 w-12" />
+
+            <Skeleton className="mt-2 h-4 w-32" />
+          </div>
+        </div>
+
+        {/* DETAIL CARDS */}
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          {Array.from({
+            length: 4,
+          }).map((_, index) => (
+            <DetailCardSkeleton key={index} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DetailCardSkeleton = () => {
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-md" />
+
+          <Skeleton className="h-4 w-36" />
+        </div>
+
+        <Skeleton className="h-9 w-9 rounded-md" />
+      </div>
+
+      <div className="grid gap-5 p-5 sm:grid-cols-2">
+        {Array.from({
+          length: 6,
+        }).map((_, index) => (
+          <div key={index}>
+            <Skeleton className="h-3 w-20" />
+
+            <Skeleton
+              className={`mt-2 h-4 ${index % 2 === 0 ? "w-32" : "w-40"}`}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* =========================================================
+   FORMAT
+========================================================= */
+
+const formatEmploymentStatus = (status) => {
+  if (!status) {
+    return "-";
+  }
+
+  return String(status)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 };
 
 export default UserManagementDetails;

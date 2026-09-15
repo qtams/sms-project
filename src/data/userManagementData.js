@@ -1,175 +1,456 @@
+/*
+|--------------------------------------------------------------------------
+| USER MANAGEMENT CONFIG
+|--------------------------------------------------------------------------
+|
+| No dummy data.
+| No localStorage.
+| No frontend-generated user IDs.
+|
+| All users should come from the Laravel API.
+|
+*/
+
 export const roleConfigs = {
   admin: {
     title: "Admin Users",
     detailTitle: "Admin Details",
     roleLabel: "Admin",
-    storageKey: "spry_admin_users",
-    idPrefix: "ADM",
-    listPath: "/user-management/admin",
-    defaultUsers: [
-      {
-        id: 1,
-        userId: "ADM-0001",
-        fullName: "System Administrator",
-        username: "sysadmin",
-        email: "admin@sprytech.edu",
-        mobile: "0917 111 2222",
-        birthday: "1995-01-15",
-        department: "Administration",
-        position: "System Administrator",
-        rfid: "RFID-ADM-000001",
-        status: "Active",
-      },
-      {
-        id: 2,
-        userId: "ADM-0002",
-        fullName: "School Admin",
-        username: "schooladmin",
-        email: "school.admin@sprytech.edu",
-        mobile: "0917 333 4444",
-        birthday: "1996-04-20",
-        department: "Administration",
-        position: "School Admin",
-        rfid: "RFID-ADM-000002",
-        status: "Active",
-      },
-    ],
 
-    apiPath:"/api/admin-users",
+    apiPath: "/api/admin-users",
+
+    listPath: "/user-management/admin",
+
+    detailPath: (id) => `/user-management/admin/${id}`,
   },
 
   guard: {
     title: "Guard Users",
     detailTitle: "Guard Details",
-    // description: "Manage guard accounts for RFID and entry monitoring.",
     roleLabel: "Guard",
-    storageKey: "spry_guard_users",
-    idPrefix: "GRD",
-    listPath: "/user-management/guard",
-    defaultUsers: [
-      {
-        id: 1,
-        userId: "GRD-0001",
-        fullName: "Pedro Santos",
-        username: "pedro.guard",
-        email: "pedro.guard@sprytech.edu",
-        mobile: "0918 111 3333",
-        birthday: "1988-03-12",
-        department: "Security",
-        position: "School Guard",
-        rfid: "RFID-GRD-000001",
-        status: "Active",
-      },
-      {
-        id: 2,
-        userId: "GRD-0002",
-        fullName: "Mark Reyes",
-        username: "mark.guard",
-        email: "mark.guard@sprytech.edu",
-        mobile: "0918 444 5555",
-        birthday: "1990-09-08",
-        department: "Security",
-        position: "Gate Guard",
-        rfid: "",
-        status: "Inactive",
-      },
-    ],
+
     apiPath: "/api/guard-users",
+
+    listPath: "/user-management/guard",
+
+    detailPath: (id) => `/user-management/guard/${id}`,
   },
 
   registrar: {
     title: "Registrar Users",
     detailTitle: "Registrar Details",
-    // description: "Manage registrar accounts for enrollment and verification.",
     roleLabel: "Registrar",
-    storageKey: "spry_registrar_users",
-    idPrefix: "REG",
-    listPath: "/user-management/registrar",
-    defaultUsers: [
-      {
-        id: 1,
-        userId: "REG-0001",
-        fullName: "Maria Cruz",
-        username: "maria.registrar",
-        email: "maria.registrar@sprytech.edu",
-        mobile: "0919 222 3333",
-        birthday: "1994-11-22",
-        department: "Registrar",
-        position: "Registrar Officer",
-        rfid: "RFID-REG-000001",
-        status: "Active",
-      },
-      {
-        id: 2,
-        userId: "REG-0002",
-        fullName: "Ana Mendoza",
-        username: "ana.registrar",
-        email: "ana.registrar@sprytech.edu",
-        mobile: "0919 444 5555",
-        birthday: "1997-06-18",
-        department: "Registrar",
-        position: "Enrollment Staff",
-        rfid: "RFID-REG-000002",
-        status: "Active",
-      },
-    ],
+
     apiPath: "/api/registrar-users",
+
+    listPath: "/user-management/registrar",
+
+    detailPath: (id) => `/user-management/registrar/${id}`,
   },
 };
 
+/*
+|--------------------------------------------------------------------------
+| STATUS OPTIONS
+|--------------------------------------------------------------------------
+*/
+
 export const statusOptions = ["Active", "Inactive"];
 
-export const getStoredUsers = (config) => {
-  try {
-    const stored = localStorage.getItem(config.storageKey);
+/*
+|--------------------------------------------------------------------------
+| GET ROLE CONFIG
+|--------------------------------------------------------------------------
+*/
 
-    if (!stored) {
-      localStorage.setItem(
-        config.storageKey,
-        JSON.stringify(config.defaultUsers),
-      );
+export const getRoleConfig = (role) => {
+  return roleConfigs[role] || null;
+};
 
-      return config.defaultUsers;
-    }
+/*
+|--------------------------------------------------------------------------
+| USER LIST PATH
+|--------------------------------------------------------------------------
+*/
 
-    const parsed = JSON.parse(stored);
+export const getUserListPath = (role) => {
+  const config = getRoleConfig(role);
 
-    return Array.isArray(parsed) ? parsed : config.defaultUsers;
-  } catch {
-    return config.defaultUsers;
+  return config?.listPath || "/";
+};
+
+/*
+|--------------------------------------------------------------------------
+| USER DETAILS PATH
+|--------------------------------------------------------------------------
+*/
+
+export const getUserDetailsPath = (role, userId) => {
+  const config = getRoleConfig(role);
+
+  if (!config || !userId) {
+    return config?.listPath || "/";
   }
+
+  return config.detailPath(userId);
 };
 
-export const saveStoredUsers = (config, users) => {
-  localStorage.setItem(config.storageKey, JSON.stringify(users));
+/*
+|--------------------------------------------------------------------------
+| FORMAT USERNAME
+|--------------------------------------------------------------------------
+|
+| Prevents:
+|
+| @@Tamahome
+|
+*/
+
+export const formatUsername = (username) => {
+  const value = String(username || "").trim();
+
+  if (!value) {
+    return "-";
+  }
+
+  return value.startsWith("@") ? value : `@${value}`;
 };
 
-export const createUserId = (config, users) => {
-  const nextNumber = users.length + 1;
-
-  return `${config.idPrefix}-${String(nextNumber).padStart(4, "0")}`;
-};
+/*
+|--------------------------------------------------------------------------
+| GET INITIALS
+|--------------------------------------------------------------------------
+*/
 
 export const getInitials = (name) => {
-  return String(name || "")
-    .split(" ")
-    .filter(Boolean)
-    .map((item) => item[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const value = String(name || "").trim();
+
+  if (!value) {
+    return "?";
+  }
+
+  const names = value.split(/\s+/).filter(Boolean);
+
+  if (names.length === 1) {
+    return names[0].slice(0, 2).toUpperCase();
+  }
+
+  return (names[0][0] + names[names.length - 1][0]).toUpperCase();
 };
 
-export const formatBirthday = (birthday) => {
-  if (!birthday) return "-";
+/*
+|--------------------------------------------------------------------------
+| FORMAT BIRTHDAY
+|--------------------------------------------------------------------------
+*/
 
-  return new Date(`${birthday}T00:00:00`).toLocaleDateString("en-PH", {
+export const formatBirthday = (birthday) => {
+  if (!birthday) {
+    return "-";
+  }
+
+  /*
+   * Laravel may return:
+   *
+   * 2026-09-15
+   *
+   * or:
+   *
+   * 2026-09-15T00:00:00.000000Z
+   */
+
+  const cleanDate = String(birthday).slice(0, 10);
+
+  const date = new Date(`${cleanDate}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return date.toLocaleDateString("en-PH", {
     year: "numeric",
     month: "short",
     day: "2-digit",
   });
 };
 
+/*
+|--------------------------------------------------------------------------
+| CSV VALUE
+|--------------------------------------------------------------------------
+*/
+
 export const csvValue = (value) => {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
+};
+
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE STATUS
+|--------------------------------------------------------------------------
+*/
+
+export const normalizeStatus = (status, isActive) => {
+  if (status) {
+    const normalized = String(status).trim().toLowerCase();
+
+    if (normalized === "active") {
+      return "Active";
+    }
+
+    if (normalized === "inactive") {
+      return "Inactive";
+    }
+  }
+
+  if (isActive === true || isActive === 1 || isActive === "1") {
+    return "Active";
+  }
+
+  if (isActive === false || isActive === 0 || isActive === "0") {
+    return "Inactive";
+  }
+
+  return "Inactive";
+};
+
+/*
+|--------------------------------------------------------------------------
+| NORMALIZE API USER
+|--------------------------------------------------------------------------
+|
+| Makes the frontend work with either:
+|
+| firstName
+| first_name
+|
+| departmentId
+| department_id
+|
+| staffProfile
+| staff_profile
+|
+*/
+
+export const normalizeUser = (user) => {
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+
+  const staff = user.staffProfile || user.staff_profile || {};
+
+  const departmentObject = staff.department || {};
+
+  const positionObject = staff.position || {};
+
+  const firstName =
+    user.firstName ??
+    user.first_name ??
+    staff.firstName ??
+    staff.first_name ??
+    "";
+
+  const middleName =
+    user.middleName ??
+    user.middle_name ??
+    staff.middleName ??
+    staff.middle_name ??
+    "";
+
+  const lastName =
+    user.lastName ?? user.last_name ?? staff.lastName ?? staff.last_name ?? "";
+
+  const suffix = user.suffix ?? staff.suffix ?? "";
+
+  const fullName =
+    user.fullName ??
+    user.full_name ??
+    [firstName, middleName, lastName, suffix]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  return {
+    ...user,
+
+    id: user.id ?? user.user_id,
+
+    userId:
+      user.userId ??
+      user.user_id_display ??
+      user.staffNo ??
+      user.staff_no ??
+      staff.staffNo ??
+      staff.staff_no ??
+      "",
+
+    firstName,
+
+    middleName,
+
+    lastName,
+
+    suffix,
+
+    fullName,
+
+    username: user.username ?? "",
+
+    email: user.email ?? "",
+
+    mobile:
+      user.mobile ??
+      user.mobile_number ??
+      user.contactNumber ??
+      user.contact_number ??
+      staff.mobile ??
+      "",
+
+    birthday: user.birthday ?? user.birth_date ?? staff.birthday ?? "",
+
+    address: user.address ?? staff.address ?? "",
+
+    rfid:
+      user.rfid ?? user.rfid_number ?? staff.rfid ?? staff.rfid_number ?? "",
+
+    departmentId: String(
+      user.departmentId ??
+        user.department_id ??
+        staff.departmentId ??
+        staff.department_id ??
+        departmentObject.id ??
+        "",
+    ),
+
+    department:
+      typeof user.department === "string"
+        ? user.department
+        : (user.department?.name ??
+          user.departmentName ??
+          user.department_name ??
+          departmentObject.name ??
+          ""),
+
+    positionId: String(
+      user.positionId ??
+        user.position_id ??
+        staff.positionId ??
+        staff.position_id ??
+        positionObject.id ??
+        "",
+    ),
+
+    position:
+      typeof user.position === "string"
+        ? user.position
+        : (user.position?.name ??
+          user.positionName ??
+          user.position_name ??
+          positionObject.name ??
+          ""),
+
+    employmentStatus:
+      user.employmentStatus ??
+      user.employment_status ??
+      staff.employmentStatus ??
+      staff.employment_status ??
+      "active",
+
+    hireDate:
+      user.hireDate ??
+      user.hire_date ??
+      staff.hireDate ??
+      staff.hire_date ??
+      "",
+
+    status: normalizeStatus(user.status, user.is_active),
+  };
+};
+
+/*
+|--------------------------------------------------------------------------
+| EXTRACT USER LIST FROM API
+|--------------------------------------------------------------------------
+|
+| Supports:
+|
+| response.data = [...]
+|
+| response.data.data = [...]
+|
+| response.data.users = [...]
+|
+| response.data.data.users = [...]
+|
+*/
+
+export const extractUsers = (response) => {
+  const responseData = response?.data ?? response ?? {};
+
+  let users = [];
+
+  if (Array.isArray(responseData)) {
+    users = responseData;
+  } else if (Array.isArray(responseData.data)) {
+    users = responseData.data;
+  } else if (Array.isArray(responseData.users)) {
+    users = responseData.users;
+  } else if (Array.isArray(responseData.data?.users)) {
+    users = responseData.data.users;
+  }
+
+  return users.map(normalizeUser).filter(Boolean);
+};
+
+/*
+|--------------------------------------------------------------------------
+| EXTRACT SINGLE USER FROM API
+|--------------------------------------------------------------------------
+|
+| Supports:
+|
+| { user: {...} }
+| { data: {...} }
+| { data: { user: {...} } }
+|
+*/
+
+export const extractUser = (response) => {
+  const responseData = response?.data ?? response ?? {};
+
+  let user =
+    responseData.user ??
+    responseData.data?.user ??
+    responseData.data ??
+    responseData;
+
+  if (!user || Array.isArray(user) || typeof user !== "object") {
+    return null;
+  }
+
+  return normalizeUser(user);
+};
+
+/*
+|--------------------------------------------------------------------------
+| API ERROR MESSAGE
+|--------------------------------------------------------------------------
+*/
+
+export const getApiErrorMessage = (
+  error,
+  fallbackMessage = "Something went wrong.",
+) => {
+  const validationErrors = error?.response?.data?.errors;
+
+  if (validationErrors) {
+    const firstError = Object.values(validationErrors).flat().find(Boolean);
+
+    if (firstError) {
+      return String(firstError);
+    }
+  }
+
+  return error?.response?.data?.message || error?.message || fallbackMessage;
 };

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
+
 import { useNavigate, useParams } from "react-router-dom";
+
 import {
   FiArrowLeft,
   FiBookOpen,
-  FiCheckCircle,
-  FiCreditCard,
   FiEdit2,
   FiFileText,
   FiHash,
@@ -16,10 +16,18 @@ import {
   FiUser,
   FiUsers,
 } from "react-icons/fi";
+
 import { toast } from "react-toastify";
+
 import { apiDebugRequest } from "../utils/apiDebugger";
+
 import DocumentUploadModal from "../components/modals/DocumentUploadModal";
+
 import api from "../lib/api";
+
+/* =========================================================
+   DOCUMENTS
+========================================================= */
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -34,40 +42,56 @@ const defaultDocuments = [
     fileType: "",
     previewUrl: "",
   },
+
   {
     key: "birthCertificate",
+
     label: "Birth Certificate",
+
     accept: "image/*,application/pdf",
+
     file: null,
     fileName: "",
     fileSize: "",
     fileType: "",
     previewUrl: "",
   },
+
   {
     key: "goodMoral",
+
     label: "Good Moral",
+
     accept: "image/*,application/pdf",
+
     file: null,
     fileName: "",
     fileSize: "",
     fileType: "",
     previewUrl: "",
   },
+
   {
     key: "reportCardFront",
+
     label: "Report Card Front",
+
     accept: "image/*,application/pdf",
+
     file: null,
     fileName: "",
     fileSize: "",
     fileType: "",
     previewUrl: "",
   },
+
   {
     key: "reportCardBack",
+
     label: "Report Card Back",
+
     accept: "image/*,application/pdf",
+
     file: null,
     fileName: "",
     fileSize: "",
@@ -75,6 +99,10 @@ const defaultDocuments = [
     previewUrl: "",
   },
 ];
+
+/* =========================================================
+   OPTIONS
+========================================================= */
 
 const gradeOptions = [
   "Nursery",
@@ -96,7 +124,9 @@ const gradeOptions = [
 ];
 
 const statusOptions = ["Enrolled", "Unenrolled", "Inactive"];
+
 const genderOptions = ["Male", "Female"];
+
 const relationshipOptions = [
   "Mother",
   "Father",
@@ -105,8 +135,14 @@ const relationshipOptions = [
   "Other",
 ];
 
+/* =========================================================
+   HELPERS
+========================================================= */
+
 const getDepartmentByGrade = (gradeLevel) => {
-  if (gradeLevel === "College") return "College";
+  if (gradeLevel === "College") {
+    return "College";
+  }
 
   if (["Grade 11", "Grade 12"].includes(gradeLevel)) {
     return "Senior High School";
@@ -136,35 +172,51 @@ const getInitials = (student) => {
 };
 
 const formatFileSize = (size) => {
-  if (!size) return "";
+  if (!size) {
+    return "";
+  }
+
   return `${Math.round(size / 1024)} KB`;
 };
+
+/* =========================================================
+   IMAGE CROP
+========================================================= */
 
 const createImage = (url) => {
   return new Promise((resolve, reject) => {
     const image = new Image();
+
     image.addEventListener("load", () => resolve(image));
+
     image.addEventListener("error", reject);
+
     image.src = url;
   });
 };
 
 const getCroppedImage = async (imageSrc, croppedAreaPixels, fileName) => {
   const image = await createImage(imageSrc);
+
   const canvas = document.createElement("canvas");
+
   const context = canvas.getContext("2d");
 
   canvas.width = croppedAreaPixels.width;
+
   canvas.height = croppedAreaPixels.height;
 
   context.drawImage(
     image,
+
     croppedAreaPixels.x,
     croppedAreaPixels.y,
     croppedAreaPixels.width,
     croppedAreaPixels.height,
+
     0,
     0,
+
     croppedAreaPixels.width,
     croppedAreaPixels.height,
   );
@@ -174,12 +226,15 @@ const getCroppedImage = async (imageSrc, croppedAreaPixels, fileName) => {
       (blob) => {
         if (!blob) {
           reject(new Error("Failed to crop image."));
+
           return;
         }
 
         const croppedFile = new File(
           [blob],
+
           fileName || "cropped-document.jpg",
+
           {
             type: "image/jpeg",
           },
@@ -187,27 +242,43 @@ const getCroppedImage = async (imageSrc, croppedAreaPixels, fileName) => {
 
         resolve({
           file: croppedFile,
+
           previewUrl: URL.createObjectURL(blob),
+
           fileName: croppedFile.name,
+
           fileSize: formatFileSize(blob.size),
+
           fileType: "image/jpeg",
         });
       },
+
       "image/jpeg",
+
       0.92,
     );
   });
 };
 
+/* =========================================================
+   PAGE
+========================================================= */
+
 const StudentDetails = () => {
   const navigate = useNavigate();
+
   const { studentId } = useParams();
 
   const [student, setStudent] = useState(null);
+
   const [draftStudent, setDraftStudent] = useState({});
+
   const [isLoading, setIsLoading] = useState(true);
+
   const [loadError, setLoadError] = useState("");
+
   const [editingSection, setEditingSection] = useState("");
+
   const [documents, setDocuments] = useState(defaultDocuments);
 
   const [uploadModal, setUploadModal] = useState({
@@ -223,31 +294,51 @@ const StudentDetails = () => {
     isRecropping: false,
   });
 
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [crop, setCrop] = useState({
+    x: 0,
+    y: 0,
+  });
+
   const [zoom, setZoom] = useState(1);
+
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  /* =======================================================
+     LOAD STUDENT
+  ======================================================= */
 
   useEffect(() => {
     let cancelled = false;
 
     setIsLoading(true);
+
     setLoadError("");
+
     api
       .get(`/api/students/${encodeURIComponent(studentId)}`)
       .then((response) => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
+
         setStudent(response.data.student);
+
         setDraftStudent(response.data.student);
       })
       .catch((error) => {
-        if (!cancelled) {
-          setLoadError(
-            error.response?.data?.message || "The selected student record does not exist.",
-          );
+        if (cancelled) {
+          return;
         }
+
+        setLoadError(
+          error.response?.data?.message ||
+            "The selected student record does not exist.",
+        );
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       });
 
     return () => {
@@ -255,51 +346,26 @@ const StudentDetails = () => {
     };
   }, [studentId]);
 
-  if (isLoading) {
-    return (
-      <div className="rounded-md bg-white p-10 text-center shadow-sm">
-        <p className="text-sm text-slate-500">Loading student details...</p>
-      </div>
-    );
-  }
-
-  if (!student) {
-    return (
-      <div className="space-y-5">
-        <button
-          type="button"
-          onClick={() => navigate("/students")}
-          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-600"
-        >
-          <FiArrowLeft />
-          Back to Students
-        </button>
-
-        <div className="rounded-md bg-white p-10 text-center shadow-sm">
-          <h1 className="text-2xl font-medium text-slate-900">
-            Student not found
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            {loadError}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  /* =======================================================
+     EDIT
+  ======================================================= */
 
   const startEdit = (section) => {
     setEditingSection(section);
+
     setDraftStudent(student);
   };
 
   const cancelEdit = () => {
     setEditingSection("");
+
     setDraftStudent(student);
   };
 
   const updateDraft = (field, value) => {
     setDraftStudent((current) => ({
       ...current,
+
       [field]: value,
     }));
   };
@@ -308,42 +374,70 @@ const StudentDetails = () => {
     try {
       const response = await api.patch(
         `/api/students/${encodeURIComponent(student.studentId)}`,
+
         draftStudent,
       );
+
       setStudent(response.data.student);
+
       setDraftStudent(response.data.student);
+
       setEditingSection("");
+
       toast.success(response.data.message || "Student details updated.");
     } catch (error) {
       const validationErrors = error.response?.data?.errors;
+
       const firstError = validationErrors
         ? Object.values(validationErrors).flat()[0]
         : null;
+
       toast.error(
-        firstError || error.response?.data?.message || "Unable to update student details.",
+        firstError ||
+          error.response?.data?.message ||
+          "Unable to update student details.",
       );
     }
   };
 
+  /* =======================================================
+     DOCUMENT MODAL
+  ======================================================= */
+
   const openUploadModal = (documentItem) => {
     const isExistingImage = documentItem.fileType?.startsWith("image/");
+
     const existingPreview = documentItem.previewUrl || "";
 
     setUploadModal({
       isOpen: true,
+
       documentItem,
+
       selectedFile: null,
+
       previewUrl: existingPreview,
+
       imageSrc: isExistingImage ? existingPreview : "",
+
       isImage: isExistingImage,
+
       fileName: documentItem.fileName || "",
+
       fileSize: documentItem.fileSize || "",
+
       fileType: documentItem.fileType || "",
+
       isRecropping: isExistingImage && Boolean(existingPreview),
     });
 
-    setCrop({ x: 0, y: 0 });
+    setCrop({
+      x: 0,
+      y: 0,
+    });
+
     setZoom(1);
+
     setCroppedAreaPixels(null);
   };
 
@@ -361,73 +455,110 @@ const StudentDetails = () => {
       isRecropping: false,
     });
 
-    setCrop({ x: 0, y: 0 });
+    setCrop({
+      x: 0,
+      y: 0,
+    });
+
     setZoom(1);
+
     setCroppedAreaPixels(null);
   };
 
   const chooseFileInModal = (file) => {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     if (file.size > MAX_FILE_SIZE) {
       toast.error("Files above 5MB will be rejected.");
+
       return;
     }
 
     const isImage = file.type.startsWith("image/");
+
     const previewUrl = URL.createObjectURL(file);
 
     setUploadModal((current) => ({
       ...current,
+
       selectedFile: file,
+
       previewUrl,
+
       imageSrc: isImage ? previewUrl : "",
+
       isImage,
+
       fileName: file.name,
+
       fileSize: formatFileSize(file.size),
+
       fileType: file.type,
+
       isRecropping: false,
     }));
 
-    setCrop({ x: 0, y: 0 });
+    setCrop({
+      x: 0,
+      y: 0,
+    });
+
     setZoom(1);
+
     setCroppedAreaPixels(null);
   };
 
   const saveUploadModal = async () => {
-    if (!uploadModal.documentItem) return;
+    if (!uploadModal.documentItem) {
+      return;
+    }
 
     const hasNewFile = Boolean(uploadModal.selectedFile);
+
     const isRecroppingExistingImage =
       uploadModal.isRecropping && uploadModal.imageSrc;
 
     if (!hasNewFile && !isRecroppingExistingImage) {
       closeUploadModal();
+
       return;
     }
 
     if (uploadModal.isImage && uploadModal.imageSrc && !croppedAreaPixels) {
       toast.error("Please wait for the image cropper to finish loading.");
+
       return;
     }
 
     let savedFile = uploadModal.selectedFile;
+
     let savedPreviewUrl = uploadModal.previewUrl;
+
     let savedFileName = uploadModal.fileName;
+
     let savedFileSize = uploadModal.fileSize;
+
     let savedFileType = uploadModal.fileType;
 
     if (uploadModal.isImage && uploadModal.imageSrc && croppedAreaPixels) {
       const croppedFile = await getCroppedImage(
         uploadModal.imageSrc,
+
         croppedAreaPixels,
+
         uploadModal.fileName || "cropped-document.jpg",
       );
 
       savedFile = croppedFile.file;
+
       savedPreviewUrl = croppedFile.previewUrl;
+
       savedFileName = croppedFile.fileName;
+
       savedFileSize = croppedFile.fileSize;
+
       savedFileType = croppedFile.fileType;
     }
 
@@ -436,10 +567,15 @@ const StudentDetails = () => {
         item.key === uploadModal.documentItem.key
           ? {
               ...item,
+
               file: savedFile,
+
               fileName: savedFileName,
+
               fileSize: savedFileSize,
+
               fileType: savedFileType,
+
               previewUrl: savedPreviewUrl,
             }
           : item,
@@ -448,27 +584,44 @@ const StudentDetails = () => {
 
     await apiDebugRequest({
       module: "student",
+
       action: uploadModal.isRecropping ? "recrop-document" : "upload-document",
+
       method: "POST",
+
       payload: {
         id: student.id,
+
         studentId: student.studentId,
+
         studentName: getFullName(student),
+
         documentKey: uploadModal.documentItem.key,
+
         documentLabel: uploadModal.documentItem.label,
+
         file: savedFile,
+
         fileName: savedFileName,
+
         fileSize: savedFileSize,
+
         fileType: savedFileType,
+
         isImage: Boolean(savedFileType?.startsWith("image/")),
+
         isCropped: Boolean(uploadModal.isImage && croppedAreaPixels),
+
         isRecropping: Boolean(uploadModal.isRecropping),
+
         cropArea: croppedAreaPixels,
+
         uploadedAt: new Date().toISOString(),
       },
     });
 
     toast.success(`${uploadModal.documentItem.label} saved.`);
+
     closeUploadModal();
   };
 
@@ -480,6 +633,7 @@ const StudentDetails = () => {
         item.key === documentKey
           ? {
               ...item,
+
               file: null,
               fileName: "",
               fileSize: "",
@@ -492,15 +646,24 @@ const StudentDetails = () => {
 
     await apiDebugRequest({
       module: "student",
+
       action: "remove-document",
+
       method: "DELETE",
+
       payload: {
         id: student.id,
+
         studentId: student.studentId,
+
         studentName: getFullName(student),
+
         documentKey,
+
         documentLabel: documentItem?.label || documentKey,
+
         removedFileName: documentItem?.fileName || "",
+
         removedAt: new Date().toISOString(),
       },
     });
@@ -508,14 +671,58 @@ const StudentDetails = () => {
     toast.success("Document removed.");
   };
 
+  /* =======================================================
+     LOADING
+  ======================================================= */
+
+  if (isLoading) {
+    return <StudentDetailsSkeleton />;
+  }
+
+  /* =======================================================
+     NOT FOUND
+  ======================================================= */
+
+  if (!student) {
+    return (
+      <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+        <button
+          type="button"
+          onClick={() => navigate("/students")}
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-50"
+        >
+          <FiArrowLeft />
+          Back
+        </button>
+
+        <div className="rounded-md bg-white px-6 py-12 text-center shadow-sm">
+          <p className="text-sm font-normal text-slate-600">
+            Student not found.
+          </p>
+
+          <p className="mt-1 text-xs font-normal text-slate-400">{loadError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-medium text-slate-950">
             Student Details
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+
+          <p className="mt-1 text-sm font-normal text-slate-500">
             View and update student profile, contact, class, guardian details,
             and documents.
           </p>
@@ -524,30 +731,37 @@ const StudentDetails = () => {
         <button
           type="button"
           onClick={() => navigate("/students")}
-          className="inline-flex w-fit items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-600"
+          className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-normal text-white transition hover:bg-slate-800"
         >
           <FiArrowLeft />
           Back
         </button>
       </div>
 
+      {/* =================================================
+          MAIN CONTENT
+      ================================================= */}
+
       <div className="rounded-md bg-white p-5 shadow-sm">
+        {/* PROFILE */}
+
         <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-medium text-cyan-700 ring-4 ring-cyan-100">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-normal text-cyan-700 ring-4 ring-cyan-100">
               {getInitials(student)}
             </div>
 
             <div>
-              <p className="text-sm font-medium text-slate-500">Student</p>
+              <p className="text-sm font-normal text-slate-500">Student</p>
 
               <h2 className="text-xl font-medium text-slate-950">
                 {getFullName(student)}
               </h2>
 
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-1 font-mono text-xs font-medium text-slate-600">
+                <span className="inline-flex items-center gap-1 font-mono text-xs font-normal text-slate-600">
                   <FiHash />
+
                   {student.studentId}
                 </span>
 
@@ -556,15 +770,24 @@ const StudentDetails = () => {
             </div>
           </div>
 
+          {/* SAME POSITION AS USER DETAILS INFO BOX */}
+
           <div className="rounded-md bg-slate-50 px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">Class</p>
-            <p className="mt-1 text-sm font-medium text-slate-900">
+            <p className="text-xs font-normal text-slate-500">Class</p>
+
+            <p className="mt-1 text-sm font-normal text-slate-900">
               {student.gradeLevel} - {student.section}
             </p>
           </div>
         </div>
 
+        {/* =================================================
+            DETAILS GRID
+        ================================================= */}
+
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          {/* STUDENT */}
+
           <DetailCard
             title="Student Information"
             icon={<FiUser />}
@@ -576,10 +799,15 @@ const StudentDetails = () => {
             onSave={saveSection}
             viewItems={[
               ["Last Name", student.lastName],
+
               ["First Name", student.firstName],
+
               ["Middle Name", student.middleName],
+
               ["Birth Date", student.birthDate],
+
               ["Gender", student.gender],
+
               ["Status", student.status],
             ]}
           >
@@ -625,6 +853,8 @@ const StudentDetails = () => {
             </div>
           </DetailCard>
 
+          {/* CONTACT */}
+
           <DetailCard
             title="Contact Information"
             icon={<FiMail />}
@@ -636,7 +866,9 @@ const StudentDetails = () => {
             onSave={saveSection}
             viewItems={[
               ["Email Address", student.email],
+
               ["Mobile Number", student.mobile],
+
               ["Home Address", student.address],
             ]}
           >
@@ -663,6 +895,8 @@ const StudentDetails = () => {
             </div>
           </DetailCard>
 
+          {/* GUARDIAN */}
+
           <DetailCard
             title="Guardian Information"
             icon={<FiUsers />}
@@ -674,8 +908,11 @@ const StudentDetails = () => {
             onSave={saveSection}
             viewItems={[
               ["Guardian Name", student.guardianName],
+
               ["Relationship", student.relationship],
+
               ["Guardian Contact", student.guardianContact],
+
               ["Guardian Email", student.guardianEmail],
             ]}
           >
@@ -707,6 +944,8 @@ const StudentDetails = () => {
             </div>
           </DetailCard>
 
+          {/* ACADEMIC */}
+
           <DetailCard
             title="Academic Details"
             icon={<FiBookOpen />}
@@ -719,10 +958,15 @@ const StudentDetails = () => {
             editable={false}
             viewItems={[
               ["Student ID", student.studentId],
+
               ["RFID", student.rfid],
+
               ["Grade Level", student.gradeLevel],
+
               ["Section", student.section],
+
               ["Department", student.department],
+
               ["School Year", student.schoolYear],
             ]}
           >
@@ -746,7 +990,9 @@ const StudentDetails = () => {
                 onChange={(value) => {
                   setDraftStudent((current) => ({
                     ...current,
+
                     gradeLevel: value,
+
                     department: getDepartmentByGrade(value),
                   }));
                 }}
@@ -774,15 +1020,22 @@ const StudentDetails = () => {
           </DetailCard>
         </div>
 
-        <div className="mt-5 rounded-md border border-slate-200 bg-white">
+        {/* =================================================
+            DOCUMENTS
+        ================================================= */}
+
+        <div className="mt-5 overflow-hidden rounded-md border border-slate-200 bg-white">
           <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-600">
               <FiFileText />
             </div>
 
             <div>
-              <h3 className="font-medium text-slate-950">Student Documents</h3>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm font-medium text-slate-950">
+                Student Documents
+              </p>
+
+              <p className="mt-1 text-xs font-normal text-slate-500">
                 Upload, preview, replace, crop, or remove student documents.
               </p>
             </div>
@@ -801,6 +1054,10 @@ const StudentDetails = () => {
         </div>
       </div>
 
+      {/* =================================================
+          UPLOAD MODAL
+      ================================================= */}
+
       <DocumentUploadModal
         uploadModal={uploadModal}
         crop={crop}
@@ -815,6 +1072,10 @@ const StudentDetails = () => {
     </div>
   );
 };
+
+/* =========================================================
+   DETAIL CARD
+========================================================= */
 
 const DetailCard = ({
   title,
@@ -833,8 +1094,11 @@ const DetailCard = ({
 
   const colorClass = {
     cyan: "bg-cyan-50 text-cyan-600",
+
     orange: "bg-orange-50 text-orange-600",
+
     violet: "bg-violet-50 text-violet-600",
+
     emerald: "bg-emerald-50 text-emerald-600",
   };
 
@@ -844,6 +1108,8 @@ const DetailCard = ({
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      {/* CARD HEADER */}
+
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
         <div className="flex items-center gap-3">
           <div
@@ -854,7 +1120,7 @@ const DetailCard = ({
             {icon}
           </div>
 
-          <h3 className="font-medium text-slate-950">{title}</h3>
+          <p className="text-sm font-medium text-slate-950">{title}</p>
         </div>
 
         {!isEditing && editable && (
@@ -863,22 +1129,25 @@ const DetailCard = ({
             onClick={() => onEdit(section)}
             className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-600 transition hover:bg-cyan-600 hover:text-white"
             title="Edit"
+            aria-label={`Edit ${title}`}
           >
             <FiEdit2 />
           </button>
         )}
       </div>
 
+      {/* CARD BODY */}
+
       <div className="p-5">
         {isEditing ? (
           <div className="space-y-4">
             {children}
 
-            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={onCancel}
-                className="rounded-md bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -886,7 +1155,7 @@ const DetailCard = ({
               <button
                 type="button"
                 onClick={() => onSave(section)}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-normal text-white transition hover:bg-cyan-700"
               >
                 <FiSave />
                 Save
@@ -897,9 +1166,10 @@ const DetailCard = ({
           <div className="grid gap-5 sm:grid-cols-2">
             {visibleItems.map(([label, value]) => (
               <div key={label}>
-                <p className="text-xs font-medium text-slate-500">{label}</p>
-                <p className="mt-1 break-words text-sm font-medium text-slate-900">
-                  {value}
+                <p className="text-xs font-normal text-slate-500">{label}</p>
+
+                <p className="mt-1 break-words text-sm font-normal text-slate-900">
+                  {value || "-"}
                 </p>
               </div>
             ))}
@@ -910,6 +1180,10 @@ const DetailCard = ({
   );
 };
 
+/* =========================================================
+   INPUT
+========================================================= */
+
 const FormInput = ({
   label,
   value,
@@ -919,7 +1193,7 @@ const FormInput = ({
 }) => {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-slate-600">
+      <label className="mb-2 block text-sm font-normal text-slate-600">
         {label}
       </label>
 
@@ -928,27 +1202,31 @@ const FormInput = ({
         value={value || ""}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`h-11 w-full rounded-md border px-3 text-sm font-medium outline-none transition ${
+        className={`h-11 w-full rounded-md border px-3 text-sm font-normal outline-none transition ${
           disabled
             ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500"
-            : "border-slate-200 bg-white text-slate-700 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
         }`}
       />
     </div>
   );
 };
 
+/* =========================================================
+   SELECT
+========================================================= */
+
 const FormSelect = ({ label, value, options, onChange }) => {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-slate-600">
+      <label className="mb-2 block text-sm font-normal text-slate-600">
         {label}
       </label>
 
       <select
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+        className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 outline-none transition hover:border-slate-300 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
       >
         <option value="">Select {label}</option>
 
@@ -962,18 +1240,24 @@ const FormSelect = ({ label, value, options, onChange }) => {
   );
 };
 
+/* =========================================================
+   DOCUMENT BOX
+========================================================= */
+
 const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
   const hasFile = Boolean(documentItem.previewUrl);
+
   const isImage = documentItem.fileType?.startsWith("image/");
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-slate-900">
+        <div className="min-w-0">
+          <p className="text-sm font-normal text-slate-900">
             {documentItem.label}
           </p>
-          <p className="mt-1 text-xs font-medium text-slate-500">
+
+          <p className="mt-1 text-xs font-normal text-slate-500">
             Max file size: 5MB
           </p>
         </div>
@@ -982,7 +1266,7 @@ const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
           <button
             type="button"
             onClick={() => onRemoveDocument(documentItem.key)}
-            className="flex h-8 w-8 items-center justify-center rounded-md bg-red-50 text-red-500 transition hover:bg-red-500 hover:text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-50 text-red-500 transition hover:bg-red-500 hover:text-white"
             title="Remove"
           >
             <FiTrash2 />
@@ -990,7 +1274,7 @@ const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
         )}
       </div>
 
-      <div className="mt-4 flex h-28 items-center justify-center overflow-hidden rounded-md bg-white">
+      <div className="mt-4 flex h-28 items-center justify-center overflow-hidden rounded-md border border-slate-100 bg-white">
         {hasFile && isImage ? (
           <img
             src={documentItem.previewUrl}
@@ -1000,22 +1284,25 @@ const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
         ) : hasFile ? (
           <div className="text-center text-slate-500">
             <FiFileText className="mx-auto text-2xl" />
-            <p className="mt-2 text-xs font-medium">File selected</p>
+
+            <p className="mt-2 text-xs font-normal">File selected</p>
           </div>
         ) : (
           <div className="text-center text-slate-400">
             <FiImage className="mx-auto text-2xl" />
-            <p className="mt-2 text-xs font-medium">No preview</p>
+
+            <p className="mt-2 text-xs font-normal">No preview</p>
           </div>
         )}
       </div>
 
       {hasFile && (
         <div className="mt-3">
-          <p className="truncate text-xs font-medium text-slate-700">
+          <p className="truncate text-xs font-normal text-slate-700">
             {documentItem.fileName}
           </p>
-          <p className="text-xs font-medium text-slate-400">
+
+          <p className="mt-1 text-xs font-normal text-slate-400">
             {documentItem.fileSize}
           </p>
         </div>
@@ -1024,14 +1311,19 @@ const DocumentBox = ({ documentItem, onOpenUploadModal, onRemoveDocument }) => {
       <button
         type="button"
         onClick={() => onOpenUploadModal(documentItem)}
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-cyan-50 px-4 py-2.5 text-sm font-medium text-cyan-700 transition hover:bg-cyan-600 hover:text-white"
+        className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-md bg-cyan-50 px-4 text-sm font-normal text-cyan-700 transition hover:bg-cyan-600 hover:text-white"
       >
         <FiUploadCloud />
+
         {hasFile ? "View / Reupload" : "Upload File"}
       </button>
     </div>
   );
 };
+
+/* =========================================================
+   STATUS
+========================================================= */
 
 const StatusBadge = ({ status }) => {
   const style =
@@ -1050,11 +1342,139 @@ const StatusBadge = ({ status }) => {
 
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${style}`}
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-normal ${style}`}
     >
       <span className={`h-2 w-2 rounded-full ${dotStyle}`} />
+
       {status}
     </span>
+  );
+};
+
+/* =========================================================
+   SKELETON
+========================================================= */
+
+const Skeleton = ({ className = "" }) => {
+  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
+};
+
+const StudentDetailsSkeleton = () => {
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <div>
+          <Skeleton className="h-8 w-44" />
+
+          <Skeleton className="mt-2 h-4 w-96 max-w-full" />
+        </div>
+
+        <Skeleton className="h-10 w-20" />
+      </div>
+
+      {/* MAIN */}
+
+      <div className="rounded-md bg-white p-5 shadow-sm">
+        {/* PROFILE */}
+
+        <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-16 w-16 rounded-full" />
+
+            <div>
+              <Skeleton className="h-3 w-20" />
+
+              <Skeleton className="mt-2 h-6 w-48" />
+
+              <div className="mt-2 flex gap-3">
+                <Skeleton className="h-4 w-24" />
+
+                <Skeleton className="h-7 w-20" />
+              </div>
+            </div>
+          </div>
+
+          <div className="w-48 rounded-md bg-slate-50 p-4">
+            <Skeleton className="h-3 w-12" />
+
+            <Skeleton className="mt-2 h-4 w-28" />
+          </div>
+        </div>
+
+        {/* DETAILS */}
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          {Array.from({
+            length: 4,
+          }).map((_, index) => (
+            <DetailCardSkeleton key={index} />
+          ))}
+        </div>
+
+        {/* DOCUMENTS */}
+
+        <div className="mt-5 overflow-hidden rounded-md border border-slate-200">
+          <div className="flex items-center gap-3 bg-slate-50 px-5 py-4">
+            <Skeleton className="h-9 w-9" />
+
+            <div>
+              <Skeleton className="h-4 w-36" />
+
+              <Skeleton className="mt-2 h-3 w-72" />
+            </div>
+          </div>
+
+          <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-5">
+            {Array.from({
+              length: 5,
+            }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-md border border-slate-200 bg-slate-50 p-4"
+              >
+                <Skeleton className="h-4 w-28" />
+
+                <Skeleton className="mt-2 h-3 w-20" />
+
+                <Skeleton className="mt-4 h-28 w-full" />
+
+                <Skeleton className="mt-4 h-10 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DetailCardSkeleton = () => {
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9" />
+
+          <Skeleton className="h-4 w-36" />
+        </div>
+
+        <Skeleton className="h-9 w-9" />
+      </div>
+
+      <div className="grid gap-5 p-5 sm:grid-cols-2">
+        {Array.from({
+          length: 6,
+        }).map((_, index) => (
+          <div key={index}>
+            <Skeleton className="h-3 w-20" />
+
+            <Skeleton className="mt-2 h-4 w-32" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 

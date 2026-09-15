@@ -11,14 +11,15 @@ const BaseModal = ({
   maxWidth = "max-w-2xl",
 }) => {
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     const originalOverflow = document.body.style.overflow;
+
     document.body.style.overflow = "hidden";
 
     const handleEscape = (event) => {
       if (event.key === "Escape") {
-        onClose();
+        onClose?.();
       }
     };
 
@@ -30,10 +31,21 @@ const BaseModal = ({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") {
+    return null;
+  }
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+    <div
+      className="
+        fixed inset-0 z-[9999]
+        flex items-center justify-center
+        bg-slate-950/70
+        p-4
+        backdrop-blur-sm
+      "
+    >
+      {/* BACKDROP */}
       <button
         type="button"
         aria-label="Close modal"
@@ -41,28 +53,84 @@ const BaseModal = ({
         className="absolute inset-0 h-full w-full cursor-default"
       />
 
+      {/* MODAL */}
       <div
-        className={`relative z-10 w-full ${maxWidth} rounded-md bg-white p-6 shadow-2xl animate-[baseModalPopIn_180ms_ease-out] sm:p-8`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="base-modal-title"
+        className={`
+          relative z-10
+          flex
+          max-h-[calc(100dvh-32px)]
+          w-full
+          ${maxWidth}
+          flex-col
+          overflow-hidden
+          rounded-lg
+          bg-white
+          shadow-2xl
+          animate-[baseModalPopIn_180ms_ease-out]
+        `}
       >
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-slate-950">{title}</h2>
+        {/* HEADER */}
+        <div
+          className="
+            flex shrink-0
+            items-start justify-between
+            gap-4
+            border-b border-slate-100
+            px-5 py-4
+            sm:px-6 sm:py-5
+          "
+        >
+          <div className="min-w-0">
+            <h2
+              id="base-modal-title"
+              className="text-xl font-bold text-slate-950 sm:text-2xl"
+            >
+              {title}
+            </h2>
 
             {description && (
-              <p className="mt-1 text-sm text-slate-500">{description}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                {description}
+              </p>
             )}
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500 transition hover:bg-slate-900 hover:text-white"
+            aria-label="Close modal"
+            className="
+              flex h-10 w-10 shrink-0
+              items-center justify-center
+              rounded-md
+              bg-slate-100
+              text-slate-500
+              transition
+              hover:bg-slate-900
+              hover:text-white
+            "
           >
             <FiX />
           </button>
         </div>
 
-        {children}
+        {/* BODY */}
+        <div
+          className="
+            flex
+            min-h-0
+            flex-1
+            flex-col
+            overflow-hidden
+            px-5
+            sm:px-6
+          "
+        >
+          {children}
+        </div>
       </div>
 
       <style>

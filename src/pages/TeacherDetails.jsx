@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+
 import { useNavigate, useParams } from "react-router-dom";
+
 import {
   FiArrowLeft,
   FiBriefcase,
@@ -11,60 +13,16 @@ import {
   FiSave,
   FiUser,
 } from "react-icons/fi";
+
 import { toast } from "react-toastify";
-import { apiDebugRequest } from "../utils/apiDebugger";
+
+import api from "../lib/api";
+
 import RfidUploadModal from "../components/modals/RfidUploadModal";
 
-const initialTeachers = [
-  {
-    id: 1,
-    teacherId: "TCH-0001",
-    rfid: "RFID-TCH-000001",
-    firstName: "Tamahome",
-    middleName: "",
-    lastName: "Buendia",
-    gender: "Male",
-    department: "Elementary",
-    position: "Teacher",
-    email: "mr.tamahome.buendia@gmail.com",
-    mobile: "09304486012",
-    address: "Bulacan",
-    status: "Active",
-    photoPreview: "",
-  },
-  {
-    id: 2,
-    teacherId: "TCH-0002",
-    rfid: "RFID-TCH-000002",
-    firstName: "Arvin",
-    middleName: "",
-    lastName: "Buendia",
-    gender: "Male",
-    department: "Junior High School",
-    position: "Teacher",
-    email: "arvin.buendia@email.com",
-    mobile: "09987654321",
-    address: "Cagayan de Oro City",
-    status: "Active",
-    photoPreview: "",
-  },
-  {
-    id: 3,
-    teacherId: "TCH-0003",
-    rfid: "",
-    firstName: "Misorsikat",
-    middleName: "",
-    lastName: "Misorsikat",
-    gender: "Male",
-    department: "Senior High School",
-    position: "Teacher",
-    email: "",
-    mobile: "",
-    address: "",
-    status: "Inactive",
-    photoPreview: "",
-  },
-];
+/* =========================================================
+   OPTIONS
+========================================================= */
 
 const departmentOptions = [
   "Preschool",
@@ -87,33 +45,137 @@ const positionOptions = [
   "Principal",
 ];
 
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const normalizeStatus = (value, isActive) => {
+  const status = String(value || "").toLowerCase();
+
+  if (status === "active") {
+    return "Active";
+  }
+
+  if (status === "inactive") {
+    return "Inactive";
+  }
+
+  if (isActive === true || isActive === 1 || isActive === "1") {
+    return "Active";
+  }
+
+  return "Inactive";
+};
+
+const normalizeTeacher = (teacher) => {
+  if (!teacher) {
+    return null;
+  }
+
+  return {
+    ...teacher,
+
+    id: teacher.id ?? teacher.teacher_record_id ?? teacher.teacherRecordId,
+
+    teacherId: teacher.teacherId ?? teacher.teacher_id ?? "",
+
+    rfid: teacher.rfid ?? teacher.rfid_number ?? "",
+
+    firstName: teacher.firstName ?? teacher.first_name ?? "",
+
+    middleName: teacher.middleName ?? teacher.middle_name ?? "",
+
+    lastName: teacher.lastName ?? teacher.last_name ?? "",
+
+    gender: teacher.gender ?? "",
+
+    department:
+      teacher.department?.name ??
+      teacher.department ??
+      teacher.department_name ??
+      "",
+
+    position:
+      teacher.position?.name ?? teacher.position ?? teacher.position_name ?? "",
+
+    email: teacher.email ?? "",
+
+    mobile:
+      teacher.mobile ?? teacher.mobile_number ?? teacher.contact_number ?? "",
+
+    address: teacher.address ?? "",
+
+    status: normalizeStatus(teacher.status, teacher.is_active),
+
+    photoPreview:
+      teacher.photoPreview ??
+      teacher.photo_preview ??
+      teacher.photoUrl ??
+      teacher.photo_url ??
+      "",
+  };
+};
+
+const extractTeacher = (response) => {
+  const data = response?.data ?? {};
+
+  const teacher = data.teacher ?? data.data?.teacher ?? data.data ?? null;
+
+  if (!teacher || Array.isArray(teacher) || typeof teacher !== "object") {
+    return null;
+  }
+
+  return normalizeTeacher(teacher);
+};
+
+const getApiErrorMessage = (error, fallback) => {
+  const errors = error?.response?.data?.errors;
+
+  if (errors) {
+    const firstError = Object.values(errors).flat().find(Boolean);
+
+    if (firstError) {
+      return firstError;
+    }
+  }
+
+  return error?.response?.data?.message || error?.message || fallback;
+};
+
 const getFullName = (teacher) => {
-  return [teacher.firstName, teacher.middleName, teacher.lastName]
+  return [teacher?.firstName, teacher?.middleName, teacher?.lastName]
     .filter(Boolean)
     .join(" ");
 };
 
 const getInitials = (teacher) => {
-  return `${teacher.firstName?.[0] || ""}${
-    teacher.lastName?.[0] || ""
+  const value = `${teacher?.firstName?.[0] || ""}${
+    teacher?.lastName?.[0] || ""
   }`.toUpperCase();
+
+  return value || "?";
 };
 
 const csvValue = (value) => {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 };
 
+/* =========================================================
+   PAGE
+========================================================= */
+
 const TeacherDetails = () => {
   const navigate = useNavigate();
+
   const { teacherId } = useParams();
 
-  const selectedTeacher = useMemo(() => {
-    return initialTeachers.find((teacher) => teacher.teacherId === teacherId);
-  }, [teacherId]);
+  const [teacher, setTeacher] = useState(null);
 
-  const [teacher, setTeacher] = useState(selectedTeacher || {});
+  const [draftTeacher, setDraftTeacher] = useState({});
 
-  const [draftTeacher, setDraftTeacher] = useState(selectedTeacher || {});
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [loadError, setLoadError] = useState("");
 
   const [editingSection, setEditingSection] = useState("");
 
@@ -121,53 +183,115 @@ const TeacherDetails = () => {
 
   const [rfidModal, setRfidModal] = useState({
     isOpen: false,
+
     ownerType: "teacher",
+
     ownerId: "",
+
     ownerName: "",
+
     currentRfid: "",
   });
 
-  if (!selectedTeacher) {
-    return (
-      <div data-aos="fade-up" className="space-y-5">
-        <button
-          type="button"
-          onClick={() => navigate("/teachers")}
-          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-600"
-        >
-          <FiArrowLeft />
-          Back to Teachers
-        </button>
+  /* =======================================================
+     LOAD REAL TEACHER
+  ======================================================= */
 
-        <div className="rounded-md bg-white p-10 text-center shadow-sm">
-          <h1 className="text-2xl font-medium text-slate-900">
-            Teacher not found
-          </h1>
+  useEffect(() => {
+    if (!teacherId) {
+      setIsLoading(false);
+      setTeacher(null);
 
-          <p className="mt-2 text-sm text-slate-500">
-            The selected teacher record does not exist.
-          </p>
-        </div>
-      </div>
-    );
-  }
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTeacher = async () => {
+      setIsLoading(true);
+
+      setLoadError("");
+
+      try {
+        const response = await api.get(
+          `/api/teachers/${encodeURIComponent(teacherId)}`,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        const loadedTeacher = extractTeacher(response);
+
+        if (!loadedTeacher) {
+          setTeacher(null);
+
+          setLoadError("The selected teacher record does not exist.");
+
+          return;
+        }
+
+        setTeacher(loadedTeacher);
+
+        setDraftTeacher(loadedTeacher);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setTeacher(null);
+
+        setLoadError(
+          getApiErrorMessage(
+            error,
+            "The selected teacher record does not exist.",
+          ),
+        );
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadTeacher();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [teacherId]);
+
+  /* =======================================================
+     EDIT
+  ======================================================= */
 
   const startEdit = (section) => {
     setEditingSection(section);
-    setDraftTeacher(teacher);
+
+    setDraftTeacher({
+      ...teacher,
+    });
   };
 
   const cancelEdit = () => {
     setEditingSection("");
-    setDraftTeacher(teacher);
+
+    setDraftTeacher({
+      ...teacher,
+    });
   };
 
   const updateDraft = (field, value) => {
     setDraftTeacher((current) => ({
       ...current,
+
       [field]: value,
     }));
   };
+
+  /* =======================================================
+     SAVE
+  ======================================================= */
 
   const saveSection = async (section) => {
     if (
@@ -175,56 +299,96 @@ const TeacherDetails = () => {
       (!draftTeacher.firstName?.trim() || !draftTeacher.lastName?.trim())
     ) {
       toast.error("First name and last name are required.");
+
       return;
     }
 
     if (section === "work" && !draftTeacher.teacherId?.trim()) {
       toast.error("Teacher ID is required.");
+
       return;
     }
 
     setSavingSection(section);
 
     try {
-      await apiDebugRequest({
-        module: "teacher",
-        action: `update-${section}`,
-        method: "PATCH",
-        payload: {
-          id: teacher.id,
-          teacherId: teacher.teacherId,
-          section,
-          data: draftTeacher,
-          updatedAt: new Date().toISOString(),
-        },
-      });
+      const payload = {
+        teacherId: draftTeacher.teacherId?.trim() || "",
 
-      setTeacher(draftTeacher);
-      setEditingSection("");
+        rfid: draftTeacher.rfid?.trim() || "",
 
-      const sectionLabels = {
-        teacher: "Teacher information",
-        contact: "Contact information",
-        work: "Work information",
-        rfid: "RFID information",
+        firstName: draftTeacher.firstName?.trim() || "",
+
+        middleName: draftTeacher.middleName?.trim() || "",
+
+        lastName: draftTeacher.lastName?.trim() || "",
+
+        gender: draftTeacher.gender || "",
+
+        department: draftTeacher.department || "",
+
+        position: draftTeacher.position || "",
+
+        email: draftTeacher.email?.trim() || "",
+
+        mobile: draftTeacher.mobile?.trim() || "",
+
+        address: draftTeacher.address?.trim() || "",
+
+        status: draftTeacher.status || "Active",
       };
 
+      const response = await api.patch(
+        `/api/teachers/${encodeURIComponent(teacher.teacherId)}`,
+
+        payload,
+      );
+
+      const updatedTeacher =
+        extractTeacher(response) ||
+        normalizeTeacher({
+          ...teacher,
+          ...payload,
+        });
+
+      setTeacher(updatedTeacher);
+
+      setDraftTeacher(updatedTeacher);
+
+      setEditingSection("");
+
+      if (updatedTeacher.teacherId && updatedTeacher.teacherId !== teacherId) {
+        navigate(`/teachers/${encodeURIComponent(updatedTeacher.teacherId)}`, {
+          replace: true,
+        });
+      }
+
       toast.success(
-        `${sectionLabels[section] || "Teacher details"} updated successfully.`,
+        response?.data?.message || "Teacher details updated successfully.",
       );
     } catch (error) {
-      toast.error(error?.message || "Unable to update teacher details.");
+      toast.error(
+        getApiErrorMessage(error, "Unable to update teacher details."),
+      );
     } finally {
       setSavingSection("");
     }
   };
 
+  /* =======================================================
+     RFID
+  ======================================================= */
+
   const openRfidModal = () => {
     setRfidModal({
       isOpen: true,
+
       ownerType: "teacher",
+
       ownerId: teacher.teacherId,
+
       ownerName: getFullName(teacher),
+
       currentRfid: teacher.rfid || "",
     });
   };
@@ -232,114 +396,155 @@ const TeacherDetails = () => {
   const closeRfidModal = () => {
     setRfidModal({
       isOpen: false,
+
       ownerType: "teacher",
+
       ownerId: "",
+
       ownerName: "",
+
       currentRfid: "",
     });
   };
 
   const handleRfidSaved = ({ rfid }) => {
-    const previousRfid = teacher.rfid;
-
     setTeacher((current) => ({
       ...current,
+
       rfid,
     }));
 
     setDraftTeacher((current) => ({
       ...current,
+
       rfid,
     }));
 
     closeRfidModal();
-
-    if (previousRfid) {
-      toast.success("Teacher RFID updated successfully.");
-    } else {
-      toast.success("Teacher RFID uploaded successfully.");
-    }
   };
 
-  const handleExportTeacher = async () => {
-    try {
-      const row = {
-        teacherId: teacher.teacherId,
-        rfid: teacher.rfid,
-        fullName: getFullName(teacher),
-        firstName: teacher.firstName,
-        middleName: teacher.middleName,
-        lastName: teacher.lastName,
-        gender: teacher.gender,
-        department: teacher.department,
-        position: teacher.position,
-        email: teacher.email,
-        mobile: teacher.mobile,
-        address: teacher.address,
-        status: teacher.status,
-      };
+  /* =======================================================
+     EXPORT
+  ======================================================= */
 
-      await apiDebugRequest({
-        module: "teacher",
-        action: "export-single",
-        method: "POST",
-        payload: {
-          teacherId: teacher.teacherId,
-          data: row,
-          exportedAt: new Date().toISOString(),
-        },
-      });
-
-      const header = Object.keys(row);
-      const values = Object.values(row);
-
-      const csvContent = [
-        header.map(csvValue).join(","),
-        values.map(csvValue).join(","),
-      ].join("\n");
-
-      const blob = new Blob([csvContent], {
-        type: "text/csv;charset=utf-8;",
-      });
-
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-
-      link.href = url;
-      link.download = `${teacher.teacherId}-details.csv`;
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      URL.revokeObjectURL(url);
-
-      toast.success("Teacher details exported successfully.");
-    } catch (error) {
-      toast.error(error?.message || "Unable to export teacher details.");
+  const handleExportTeacher = () => {
+    if (!teacher) {
+      return;
     }
+
+    const row = {
+      teacherId: teacher.teacherId,
+
+      rfid: teacher.rfid,
+
+      fullName: getFullName(teacher),
+
+      firstName: teacher.firstName,
+
+      middleName: teacher.middleName,
+
+      lastName: teacher.lastName,
+
+      gender: teacher.gender,
+
+      department: teacher.department,
+
+      position: teacher.position,
+
+      email: teacher.email,
+
+      mobile: teacher.mobile,
+
+      address: teacher.address,
+
+      status: teacher.status,
+    };
+
+    const header = Object.keys(row);
+
+    const values = Object.values(row);
+
+    const csvContent = [
+      header.map(csvValue).join(","),
+
+      values.map(csvValue).join(","),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = `${teacher.teacherId || "teacher"}-details.csv`;
+
+    document.body.appendChild(link);
+
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+    toast.success("Teacher details exported successfully.");
   };
 
-  return (
-    <div data-aos="fade-up" className="space-y-5">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h1 className="text-2xl font-medium text-slate-950">
-            Teacher Details
-          </h1>
+  /* =======================================================
+     LOADING
+  ======================================================= */
 
-          <p className="mt-1 text-sm text-slate-500">
-            View and update teacher profile, RFID, department, and contact
-            details.
+  if (isLoading) {
+    return <TeacherDetailsSkeleton />;
+  }
+
+  /* =======================================================
+     NOT FOUND
+  ======================================================= */
+
+  if (!teacher) {
+    return (
+      <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+        <button
+          type="button"
+          onClick={() => navigate("/teachers")}
+          className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-50"
+        >
+          <FiArrowLeft />
+          Back
+        </button>
+
+        <div className="rounded-md bg-white px-6 py-12 text-center shadow-sm">
+          <p className="text-sm font-normal text-slate-600">
+            Teacher not found.
+          </p>
+
+          <p className="mt-1 text-xs font-normal text-slate-400">
+            {loadError || "The selected teacher record does not exist."}
           </p>
         </div>
+      </div>
+    );
+  }
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+  /* =======================================================
+     UI
+  ======================================================= */
+
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <h1 className="text-2xl font-medium text-slate-950">Teacher Details</h1>
+
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={handleExportTeacher}
-            className="inline-flex w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
           >
             <FiDownload />
             Export
@@ -348,7 +553,7 @@ const TeacherDetails = () => {
           <button
             type="button"
             onClick={openRfidModal}
-            className="inline-flex w-fit items-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-normal text-white transition hover:bg-cyan-700"
           >
             <FiCreditCard />
             Upload RFID
@@ -357,7 +562,7 @@ const TeacherDetails = () => {
           <button
             type="button"
             onClick={() => navigate("/teachers")}
-            className="inline-flex w-fit items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-normal text-white transition hover:bg-slate-800"
           >
             <FiArrowLeft />
             Back
@@ -365,24 +570,37 @@ const TeacherDetails = () => {
         </div>
       </div>
 
+      {/* MAIN CARD */}
+
       <div className="rounded-md bg-white p-5 shadow-sm">
+        {/* PROFILE */}
+
         <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-medium text-cyan-700 ring-4 ring-cyan-100">
-              {getInitials(teacher)}
-            </div>
+            {teacher.photoPreview ? (
+              <img
+                src={teacher.photoPreview}
+                alt={getFullName(teacher)}
+                className="h-16 w-16 shrink-0 rounded-full object-cover ring-4 ring-cyan-100"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-normal text-cyan-700 ring-4 ring-cyan-100">
+                {getInitials(teacher)}
+              </div>
+            )}
 
             <div>
-              <p className="text-sm font-medium text-slate-500">Teacher</p>
+              <p className="text-sm font-normal text-slate-500">Teacher</p>
 
-              <h2 className="text-xl font-medium text-slate-950">
-                {getFullName(teacher)}
-              </h2>
+              <p className="text-xl font-medium text-slate-950">
+                {getFullName(teacher) || "-"}
+              </p>
 
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-1 font-mono text-xs font-medium text-slate-600">
+                <span className="inline-flex items-center gap-1 font-mono text-xs font-normal text-slate-600">
                   <FiHash />
-                  {teacher.teacherId}
+
+                  {teacher.teacherId || "-"}
                 </span>
 
                 <StatusBadge status={teacher.status} />
@@ -391,15 +609,19 @@ const TeacherDetails = () => {
           </div>
 
           <div className="rounded-md bg-slate-50 px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">RFID</p>
+            <p className="text-xs font-normal text-slate-500">RFID</p>
 
-            <p className="mt-1 text-sm font-medium text-slate-900">
+            <p className="mt-1 text-sm font-normal text-slate-900">
               {teacher.rfid || "No RFID assigned"}
             </p>
           </div>
         </div>
 
+        {/* DETAIL GRID */}
+
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          {/* TEACHER INFORMATION */}
+
           <DetailCard
             title="Teacher Information"
             icon={<FiUser />}
@@ -453,6 +675,8 @@ const TeacherDetails = () => {
             </div>
           </DetailCard>
 
+          {/* CONTACT */}
+
           <DetailCard
             title="Contact Information"
             icon={<FiMail />}
@@ -492,6 +716,8 @@ const TeacherDetails = () => {
               </div>
             </div>
           </DetailCard>
+
+          {/* WORK */}
 
           <DetailCard
             title="Work Information"
@@ -539,6 +765,8 @@ const TeacherDetails = () => {
             </div>
           </DetailCard>
 
+          {/* RFID */}
+
           <DetailCard
             title="RFID Information"
             icon={<FiCreditCard />}
@@ -573,7 +801,7 @@ const TeacherDetails = () => {
                 <button
                   type="button"
                   onClick={openRfidModal}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-normal text-white transition hover:bg-cyan-700"
                 >
                   <FiCreditCard />
                   Upload RFID
@@ -583,6 +811,8 @@ const TeacherDetails = () => {
           </DetailCard>
         </div>
       </div>
+
+      {/* RFID MODAL */}
 
       <RfidUploadModal
         isOpen={rfidModal.isOpen}
@@ -598,6 +828,10 @@ const TeacherDetails = () => {
     </div>
   );
 };
+
+/* =========================================================
+   DETAIL CARD
+========================================================= */
 
 const DetailCard = ({
   title,
@@ -616,16 +850,15 @@ const DetailCard = ({
 
   const isSaving = savingSection === section;
 
-  const colorClass = {
+  const colors = {
     cyan: "bg-cyan-50 text-cyan-600",
+
     orange: "bg-orange-50 text-orange-600",
+
     violet: "bg-violet-50 text-violet-600",
+
     emerald: "bg-emerald-50 text-emerald-600",
   };
-
-  const visibleItems = viewItems.filter(
-    ([, value]) => value !== "" && value !== null && value !== undefined,
-  );
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
@@ -633,13 +866,13 @@ const DetailCard = ({
         <div className="flex items-center gap-3">
           <div
             className={`flex h-9 w-9 items-center justify-center rounded-md ${
-              colorClass[color] || colorClass.cyan
+              colors[color] || colors.cyan
             }`}
           >
             {icon}
           </div>
 
-          <h3 className="font-medium text-slate-950">{title}</h3>
+          <p className="text-sm font-medium text-slate-950">{title}</p>
         </div>
 
         {!isEditing && (
@@ -659,12 +892,12 @@ const DetailCard = ({
           <div className="space-y-4">
             {children}
 
-            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 disabled={isSaving}
                 onClick={onCancel}
-                className="rounded-md bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-10 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -673,7 +906,7 @@ const DetailCard = ({
                 type="button"
                 disabled={isSaving}
                 onClick={() => onSave(section)}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-normal text-white transition hover:bg-cyan-700 disabled:opacity-50"
               >
                 <FiSave />
 
@@ -683,12 +916,12 @@ const DetailCard = ({
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2">
-            {visibleItems.map(([label, value]) => (
+            {viewItems.map(([label, value]) => (
               <div key={label}>
-                <p className="text-xs font-medium text-slate-500">{label}</p>
+                <p className="text-xs font-normal text-slate-500">{label}</p>
 
-                <p className="mt-1 break-words text-sm font-medium text-slate-900">
-                  {value}
+                <p className="mt-1 break-words text-sm font-normal text-slate-900">
+                  {value || "-"}
                 </p>
               </div>
             ))}
@@ -699,6 +932,10 @@ const DetailCard = ({
   );
 };
 
+/* =========================================================
+   INPUT
+========================================================= */
+
 const FormInput = ({
   label,
   value,
@@ -708,7 +945,7 @@ const FormInput = ({
 }) => {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-slate-600">
+      <label className="mb-2 block text-sm font-normal text-slate-600">
         {label}
       </label>
 
@@ -717,7 +954,7 @@ const FormInput = ({
         value={value || ""}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`h-11 w-full rounded-md border px-3 text-sm font-medium outline-none transition ${
+        className={`h-11 w-full rounded-md border px-3 text-sm font-normal outline-none transition ${
           disabled
             ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500"
             : "border-slate-200 bg-white text-slate-700 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
@@ -727,17 +964,21 @@ const FormInput = ({
   );
 };
 
+/* =========================================================
+   SELECT
+========================================================= */
+
 const FormSelect = ({ label, value, options, onChange }) => {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-slate-600">
+      <label className="mb-2 block text-sm font-normal text-slate-600">
         {label}
       </label>
 
       <select
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+        className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
       >
         <option value="">Select {label}</option>
 
@@ -751,10 +992,14 @@ const FormSelect = ({ label, value, options, onChange }) => {
   );
 };
 
+/* =========================================================
+   STATUS
+========================================================= */
+
 const StatusBadge = ({ status }) => {
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${
+      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-normal ${
         status === "Active"
           ? "bg-emerald-50 text-emerald-700"
           : "bg-slate-100 text-slate-500"
@@ -766,8 +1011,100 @@ const StatusBadge = ({ status }) => {
         }`}
       />
 
-      {status}
+      {status || "Inactive"}
     </span>
+  );
+};
+
+/* =========================================================
+   SKELETON
+========================================================= */
+
+const Skeleton = ({ className = "" }) => {
+  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
+};
+
+const TeacherDetailsSkeleton = () => {
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <Skeleton className="h-8 w-44" />
+
+        <div className="flex gap-2">
+          <Skeleton className="h-10 w-24" />
+
+          <Skeleton className="h-10 w-32" />
+
+          <Skeleton className="h-10 w-20" />
+        </div>
+      </div>
+
+      {/* MAIN */}
+
+      <div className="rounded-md bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-16 w-16 rounded-full" />
+
+            <div>
+              <Skeleton className="h-3 w-20" />
+
+              <Skeleton className="mt-2 h-6 w-48" />
+
+              <div className="mt-2 flex gap-3">
+                <Skeleton className="h-4 w-24" />
+
+                <Skeleton className="h-7 w-20" />
+              </div>
+            </div>
+          </div>
+
+          <div className="w-48 rounded-md bg-slate-50 p-4">
+            <Skeleton className="h-3 w-12" />
+
+            <Skeleton className="mt-2 h-4 w-28" />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          {Array.from({
+            length: 4,
+          }).map((_, index) => (
+            <DetailCardSkeleton key={index} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DetailCardSkeleton = () => {
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9" />
+
+          <Skeleton className="h-4 w-36" />
+        </div>
+
+        <Skeleton className="h-9 w-9" />
+      </div>
+
+      <div className="grid gap-5 p-5 sm:grid-cols-2">
+        {Array.from({
+          length: 5,
+        }).map((_, index) => (
+          <div key={index}>
+            <Skeleton className="h-3 w-20" />
+
+            <Skeleton className="mt-2 h-4 w-32" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 
