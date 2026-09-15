@@ -1,14 +1,110 @@
 import { useMemo, useState } from "react";
-
 import { Navigate, useNavigate } from "react-router-dom";
-
 import { FiArrowRight, FiEye, FiEyeOff, FiLock, FiUser } from "react-icons/fi";
 
 import spryLogo from "../assets/Sprylogo.webp";
-
 import ForgotPasswordModal from "../components/modals/ForgotPasswordModal";
-
 import { useAuth } from "../context/AuthContext";
+
+/* =========================================================
+   LOGIN SKELETON
+========================================================= */
+
+const LoginSkeleton = () => {
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[#eef4ff] text-slate-950">
+      {/* BACKGROUND */}
+
+      <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-blue-200/60 blur-3xl" />
+
+      <div className="pointer-events-none absolute -bottom-24 -right-20 h-80 w-80 rounded-full bg-cyan-200/80 blur-3xl" />
+
+      <div className="pointer-events-none absolute right-10 top-10 hidden h-52 w-52 rounded-full bg-white/50 blur-3xl md:block" />
+
+      <main className="relative z-10 flex min-h-screen items-center justify-center px-5 py-8">
+        <div className="w-full max-w-[390px] lg:max-w-[480px] lg:rounded-md lg:bg-white/85 lg:p-10 lg:shadow-2xl lg:shadow-slate-200/80 lg:backdrop-blur">
+          <div className="animate-pulse">
+            {/* LOGO */}
+
+            <div className="mb-9 flex justify-center">
+              <div className="h-[60px] w-[180px] rounded-md bg-slate-200" />
+            </div>
+
+            {/* HEADER */}
+
+            <div className="mb-8 flex flex-col items-center">
+              <div className="h-7 w-[230px] rounded-md bg-slate-200" />
+
+              <div className="mt-3 h-4 w-[260px] max-w-full rounded-md bg-slate-200/80" />
+            </div>
+
+            {/* FORM */}
+
+            <div className="space-y-5">
+              {/* USERNAME */}
+
+              <div>
+                <div className="mb-2 h-4 w-[75px] rounded bg-slate-200" />
+
+                <div className="h-12 w-full rounded-md border border-slate-200 bg-white/80">
+                  <div className="flex h-full items-center px-4">
+                    <div className="h-4 w-4 rounded bg-slate-200" />
+
+                    <div className="ml-3 h-4 w-[120px] rounded bg-slate-200/80" />
+                  </div>
+                </div>
+              </div>
+
+              {/* PASSWORD */}
+
+              <div>
+                <div className="mb-2 h-4 w-[72px] rounded bg-slate-200" />
+
+                <div className="h-12 w-full rounded-md border border-slate-200 bg-white/80">
+                  <div className="flex h-full items-center justify-between px-4">
+                    <div className="flex items-center">
+                      <div className="h-4 w-4 rounded bg-slate-200" />
+
+                      <div className="ml-3 h-4 w-[120px] rounded bg-slate-200/80" />
+                    </div>
+
+                    <div className="h-4 w-4 rounded bg-slate-200" />
+                  </div>
+                </div>
+              </div>
+
+              {/* OPTIONS */}
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 rounded bg-slate-200" />
+
+                  <div className="h-4 w-[90px] rounded bg-slate-200" />
+                </div>
+
+                <div className="h-4 w-[115px] rounded bg-slate-200" />
+              </div>
+
+              {/* BUTTON */}
+
+              <div className="h-12 w-full rounded-md bg-slate-200" />
+            </div>
+
+            {/* FOOTER */}
+
+            <div className="mt-10 flex justify-center">
+              <div className="h-3 w-[220px] rounded bg-slate-200/80" />
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+/* =========================================================
+   LOGIN
+========================================================= */
 
 const Login = () => {
   const navigate = useNavigate();
@@ -29,9 +125,7 @@ const Login = () => {
 
   const [formData, setFormData] = useState({
     username: savedUsername,
-
     password: "",
-
     rememberMe: Boolean(savedUsername),
   });
 
@@ -47,10 +141,18 @@ const Login = () => {
   });
 
   /* =========================================================
+     AUTH LOADING SKELETON
+  ========================================================= */
+
+  if (isAuthLoading) {
+    return <LoginSkeleton />;
+  }
+
+  /* =========================================================
      REDIRECT AUTHENTICATED USER
   ========================================================= */
 
-  if (!isAuthLoading && user) {
+  if (user) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -68,7 +170,6 @@ const Login = () => {
 
     setFormData((current) => ({
       ...current,
-
       [name]: type === "checkbox" ? checked : value,
     }));
   };
@@ -80,6 +181,10 @@ const Login = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (isLoading) {
+      return;
+    }
+
     const username = formData.username.trim();
 
     const password = formData.password;
@@ -87,7 +192,6 @@ const Login = () => {
     if (!username || !password) {
       setMessage({
         type: "error",
-
         text: "Please enter username and password.",
       });
 
@@ -105,7 +209,6 @@ const Login = () => {
       await login({
         username,
         password,
-
         remember: formData.rememberMe,
       });
 
@@ -123,7 +226,6 @@ const Login = () => {
 
       setMessage({
         type: "error",
-
         text:
           validationMessage ||
           error.response?.data?.message ||
@@ -198,20 +300,25 @@ const Login = () => {
             {/* USERNAME */}
 
             <div>
-              <label className="mb-2 block text-sm font-normal text-slate-700">
+              <label
+                htmlFor="username"
+                className="mb-2 block text-sm font-normal text-slate-700"
+              >
                 Username
               </label>
 
               <div className="relative">
-                <FiUser className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <FiUser className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
 
                 <input
+                  id="username"
                   type="text"
                   name="username"
                   value={formData.username}
                   onChange={handleChange}
                   placeholder="Enter username"
                   autoComplete="username"
+                  disabled={isLoading}
                   className="
                     h-12
                     w-full
@@ -233,6 +340,9 @@ const Login = () => {
                     focus:bg-white
                     focus:ring-4
                     focus:ring-blue-50
+                    disabled:cursor-not-allowed
+                    disabled:bg-slate-50
+                    disabled:opacity-70
                   "
                 />
               </div>
@@ -241,20 +351,25 @@ const Login = () => {
             {/* PASSWORD */}
 
             <div>
-              <label className="mb-2 block text-sm font-normal text-slate-700">
+              <label
+                htmlFor="password"
+                className="mb-2 block text-sm font-normal text-slate-700"
+              >
                 Password
               </label>
 
               <div className="relative">
-                <FiLock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <FiLock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
 
                 <input
+                  id="password"
                   type={showPassword ? "text" : "password"}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="Enter password"
                   autoComplete="current-password"
+                  disabled={isLoading}
                   className="
                     h-12
                     w-full
@@ -276,15 +391,30 @@ const Login = () => {
                     focus:bg-white
                     focus:ring-4
                     focus:ring-blue-50
+                    disabled:cursor-not-allowed
+                    disabled:bg-slate-50
+                    disabled:opacity-70
                   "
                 />
 
                 <button
                   type="button"
+                  disabled={isLoading}
                   onClick={() => setShowPassword((current) => !current)}
                   title={showPassword ? "Hide password" : "Show password"}
                   aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 transition hover:text-slate-700"
+                  className="
+                    absolute
+                    right-4
+                    top-1/2
+                    -translate-y-1/2
+                    cursor-pointer
+                    text-slate-400
+                    transition
+                    hover:text-slate-700
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                  "
                 >
                   {showPassword ? <FiEyeOff /> : <FiEye />}
                 </button>
@@ -300,15 +430,35 @@ const Login = () => {
                   name="rememberMe"
                   checked={formData.rememberMe}
                   onChange={handleChange}
-                  className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-[#2838b8]"
+                  disabled={isLoading}
+                  className="
+                    h-4
+                    w-4
+                    cursor-pointer
+                    rounded
+                    border-slate-300
+                    accent-[#2838b8]
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                  "
                 />
                 Remember me
               </label>
 
               <button
                 type="button"
+                disabled={isLoading}
                 onClick={() => setIsForgotPasswordOpen(true)}
-                className="cursor-pointer text-sm font-normal text-[#2838b8] transition hover:text-cyan-600"
+                className="
+                  cursor-pointer
+                  text-sm
+                  font-normal
+                  text-[#2838b8]
+                  transition
+                  hover:text-cyan-600
+                  disabled:cursor-not-allowed
+                  disabled:opacity-50
+                "
               >
                 Forgot password?
               </button>
@@ -339,12 +489,23 @@ const Login = () => {
                 hover:bg-[#22319e]
                 hover:shadow-xl
                 disabled:cursor-not-allowed
+                disabled:translate-y-0
                 disabled:opacity-70
               "
             >
-              {isLoading ? "Signing in..." : "Sign in"}
+              {isLoading ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
 
-              {!isLoading && <FiArrowRight />}
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign in</span>
+
+                  <FiArrowRight />
+                </>
+              )}
             </button>
           </form>
 

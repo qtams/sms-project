@@ -20,7 +20,7 @@ import { toast } from "react-toastify";
 import api from "../lib/api";
 import "react-datepicker/dist/react-datepicker.css";
 
-const rowsPerPageOptions = [8, 16, 24, 32];
+const rowsPerPageOptions = [5, 10, 25, 50];
 
 const fallbackStudents = [
   {
@@ -169,15 +169,16 @@ const Attendance = () => {
   const [assignedStudents, setAssignedStudents] = useState(fallbackStudents);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [teacherName, setTeacherName] = useState("Authorized staff");
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sectionFilter, setSectionFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState("grid");
+  const [viewMode, setViewMode] = useState("table");
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(8);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const assignedSections = useMemo(
     () => [...new Set(assignedStudents.map(getClassName))].sort(),
@@ -188,6 +189,8 @@ const Attendance = () => {
     let cancelled = false;
 
     const loadAttendance = async () => {
+      setIsLoading(true);
+
       try {
         const response = await api.get("/api/attendance", {
           params: { date: formatLocalDate(selectedDate) },
@@ -206,11 +209,21 @@ const Attendance = () => {
             status: record.status,
           })),
         );
-        setTeacherName(records.find((record) => record.teacherName)?.teacherName || "Authorized staff");
+        setTeacherName(
+          records.find((record) => record.teacherName)?.teacherName ||
+            "Authorized staff",
+        );
       } catch (error) {
         if (!cancelled) {
           console.error("Unable to load attendance:", error);
-          toast.error(error.response?.data?.message || "Unable to load attendance records.");
+          toast.error(
+            error.response?.data?.message ||
+              "Unable to load attendance records.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
         }
       }
     };
@@ -316,7 +329,8 @@ const Attendance = () => {
             enrollmentId: record.enrollmentId,
             studentId: record.studentId,
             date: selectedDateText,
-            timeIn: record.timeIn === "-" ? getManilaDateTime().time : record.timeIn,
+            timeIn:
+              record.timeIn === "-" ? getManilaDateTime().time : record.timeIn,
             status: "Present",
           }
         : {
@@ -412,14 +426,21 @@ const Attendance = () => {
     toast.success("Attendance exported.");
   };
 
+  if (isLoading) {
+    return <AttendanceSkeleton />;
+  }
+
   return (
-    <div data-aos="fade-up" className="space-y-5">
+    <div
+      data-aos="fade-up"
+      className="space-y-5 [font-family:'Poppins',sans-serif]"
+    >
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">
+          <h1 className="text-2xl font-medium text-slate-950">
             My Class Attendance
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm font-normal text-slate-500">
             Select your assigned section and mark students as present or absent.
           </p>
         </div>
@@ -427,7 +448,7 @@ const Attendance = () => {
         <button
           type="button"
           onClick={handleExport}
-          className="inline-flex w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
         >
           <FiDownload />
           Export
@@ -437,7 +458,7 @@ const Attendance = () => {
       <div className="rounded-md bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Teacher</p>
+            <p className="text-sm font-normal text-slate-500">Teacher</p>
             <h2 className="text-xl font-semibold text-slate-950">
               {teacherName}
             </h2>
@@ -461,11 +482,11 @@ const Attendance = () => {
         <SummaryCard label="Absent" value={absentCount} />
       </div>
 
-      <div className="rounded-md bg-white shadow-sm">
+      <div className="overflow-hidden rounded-md bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
           <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
             <div>
-              <h2 className="text-lg font-semibold text-slate-950">
+              <h2 className="text-base font-medium text-slate-900">
                 Section Attendance
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -477,9 +498,9 @@ const Attendance = () => {
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                className={`inline-flex items-center justify-center gap-2 rounded px-3 text-sm font-normal transition ${
                   viewMode === "grid"
-                    ? "bg-cyan-50 text-cyan-700"
+                    ? "bg-slate-100 text-slate-900"
                     : "text-slate-500 hover:bg-slate-50"
                 }`}
               >
@@ -490,9 +511,9 @@ const Attendance = () => {
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
-                className={`flex items-center gap-2 rounded-md px-3 text-sm font-medium transition ${
+                className={`inline-flex items-center justify-center gap-2 rounded px-3 text-sm font-normal transition ${
                   viewMode === "table"
-                    ? "bg-cyan-50 text-cyan-700"
+                    ? "bg-slate-100 text-slate-900"
                     : "text-slate-500 hover:bg-slate-50"
                 }`}
               >
@@ -511,14 +532,14 @@ const Attendance = () => {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search student or ID..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-normal text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
 
             <select
               value={sectionFilter}
               onChange={(event) => setSectionFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
             >
               <option value="All">All My Sections</option>
               {assignedSections.map((section) => (
@@ -531,7 +552,7 @@ const Attendance = () => {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
             >
               <option value="All">All Status</option>
               <option value="Present">Present</option>
@@ -546,14 +567,14 @@ const Attendance = () => {
                 onChange={setSelectedDate}
                 placeholderText="Select date"
                 dateFormat="MMM dd, yyyy"
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-normal text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
               />
             </div>
 
             <button
               type="button"
               onClick={handleResetFilter}
-              className="h-11 rounded-md bg-slate-100 px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
+              className="h-11 rounded-md bg-slate-100 px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-200"
             >
               Reset
             </button>
@@ -629,11 +650,11 @@ const AttendanceGrid = ({ records, onView, onUpdateStatus }) => {
               {getInitials(record)}
             </div>
 
-            <h3 className="mt-3 text-sm font-semibold text-slate-950">
+            <h3 className="mt-3 text-sm font-medium text-slate-950">
               {getDisplayName(record)}
             </h3>
 
-            <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+            <div className="mt-1 flex items-center gap-1.5 text-xs font-normal text-slate-400">
               <FiHash />
               {record.studentId}
             </div>
@@ -712,10 +733,10 @@ const AttendanceTable = ({ records, onView, onUpdateStatus }) => {
                     </div>
 
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-normal text-slate-900">
                         {getDisplayName(record)}
                       </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-slate-400">
+                      <p className="mt-1 flex items-center gap-1.5 text-xs font-normal text-slate-400">
                         <FiHash />
                         {record.studentId}
                       </p>
@@ -723,11 +744,11 @@ const AttendanceTable = ({ records, onView, onUpdateStatus }) => {
                   </div>
                 </td>
 
-                <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                <td className="px-5 py-4 text-sm font-normal text-slate-600">
                   {getClassName(record)}
                 </td>
 
-                <td className="px-5 py-4 text-sm font-medium text-slate-600">
+                <td className="px-5 py-4 text-sm font-normal text-slate-600">
                   {formatDate(record.date)}
                 </td>
 
@@ -824,7 +845,7 @@ const InfoRow = ({ icon, label, value }) => {
 
 const TimeText = ({ value }) => {
   return (
-    <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
+    <div className="inline-flex items-center gap-2 text-sm font-normal text-slate-600">
       <FiClock className="text-slate-400" />
       {value || "-"}
     </div>
@@ -872,14 +893,14 @@ const PaginationFooter = ({
     <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">Show</span>
+          <span className="text-sm font-normal text-slate-500">Show</span>
 
           <select
             value={rowsPerPage}
             onChange={(event) =>
               onRowsPerPageChange(Number(event.target.value))
             }
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
           >
             {rowsPerPageOptions.map((option) => (
               <option key={option} value={option}>
@@ -888,10 +909,10 @@ const PaginationFooter = ({
             ))}
           </select>
 
-          <span className="text-sm text-slate-500">entries</span>
+          <span className="text-sm font-normal text-slate-500">entries</span>
         </div>
 
-        <p className="text-sm text-slate-500">
+        <p className="text-sm font-normal text-slate-500">
           Showing {showingStart} to {showingEnd} of {totalRows} students
         </p>
       </div>
@@ -901,13 +922,13 @@ const PaginationFooter = ({
           type="button"
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <FiChevronLeft />
           Prev
         </button>
 
-        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
           Page {currentPage} of {totalPages}
         </div>
 
@@ -915,7 +936,7 @@ const PaginationFooter = ({
           type="button"
           disabled={currentPage === totalPages}
           onClick={() => onPageChange(currentPage + 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Next
           <FiChevronRight />
@@ -936,8 +957,8 @@ const TableHeader = ({ label }) => {
 const SummaryCard = ({ label, value }) => {
   return (
     <div className="rounded-md bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <h2 className="mt-2 text-2xl font-semibold text-slate-950">{value}</h2>
+      <p className="text-sm font-normal text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-medium text-slate-950">{value}</p>
     </div>
   );
 };
@@ -951,6 +972,138 @@ const EmptyState = () => {
       <p className="mt-1 text-sm text-slate-500">
         Try changing the section, status, date, or search.
       </p>
+    </div>
+  );
+};
+
+const Skeleton = ({ className = "" }) => {
+  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
+};
+
+const AttendanceSkeleton = () => {
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <div>
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="mt-2 h-4 w-96 max-w-full" />
+        </div>
+
+        <Skeleton className="h-10 w-24" />
+      </div>
+
+      {/* TEACHER */}
+      <div className="rounded-md bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="mt-2 h-6 w-44" />
+            <Skeleton className="mt-2 h-4 w-80 max-w-full" />
+          </div>
+
+          <div className="rounded-md bg-slate-50 px-4 py-3">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="mt-2 h-4 w-20" />
+          </div>
+        </div>
+      </div>
+
+      {/* SUMMARY */}
+      <div className="grid gap-3 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="rounded-md bg-white p-4 shadow-sm">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-3 h-7 w-12" />
+          </div>
+        ))}
+      </div>
+
+      {/* ATTENDANCE LIST */}
+      <div className="overflow-hidden rounded-md bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-4">
+          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+            <div>
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="mt-2 h-3 w-80 max-w-full" />
+            </div>
+
+            <Skeleton className="h-11 w-40" />
+          </div>
+
+          <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_240px_180px_220px_auto]">
+            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-11 w-full" />
+            <Skeleton className="h-11 w-20" />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1080px]">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                {Array.from({ length: 7 }).map((_, index) => (
+                  <th key={index} className="px-5 py-4">
+                    <Skeleton className="h-3 w-16" />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {Array.from({ length: 6 }).map((_, rowIndex) => (
+                <tr key={rowIndex} className="border-b border-slate-100">
+                  <td className="px-5 py-5">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div>
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="mt-2 h-3 w-20" />
+                      </div>
+                    </div>
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <Skeleton className="h-4 w-24" />
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <Skeleton className="h-4 w-24" />
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <Skeleton className="h-4 w-20" />
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <Skeleton className="h-7 w-20" />
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <div className="flex gap-2">
+                      <Skeleton className="h-8 w-20" />
+                      <Skeleton className="h-8 w-20" />
+                    </div>
+                  </td>
+
+                  <td className="px-5 py-5">
+                    <div className="flex justify-end">
+                      <Skeleton className="h-9 w-20" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-4 border-t border-slate-100 p-4 md:flex-row md:justify-between">
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-9 w-56" />
+        </div>
+      </div>
     </div>
   );
 };

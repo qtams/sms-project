@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Cropper from "react-easy-crop";
 import {
@@ -223,6 +223,7 @@ const hasValue = (value) => {
 };
 
 const Applications = () => {
+  const [isPageLoading, setIsPageLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState([]);
   const [formData, setFormData] = useState(defaultFormData);
@@ -235,6 +236,16 @@ const Applications = () => {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  useEffect(() => {
+    const loadingTimer = window.setTimeout(() => {
+      setIsPageLoading(false);
+    }, 600);
+
+    return () => {
+      window.clearTimeout(loadingTimer);
+    };
+  }, []);
 
   const age = useMemo(
     () => getAge(formData.dateOfBirth),
@@ -597,6 +608,10 @@ const Applications = () => {
       </div>
     </div>
   ) : null;
+
+  if (isPageLoading) {
+    return <ApplicationsSkeleton />;
+  }
 
   return (
     <div data-aos="fade-up" className="mx-auto w-full max-w-7xl space-y-5">
@@ -1527,6 +1542,84 @@ const CompactFilePreview = ({ fileItem }) => {
   return (
     <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-white">
       <FiFileText className="text-2xl text-slate-400" />
+    </div>
+  );
+};
+
+const Skeleton = ({ className = "" }) => {
+  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
+};
+
+const ApplicationsSkeleton = () => {
+  return (
+    <div className="mx-auto w-full max-w-7xl space-y-5">
+      {/* PAGE HEADER */}
+      <div className="flex flex-col items-center justify-center text-center">
+        <Skeleton className="mb-3 h-12 w-12 rounded-xl" />
+        <Skeleton className="h-8 w-64 max-w-full" />
+        <Skeleton className="mt-2 h-4 w-72 max-w-full" />
+      </div>
+
+      {/* PROGRESS STEPPER */}
+      <div className="mx-auto w-full max-w-6xl overflow-hidden pb-2">
+        <div className="relative mx-auto flex min-w-[900px] max-w-6xl items-start justify-between px-8">
+          <div className="absolute left-16 right-16 top-4 h-px bg-slate-200" />
+
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div
+              key={index}
+              className="relative z-10 flex w-40 flex-col items-center text-center"
+            >
+              <Skeleton className="h-9 w-9 rounded-full" />
+              <Skeleton className="mt-3 h-3 w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* STEP CONTENT */}
+      <div className="grid gap-5 xl:grid-cols-2">
+        <div className="rounded-md bg-white p-5 shadow-sm">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="mt-2 h-4 w-72 max-w-full" />
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <SkeletonField key={index} />
+            ))}
+
+            <div className="md:col-span-2">
+              <SkeletonField />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-md bg-white p-5 shadow-sm">
+          <Skeleton className="h-6 w-36" />
+          <Skeleton className="mt-2 h-4 w-64 max-w-full" />
+
+          <div className="mt-6 grid gap-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <SkeletonField key={index} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* NAVIGATION */}
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+        <Skeleton className="h-12 w-full sm:w-28" />
+        <Skeleton className="h-12 w-full sm:w-28" />
+      </div>
+    </div>
+  );
+};
+
+const SkeletonField = () => {
+  return (
+    <div>
+      <Skeleton className="mb-2 h-4 w-28" />
+      <Skeleton className="h-11 w-full" />
     </div>
   );
 };

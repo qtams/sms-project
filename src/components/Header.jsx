@@ -15,7 +15,19 @@ const Header = () => {
 
   const [isAccountOpen, setIsAccountOpen] = useState(false);
 
+  const [isLoading, setIsLoading] = useState(true);
+
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -58,6 +70,10 @@ const Header = () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  if (isLoading) {
+    return <HeaderSkeleton />;
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6 md:px-5">
@@ -127,6 +143,30 @@ const Header = () => {
             </div>
           )}
         </div>
+      </div>
+    </header>
+  );
+};
+
+const HeaderSkeleton = () => {
+  return (
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6 md:px-5">
+      <div className="flex items-center justify-between gap-4">
+        {/* BRAND SKELETON */}
+
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="h-10 w-10 animate-pulse rounded-md bg-slate-200" />
+
+          <div className="space-y-2">
+            <div className="h-5 w-64 max-w-full animate-pulse rounded bg-slate-200" />
+
+            <div className="h-3 w-36 animate-pulse rounded bg-slate-200" />
+          </div>
+        </div>
+
+        {/* ACCOUNT SKELETON */}
+
+        <div className="h-11 w-11 animate-pulse rounded-md bg-slate-200" />
       </div>
     </header>
   );

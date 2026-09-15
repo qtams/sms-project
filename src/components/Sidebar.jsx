@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+
 import {
   BookOpenCheck,
   ChevronDown,
@@ -12,7 +13,19 @@ import {
 
 const Sidebar = () => {
   const location = useLocation();
+
   const [openDropdown, setOpenDropdown] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   const toggleDropdown = (key) => {
     setOpenDropdown((current) => (current === key ? "" : key));
@@ -239,6 +252,10 @@ const Sidebar = () => {
     return renderDropdown(item);
   };
 
+  if (isLoading) {
+    return <SidebarSkeleton />;
+  }
+
   return (
     <aside className="no-scrollbar hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-5 text-slate-900 lg:block">
       <nav className="space-y-6">
@@ -250,6 +267,37 @@ const Sidebar = () => {
 
             <div className="space-y-1">
               {group.items.map((item) => renderMenuItem(item))}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+};
+
+const SidebarSkeleton = () => {
+  return (
+    <aside className="no-scrollbar hidden h-full w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-4 py-5 lg:block">
+      <nav className="space-y-6">
+        {Array.from({ length: 3 }).map((_, sectionIndex) => (
+          <div key={sectionIndex}>
+            <div className="mb-2 px-3">
+              <div className="h-3 w-20 animate-pulse rounded bg-slate-200" />
+            </div>
+
+            <div className="space-y-2">
+              {Array.from({
+                length: sectionIndex === 1 ? 4 : 2,
+              }).map((_, itemIndex) => (
+                <div
+                  key={itemIndex}
+                  className="flex items-center gap-3 rounded-md px-3 py-2.5"
+                >
+                  <div className="h-8 w-8 animate-pulse rounded-md bg-slate-200" />
+
+                  <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
+                </div>
+              ))}
             </div>
           </div>
         ))}
