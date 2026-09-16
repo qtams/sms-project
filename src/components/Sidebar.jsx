@@ -2,14 +2,108 @@ import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
-  BookOpenCheck,
   ChevronDown,
   ClipboardList,
+  GraduationCap,
   LayoutDashboard,
-  School,
-  Settings,
+  Settings2,
+  UserRound,
   Users,
 } from "lucide-react";
+
+const menuSections = [
+  {
+    title: "Main",
+    items: [
+      {
+        type: "link",
+        label: "Dashboard",
+        path: "/dashboard",
+        icon: LayoutDashboard,
+      },
+    ],
+  },
+
+  {
+    title: "Management",
+    items: [
+      {
+        type: "dropdown",
+        key: "user-management",
+        label: "User Management",
+        icon: Users,
+        items: [
+          {
+            label: "Admin",
+            path: "/user-management/admin",
+          },
+          {
+            label: "Guard",
+            path: "/user-management/guard",
+          },
+          {
+            label: "Registrar",
+            path: "/user-management/registrar",
+          },
+        ],
+      },
+
+      {
+        type: "link",
+        label: "Student",
+        path: "/students",
+        icon: UserRound,
+      },
+
+      {
+        type: "link",
+        label: "Teacher",
+        path: "/teachers",
+        icon: GraduationCap,
+      },
+    ],
+  },
+
+  {
+    title: "Configuration",
+    items: [
+      {
+        type: "dropdown",
+        key: "configuration",
+        label: "Configuration",
+        icon: Settings2,
+        items: [
+          {
+            label: "Academic Setup",
+            path: "/academic-setup",
+          },
+        ],
+      },
+    ],
+  },
+
+  {
+    title: "Reports",
+    items: [
+      {
+        type: "dropdown",
+        key: "reports",
+        label: "Reports",
+        icon: ClipboardList,
+        items: [
+          {
+            label: "Attendance",
+            path: "/attendance",
+          },
+          {
+            label: "RFID Logs",
+            path: "/rfid",
+          },
+        ],
+      },
+    ],
+  },
+];
 
 const Sidebar = () => {
   const location = useLocation();
@@ -27,6 +121,24 @@ const Sidebar = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const dropdowns = menuSections
+      .flatMap((section) => section.items)
+      .filter((item) => item.type === "dropdown");
+
+    const activeDropdown = dropdowns.find((dropdown) =>
+      dropdown.items.some(
+        (item) =>
+          location.pathname === item.path ||
+          location.pathname.startsWith(`${item.path}/`),
+      ),
+    );
+
+    if (activeDropdown) {
+      setOpenDropdown(activeDropdown.key);
+    }
+  }, [location.pathname]);
+
   const toggleDropdown = (key) => {
     setOpenDropdown((current) => (current === key ? "" : key));
   };
@@ -37,112 +149,6 @@ const Sidebar = () => {
     );
   };
 
-  const menuSections = [
-    {
-      title: "Main",
-      items: [
-        {
-          type: "link",
-          label: "Dashboard",
-          path: "/dashboard",
-          icon: LayoutDashboard,
-        },
-      ],
-    },
-    {
-      title: "School",
-      items: [
-        {
-          type: "dropdown",
-          key: "user-management",
-          label: "User Management",
-          icon: Users,
-          items: [
-            {
-              label: "Admin",
-              path: "/user-management/admin",
-            },
-            {
-              label: "Guard",
-              path: "/user-management/guard",
-            },
-            {
-              label: "Registrar",
-              path: "/user-management/registrar",
-            },
-          ],
-        },
-        {
-          type: "dropdown",
-          key: "school",
-          label: "School Management",
-          icon: School,
-          items: [
-            {
-              label: "Students",
-              path: "/students",
-            },
-            {
-              label: "Teachers",
-              path: "/teachers",
-            },
-            {
-              label: "Academic Setup",
-              path: "/academic-setup",
-            },
-            {
-              label: "RFID",
-              path: "/rfid",
-            },
-          ],
-        },
-        {
-          type: "dropdown",
-          key: "enrollment",
-          label: "Enrollment",
-          icon: ClipboardList,
-          items: [
-            {
-              label: "Application",
-              path: "/enrollment/application",
-            },
-            {
-              label: "Verification",
-              path: "/enrollment/verification",
-            },
-          ],
-        },
-        {
-          type: "dropdown",
-          key: "academic",
-          label: "Academic Records",
-          icon: BookOpenCheck,
-          items: [
-            {
-              label: "Attendance",
-              path: "/attendance",
-            },
-            {
-              label: "Log Monitoring",
-              path: "/log-monitoring",
-            },
-          ],
-        },
-      ],
-    },
-    {
-      title: "Administration",
-      items: [
-        {
-          type: "link",
-          label: "Settings",
-          path: "/settings",
-          icon: Settings,
-        },
-      ],
-    },
-  ];
-
   const renderParentLink = (item) => {
     const Icon = item.icon;
 
@@ -151,23 +157,25 @@ const Sidebar = () => {
         key={item.label}
         to={item.path}
         className={({ isActive }) =>
-          `group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
+          `group flex min-h-[38px] items-center gap-2.5 rounded-lg px-2.5 py-1.5
+          text-[13px] font-normal transition-all duration-200 ${
             isActive
-              ? "bg-cyan-50 text-cyan-700"
-              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+              ? "bg-cyan-50/80 text-cyan-700"
+              : "text-[#69768b] hover:bg-slate-50 hover:text-[#536176]"
           }`
         }
       >
         {({ isActive }) => (
           <>
             <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md
+              transition-all duration-200 ${
                 isActive
                   ? "bg-white text-cyan-600 shadow-sm"
-                  : "bg-transparent text-slate-400 group-hover:bg-white group-hover:text-slate-500"
+                  : "text-[#9ba8b9] group-hover:bg-white group-hover:text-[#69768b]"
               }`}
             >
-              <Icon size={16} />
+              <Icon size={15} strokeWidth={1.7} />
             </span>
 
             <span className="truncate">{item.label}</span>
@@ -183,14 +191,15 @@ const Sidebar = () => {
         key={item.label}
         to={item.path}
         className={({ isActive }) =>
-          `relative block rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+          `relative flex min-h-[31px] items-center rounded-md px-3 py-1
+          text-[12px] font-normal transition-all duration-200 ${
             isActive
-              ? "bg-cyan-50 text-cyan-700"
-              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+              ? "bg-cyan-50/60 text-cyan-600"
+              : "text-[#a8b3c2] hover:bg-slate-50/80 hover:text-[#7f8da3]"
           }`
         }
       >
-        {item.label}
+        <span className="truncate">{item.label}</span>
       </NavLink>
     );
   };
@@ -198,11 +207,11 @@ const Sidebar = () => {
   const renderDropdown = (section) => {
     const Icon = section.icon;
 
-    const isDropdownActive = section.items.some((item) =>
+    const hasActiveChild = section.items.some((item) =>
       isPathActive(item.path),
     );
 
-    const isOpen = openDropdown === section.key || isDropdownActive;
+    const isOpen = openDropdown === section.key;
 
     return (
       <div key={section.key}>
@@ -210,41 +219,61 @@ const Sidebar = () => {
           type="button"
           onClick={() => toggleDropdown(section.key)}
           aria-expanded={isOpen}
-          className={`group flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${
-            isOpen
-              ? "bg-cyan-50 text-cyan-700"
-              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+          className={`group flex min-h-[38px] w-full items-center justify-between
+          rounded-lg px-2.5 py-1.5 text-[13px] font-normal
+          transition-all duration-200 ${
+            hasActiveChild
+              ? "bg-cyan-50/80 text-cyan-700"
+              : isOpen
+                ? "bg-slate-50/70 text-[#69768b]"
+                : "text-[#69768b] hover:bg-slate-50 hover:text-[#536176]"
           }`}
         >
           <span className="flex min-w-0 items-center gap-2.5">
             <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
-                isOpen
+              className={`flex h-7 w-7 shrink-0 items-center justify-center
+              rounded-md transition-all duration-200 ${
+                hasActiveChild
                   ? "bg-white text-cyan-600 shadow-sm"
-                  : "bg-transparent text-slate-400 group-hover:bg-white group-hover:text-slate-500"
+                  : isOpen
+                    ? "bg-white text-[#8290a3]"
+                    : "text-[#9ba8b9] group-hover:bg-white group-hover:text-[#69768b]"
               }`}
             >
-              <Icon size={16} />
+              <Icon size={15} strokeWidth={1.7} />
             </span>
 
             <span className="truncate">{section.label}</span>
           </span>
 
           <ChevronDown
-            size={16}
-            className={`shrink-0 text-slate-400 transition-transform duration-200 ${
-              isOpen ? "rotate-180 text-cyan-600" : ""
+            size={13}
+            strokeWidth={1.7}
+            className={`shrink-0 transition-all duration-300 ease-out ${
+              isOpen ? "rotate-180 text-[#94a3b8]" : "rotate-0 text-[#b1bbc8]"
             }`}
           />
         </button>
 
-        {isOpen && (
-          <div className="ml-6 mt-1 border-l border-slate-200 pl-3">
-            <div className="space-y-0.5 py-0.5">
-              {section.items.map((item) => renderChildLink(item))}
+        {/* Dropdown animation */}
+        <div
+          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+            isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div
+              className={`ml-[25px] border-l border-slate-200/80 pl-3
+              transition-all duration-300 ease-out ${
+                isOpen ? "translate-y-0 py-1" : "-translate-y-1 py-0"
+              }`}
+            >
+              <div className="space-y-0.5">
+                {section.items.map((item) => renderChildLink(item))}
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     );
   };
@@ -262,11 +291,37 @@ const Sidebar = () => {
   }
 
   return (
-    <aside className="no-scrollbar hidden h-full w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-3 py-4 text-slate-900 [font-family:'Poppins',sans-serif] lg:block">
+    <aside
+      className="
+        no-scrollbar
+        hidden
+        h-full
+        w-64
+        shrink-0
+        overflow-y-auto
+        border-r
+        border-slate-200
+        bg-white
+        px-3
+        py-4
+        [font-family:'Poppins',sans-serif]
+        lg:block
+      "
+    >
       <nav aria-label="Main navigation" className="space-y-5">
         {menuSections.map((group) => (
           <div key={group.title}>
-            <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+            <p
+              className="
+                mb-1.5
+                px-2.5
+                text-[9px]
+                font-medium
+                uppercase
+                tracking-[0.14em]
+                text-[#b1bbc8]
+              "
+            >
               {group.title}
             </p>
 
@@ -282,25 +337,40 @@ const Sidebar = () => {
 
 const SidebarSkeleton = () => {
   return (
-    <aside className="no-scrollbar hidden h-full w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white px-3 py-4 lg:block">
+    <aside
+      className="
+        no-scrollbar
+        hidden
+        h-full
+        w-64
+        shrink-0
+        overflow-y-auto
+        border-r
+        border-slate-200
+        bg-white
+        px-3
+        py-4
+        lg:block
+      "
+    >
       <nav className="space-y-5">
-        {Array.from({ length: 3 }).map((_, sectionIndex) => (
+        {Array.from({ length: 4 }).map((_, sectionIndex) => (
           <div key={sectionIndex}>
-            <div className="mb-2 px-3">
-              <div className="h-3 w-20 animate-pulse rounded bg-slate-200" />
+            <div className="mb-2 px-2.5">
+              <div className="h-2 w-16 animate-pulse rounded bg-slate-100" />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1">
               {Array.from({
-                length: sectionIndex === 1 ? 4 : 2,
+                length: sectionIndex === 1 ? 3 : 1,
               }).map((_, itemIndex) => (
                 <div
                   key={itemIndex}
-                  className="flex items-center gap-3 rounded-md px-3 py-2.5"
+                  className="flex min-h-[38px] items-center gap-2.5 px-2.5 py-1.5"
                 >
-                  <div className="h-8 w-8 animate-pulse rounded-md bg-slate-200" />
+                  <div className="h-7 w-7 animate-pulse rounded-md bg-slate-100" />
 
-                  <div className="h-4 w-28 animate-pulse rounded bg-slate-200" />
+                  <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
                 </div>
               ))}
             </div>
