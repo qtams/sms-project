@@ -1,33 +1,68 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DatePicker from "react-datepicker";
+
 import {
   FiArrowLeft,
-  FiBookOpen,
   FiCalendar,
   FiChevronLeft,
   FiChevronRight,
   FiClock,
   FiDownload,
+  FiEye,
+  FiGrid,
   FiHash,
+  FiList,
   FiSearch,
   FiUserCheck,
   FiUserX,
 } from "react-icons/fi";
+
 import { toast } from "react-toastify";
 import api from "../lib/api";
+
 import "react-datepicker/dist/react-datepicker.css";
 
+/* =========================================================
+   CONFIG
+========================================================= */
+
+const USE_DUMMY_DATA = true;
+
 const rowsPerPageOptions = [5, 10, 25, 50];
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const formatLocalDate = (date) => {
+  if (!date) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const formatDate = (date) => {
+  if (!date) return "-";
+
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+};
+
+const getDisplayName = (record) => {
+  return `${record.lastName}, ${record.firstName}`;
+};
 
 const getFullName = (record) => {
   return [record.firstName, record.middleName, record.lastName]
     .filter(Boolean)
     .join(" ");
-};
-
-const getDisplayName = (record) => {
-  return `${record.lastName}, ${record.firstName}`;
 };
 
 const getInitials = (record) => {
@@ -36,146 +71,371 @@ const getInitials = (record) => {
   }`.toUpperCase();
 };
 
-const getClassName = (record) => {
-  return `${record.gradeLevel} - ${record.section}`;
-};
-
-const getManilaDateTime = () => {
-  const now = new Date();
-
-  const dateParts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-
-  const time = new Intl.DateTimeFormat("en-US", {
+const getManilaTime = () => {
+  return new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Manila",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
-  }).format(now);
-
-  const year = dateParts.find((part) => part.type === "year")?.value;
-  const month = dateParts.find((part) => part.type === "month")?.value;
-  const day = dateParts.find((part) => part.type === "day")?.value;
-
-  return {
-    date: `${year}-${month}-${day}`,
-    time,
-  };
-};
-
-const formatDate = (date) => {
-  if (!date) return "";
-
-  return new Date(date).toLocaleDateString("en-PH", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  });
-};
-
-const getDateValue = (value) => {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
+  }).format(new Date());
 };
 
 const csvValue = (value) => {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 };
 
+/* =========================================================
+   AVATAR COLORS
+========================================================= */
+
+const avatarStyles = [
+  "bg-cyan-50 text-cyan-700 ring-cyan-100",
+  "bg-orange-50 text-orange-700 ring-orange-100",
+  "bg-emerald-50 text-emerald-700 ring-emerald-100",
+  "bg-violet-50 text-violet-700 ring-violet-100",
+  "bg-pink-50 text-pink-700 ring-pink-100",
+];
+
+const getAvatarStyle = (id) => {
+  const numericId = Number(id) || 0;
+
+  return avatarStyles[numericId % avatarStyles.length];
+};
+
+/* =========================================================
+   DUMMY DATA
+========================================================= */
+
+const getDummyStudents = (date) => [
+  {
+    id: 1,
+    enrollmentId: 101,
+    attendanceId: 1001,
+    studentId: "STD-2026-001",
+    firstName: "Juan",
+    middleName: "",
+    lastName: "Dela Cruz",
+    gradeLevel: "Grade 7",
+    section: "A",
+    date,
+    timeIn: "07:42 AM",
+    status: "Present",
+  },
+  {
+    id: 2,
+    enrollmentId: 102,
+    attendanceId: 1002,
+    studentId: "STD-2026-002",
+    firstName: "Angela",
+    middleName: "",
+    lastName: "Reyes",
+    gradeLevel: "Grade 7",
+    section: "A",
+    date,
+    timeIn: "07:48 AM",
+    status: "Present",
+  },
+  {
+    id: 3,
+    enrollmentId: 103,
+    attendanceId: 1003,
+    studentId: "STD-2026-003",
+    firstName: "Miguel",
+    middleName: "",
+    lastName: "Garcia",
+    gradeLevel: "Grade 7",
+    section: "A",
+    date,
+    timeIn: "-",
+    status: "Absent",
+  },
+  {
+    id: 4,
+    enrollmentId: 104,
+    attendanceId: 1004,
+    studentId: "STD-2026-004",
+    firstName: "Nicole",
+    middleName: "",
+    lastName: "Mendoza",
+    gradeLevel: "Grade 7",
+    section: "A",
+    date,
+    timeIn: "07:39 AM",
+    status: "Present",
+  },
+
+  {
+    id: 5,
+    enrollmentId: 105,
+    attendanceId: 1005,
+    studentId: "STD-2026-005",
+    firstName: "Joshua",
+    middleName: "",
+    lastName: "Ramos",
+    gradeLevel: "Grade 8",
+    section: "B",
+    date,
+    timeIn: "07:51 AM",
+    status: "Present",
+  },
+  {
+    id: 6,
+    enrollmentId: 106,
+    attendanceId: 1006,
+    studentId: "STD-2026-006",
+    firstName: "Sophia",
+    middleName: "",
+    lastName: "Flores",
+    gradeLevel: "Grade 8",
+    section: "B",
+    date,
+    timeIn: "07:55 AM",
+    status: "Present",
+  },
+  {
+    id: 7,
+    enrollmentId: 107,
+    attendanceId: 1007,
+    studentId: "STD-2026-007",
+    firstName: "Carlo",
+    middleName: "",
+    lastName: "Villanueva",
+    gradeLevel: "Grade 8",
+    section: "B",
+    date,
+    timeIn: "-",
+    status: "Absent",
+  },
+
+  {
+    id: 8,
+    enrollmentId: 108,
+    attendanceId: 1008,
+    studentId: "STD-2026-008",
+    firstName: "Patricia",
+    middleName: "",
+    lastName: "Navarro",
+    gradeLevel: "Grade 9",
+    section: "C",
+    date,
+    timeIn: "07:35 AM",
+    status: "Present",
+  },
+  {
+    id: 9,
+    enrollmentId: 109,
+    attendanceId: 1009,
+    studentId: "STD-2026-009",
+    firstName: "Gabriel",
+    middleName: "",
+    lastName: "Torres",
+    gradeLevel: "Grade 9",
+    section: "C",
+    date,
+    timeIn: "07:44 AM",
+    status: "Present",
+  },
+  {
+    id: 10,
+    enrollmentId: 110,
+    attendanceId: 1010,
+    studentId: "STD-2026-010",
+    firstName: "Andrea",
+    middleName: "",
+    lastName: "Castillo",
+    gradeLevel: "Grade 9",
+    section: "C",
+    date,
+    timeIn: "07:58 AM",
+    status: "Present",
+  },
+
+  {
+    id: 11,
+    enrollmentId: 111,
+    attendanceId: 1011,
+    studentId: "STD-2026-011",
+    firstName: "Nathan",
+    middleName: "",
+    lastName: "Aquino",
+    gradeLevel: "Grade 10",
+    section: "D",
+    date,
+    timeIn: "10:41 AM",
+    status: "Present",
+  },
+  {
+    id: 12,
+    enrollmentId: 112,
+    attendanceId: 1012,
+    studentId: "STD-2026-012",
+    firstName: "Beatrice",
+    middleName: "",
+    lastName: "Lim",
+    gradeLevel: "Grade 10",
+    section: "D",
+    date,
+    timeIn: "-",
+    status: "Absent",
+  },
+];
+
+/* =========================================================
+   MAIN PAGE
+========================================================= */
+
 const AttendanceDetails = () => {
   const navigate = useNavigate();
-  const { studentId } = useParams();
 
-  const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [student, setStudent] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { gradeLevel, section } = useParams();
+
+  const decodedGradeLevel = decodeURIComponent(gradeLevel || "");
+  const decodedSection = decodeURIComponent(section || "");
+
+  const [records, setRecords] = useState([]);
+
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const [searchTerm, setSearchTerm] = useState("");
+
   const [statusFilter, setStatusFilter] = useState("All");
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+
+  const [viewMode, setViewMode] = useState("table");
 
   const [currentPage, setCurrentPage] = useState(1);
+
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  /* =======================================================
+     LOAD ATTENDANCE
+  ======================================================= */
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadHistory = async () => {
+    const loadAttendance = async () => {
       setIsLoading(true);
 
+      const selectedDateText = formatLocalDate(selectedDate);
+
       try {
-        const response = await api.get(`/api/attendance/students/${studentId}`);
-        if (!cancelled) {
-          setStudent(response.data.student);
-          setAttendanceRecords(response.data.records || []);
+        let loadedRecords = [];
+
+        if (USE_DUMMY_DATA) {
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, 200);
+          });
+
+          loadedRecords = getDummyStudents(selectedDateText);
+        } else {
+          const response = await api.get("/api/attendance", {
+            params: {
+              date: selectedDateText,
+            },
+          });
+
+          loadedRecords = response.data?.records || [];
         }
+
+        if (cancelled) return;
+
+        setRecords(
+          loadedRecords.filter(
+            (record) =>
+              record.gradeLevel === decodedGradeLevel &&
+              record.section === decodedSection,
+          ),
+        );
       } catch (error) {
         if (!cancelled) {
-          setStudent(null);
-          setAttendanceRecords([]);
-          toast.error(error.response?.data?.message || "Unable to load student attendance history.");
+          console.error("Unable to load attendance:", error);
+
+          setRecords([]);
+
+          toast.error(
+            error.response?.data?.message ||
+              "Unable to load attendance records.",
+          );
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
-    loadHistory();
+    loadAttendance();
+
     return () => {
       cancelled = true;
     };
-  }, [studentId]);
+  }, [decodedGradeLevel, decodedSection, selectedDate]);
 
-  const studentLogs = useMemo(() => {
-    return attendanceRecords;
-  }, [attendanceRecords]);
+  /* =======================================================
+     FILTER
+  ======================================================= */
 
-  const filteredLogs = useMemo(() => {
-    return studentLogs.filter((record) => {
-      const searchValue = searchTerm.toLowerCase();
-      const recordDate = getDateValue(record.date);
+  const filteredRecords = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
 
-      const matchesSearch =
-        record.status.toLowerCase().includes(searchValue) ||
-        record.date.toLowerCase().includes(searchValue) ||
-        String(record.timeIn || "")
-          .toLowerCase()
-          .includes(searchValue);
+    return records
+      .filter((record) => {
+        const fullName = getFullName(record).toLowerCase();
 
-      const matchesStatus =
-        statusFilter === "All" || record.status === statusFilter;
+        const displayName = getDisplayName(record).toLowerCase();
 
-      const matchesDate =
-        (!startDate || recordDate >= getDateValue(startDate)) &&
-        (!endDate || recordDate <= getDateValue(endDate));
+        const matchesSearch =
+          !query ||
+          fullName.includes(query) ||
+          displayName.includes(query) ||
+          String(record.studentId).toLowerCase().includes(query);
 
-      return matchesSearch && matchesStatus && matchesDate;
-    });
-  }, [studentLogs, searchTerm, statusFilter, startDate, endDate]);
+        const matchesStatus =
+          statusFilter === "All" || record.status === statusFilter;
 
-  const displayedLogs = useMemo(() => {
-    return [...filteredLogs].sort(
-      (a, b) => new Date(b.date) - new Date(a.date),
-    );
-  }, [filteredLogs]);
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        return getDisplayName(a).localeCompare(getDisplayName(b));
+      });
+  }, [records, searchTerm, statusFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(displayedLogs.length / rowsPerPage));
+  /* =======================================================
+     SUMMARY
+  ======================================================= */
+
+  const presentCount = records.filter(
+    (record) => record.status === "Present",
+  ).length;
+
+  const absentCount = records.filter(
+    (record) => record.status === "Absent",
+  ).length;
+
+  /* =======================================================
+     PAGINATION
+  ======================================================= */
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRecords.length / rowsPerPage),
+  );
+
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const endIndex = startIndex + rowsPerPage;
-  const paginatedLogs = displayedLogs.slice(startIndex, endIndex);
 
-  const showingStart = displayedLogs.length === 0 ? 0 : startIndex + 1;
-  const showingEnd = Math.min(endIndex, displayedLogs.length);
+  const endIndex = startIndex + rowsPerPage;
+
+  const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
+
+  const showingStart = filteredRecords.length === 0 ? 0 : startIndex + 1;
+
+  const showingEnd = Math.min(endIndex, filteredRecords.length);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, startDate, endDate, rowsPerPage]);
+  }, [searchTerm, statusFilter, selectedDate, rowsPerPage]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -183,358 +443,435 @@ const AttendanceDetails = () => {
     }
   }, [currentPage, totalPages]);
 
-  const presentCount = studentLogs.filter(
-    (record) => record.status === "Present",
-  ).length;
-
-  const absentCount = studentLogs.filter(
-    (record) => record.status === "Absent",
-  ).length;
+  /* =======================================================
+     UPDATE ATTENDANCE
+  ======================================================= */
 
   const updateAttendanceStatus = async (record, nextStatus) => {
-    const updatedRecord =
-      nextStatus === "Present"
-        ? {
-            ...record,
-            timeIn: record.timeIn === "-" ? getManilaDateTime().time : record.timeIn,
-            status: "Present",
+    const selectedDateText = formatLocalDate(selectedDate);
+
+    try {
+      let attendanceId = record.attendanceId || record.id || Date.now();
+
+      if (!USE_DUMMY_DATA) {
+        const response = await api.post("/api/attendance/records/status", {
+          enrollment_id: record.enrollmentId,
+          date: selectedDateText,
+          status: nextStatus.toLowerCase(),
+          reason: "Updated from attendance management.",
+        });
+
+        attendanceId = response.data?.record?.id || attendanceId;
+      }
+
+      setRecords((current) =>
+        current.map((item) => {
+          if (item.studentId !== record.studentId) {
+            return item;
           }
-        : {
-            ...record,
-            timeIn: "-",
-            status: "Absent",
+
+          return {
+            ...item,
+            attendanceId,
+            date: selectedDateText,
+            status: nextStatus,
+            timeIn:
+              nextStatus === "Present"
+                ? item.timeIn && item.timeIn !== "-"
+                  ? item.timeIn
+                  : getManilaTime()
+                : "-",
           };
-
-    const response = await api.post("/api/attendance/records/status", {
-      enrollment_id: record.enrollmentId,
-      date: record.date,
-      status: nextStatus.toLowerCase(),
-      reason: "Updated from the individual attendance history page.",
-    });
-    updatedRecord.id = response.data.record.id;
-
-    setAttendanceRecords((current) => {
-      const nextRecords = current.map((item) =>
-        item.id === record.id ? updatedRecord : item,
+        }),
       );
 
-      return nextRecords;
-    });
-
-    setStartDate(null);
-    setEndDate(null);
-
-    toast.success(
-      nextStatus === "Present"
-        ? "Student marked present using Manila time."
-        : "Student marked absent.",
-    );
+      toast.success(`Student marked ${nextStatus.toLowerCase()}.`);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Unable to update attendance.",
+      );
+    }
   };
+
+  /* =======================================================
+     VIEW STUDENT HISTORY
+  ======================================================= */
+
+  const handleViewStudent = (record) => {
+    navigate(`/attendance/student/${encodeURIComponent(record.studentId)}`, {
+      state: {
+        student: record,
+        backTo: `/attendance/section/${encodeURIComponent(
+          decodedGradeLevel,
+        )}/${encodeURIComponent(decodedSection)}`,
+      },
+    });
+  };
+
+  /* =======================================================
+     RESET
+  ======================================================= */
 
   const handleResetFilter = () => {
     setSearchTerm("");
+
     setStatusFilter("All");
-    setStartDate(null);
-    setEndDate(null);
+
+    setSelectedDate(new Date());
+
     setCurrentPage(1);
   };
 
-  const handleExport = async () => {
-    if (!student) return;
+  /* =======================================================
+     EXPORT
+  ======================================================= */
 
-    const rows = displayedLogs.map((record) => ({
-      date: record.date,
-      studentId: student.studentId,
-      name: getDisplayName(student),
-      class: getClassName(student),
-      teacher: student.teacherName,
-      timeIn: record.timeIn,
-      status: record.status,
-    }));
+  const handleExport = () => {
+    if (filteredRecords.length === 0) {
+      toast.warning("No attendance records available to export.");
+
+      return;
+    }
 
     const header = [
       "Date",
       "Student ID",
-      "Name",
-      "Class",
-      "Teacher",
+      "Student Name",
+      "Section",
       "Time In",
       "Status",
     ];
 
-    const csvRows = rows.map((row) =>
+    const rows = filteredRecords.map((record) =>
       [
-        row.date,
-        row.studentId,
-        row.name,
-        row.class,
-        row.teacher,
-        row.timeIn,
-        row.status,
+        record.date,
+        record.studentId,
+        getDisplayName(record),
+        `${decodedGradeLevel} - ${decodedSection}`,
+        record.timeIn,
+        record.status,
       ]
         .map(csvValue)
         .join(","),
     );
 
-    const csvContent = [header.map(csvValue).join(","), ...csvRows].join("\n");
+    const csvContent = [header.map(csvValue).join(","), ...rows].join("\n");
 
     const blob = new Blob([csvContent], {
       type: "text/csv;charset=utf-8;",
     });
 
     const url = URL.createObjectURL(blob);
+
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = `${studentId}-attendance-history.csv`;
+
+    link.download = `${decodedGradeLevel}-${decodedSection}-attendance.csv`;
+
+    document.body.appendChild(link);
+
     link.click();
+
+    link.remove();
 
     URL.revokeObjectURL(url);
 
-    toast.success("Student attendance exported.");
+    toast.success("Attendance exported.");
   };
 
-  if (isLoading) {
-    return <div className="rounded-md bg-white p-10 text-center text-sm font-medium text-slate-500 shadow-sm">Loading attendance history…</div>;
-  }
-
-  if (!student) {
-    return (
-      <div className="space-y-5">
-        <button
-          type="button"
-          onClick={() => navigate("/attendance")}
-          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-600"
-        >
-          <FiArrowLeft />
-          Back to Attendance
-        </button>
-
-        <div className="rounded-md bg-white p-10 text-center shadow-sm">
-          <h1 className="text-2xl font-medium text-slate-900">
-            Attendance record not found
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            No assigned attendance history found for this student.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  /* =======================================================
+     PAGE
+  ======================================================= */
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">
-            Student Attendance
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Individual attendance history from teacher view.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            onClick={handleExport}
-            className="inline-flex w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            <FiDownload />
-            Export
-          </button>
-
           <button
             type="button"
             onClick={() => navigate("/attendance")}
-            className="inline-flex w-fit items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
+            className="
+              mb-3
+              inline-flex
+              items-center
+              gap-2
+              text-[12px]
+              font-normal
+              text-[#94a3b8]
+              transition
+              hover:text-[#01B8E5]
+            "
           >
             <FiArrowLeft />
-            Back
+            Back to Sections
           </button>
+
+          <h1 className="text-[22px] font-medium text-slate-900">
+            {decodedGradeLevel} - {decodedSection}
+          </h1>
+
+          <p className="mt-1 text-[13px] font-normal text-[#94a3b8]">
+            Manage attendance for this section.
+          </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleExport}
+          className="
+            inline-flex
+            h-10
+            w-fit
+            items-center
+            justify-center
+            gap-2
+            rounded-md
+            border
+            border-slate-200
+            bg-white
+            px-4
+            text-[12px]
+            font-normal
+            text-[#69768b]
+            transition
+            hover:border-[#01B8E5]/40
+            hover:text-[#01B8E5]
+          "
+        >
+          <FiDownload />
+          Export
+        </button>
       </div>
 
-      <div className="rounded-md bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-5 border-b border-slate-100 pb-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-2xl font-semibold text-cyan-700 ring-4 ring-cyan-100">
-              {getInitials(student)}
+      {/* SUMMARY */}
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <SummaryCard label="Students" value={records.length} />
+
+        <SummaryCard label="Present" value={presentCount} />
+
+        <SummaryCard label="Absent" value={absentCount} />
+      </div>
+
+      {/* ATTENDANCE */}
+
+      <div className="overflow-hidden rounded-md bg-white shadow-sm">
+        {/* FILTERS */}
+
+        <div className="border-b border-slate-100 p-4">
+          <div className="flex flex-col gap-4">
+            <div>
+              <p className="text-[14px] font-medium text-slate-900">
+                Attendance
+              </p>
+
+              <p className="mt-1 text-[11px] text-[#94a3b8]">
+                View and manage student attendance.
+              </p>
             </div>
 
-            <div>
-              <p className="text-sm font-medium text-slate-500">Student</p>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_220px_auto_auto]">
+              {/* SEARCH */}
 
-              <h2 className="text-xl font-semibold text-slate-950">
-                {getFullName(student)}
-              </h2>
+              <div className="relative">
+                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
 
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-1.5 font-mono text-xs font-medium text-slate-500">
-                  <FiHash />
-                  {student.studentId}
-                </span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search student or ID..."
+                  className="
+                    h-11
+                    w-full
+                    rounded-md
+                    border
+                    border-slate-200
+                    bg-white
+                    pl-11
+                    pr-4
+                    text-[12px]
+                    font-normal
+                    text-[#69768b]
+                    outline-none
+                    transition
+                    placeholder:text-[#a8b3c2]
+                    focus:border-[#01B8E5]
+                    focus:ring-4
+                    focus:ring-[#01B8E5]/5
+                  "
+                />
+              </div>
 
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                  <FiBookOpen />
-                  {getClassName(student)}
-                </span>
+              {/* STATUS */}
+
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="
+                  h-11
+                  rounded-md
+                  border
+                  border-slate-200
+                  bg-white
+                  px-4
+                  text-[12px]
+                  font-normal
+                  text-[#69768b]
+                  outline-none
+                  transition
+                  focus:border-[#01B8E5]
+                "
+              >
+                <option value="All">All Status</option>
+
+                <option value="Present">Present</option>
+
+                <option value="Absent">Absent</option>
+              </select>
+
+              {/* DATE */}
+
+              <div className="relative">
+                <FiCalendar className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[#94a3b8]" />
+
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={(date) => {
+                    if (date) {
+                      setSelectedDate(date);
+                    }
+                  }}
+                  dateFormat="MMM dd, yyyy"
+                  className="
+                    h-11
+                    w-full
+                    rounded-md
+                    border
+                    border-slate-200
+                    bg-white
+                    pl-11
+                    pr-4
+                    text-[12px]
+                    font-normal
+                    text-[#69768b]
+                    outline-none
+                    transition
+                    focus:border-[#01B8E5]
+                  "
+                />
+              </div>
+
+              {/* RESET */}
+
+              <button
+                type="button"
+                onClick={handleResetFilter}
+                className="
+                  h-11
+                  rounded-md
+                  bg-slate-100
+                  px-4
+                  text-[12px]
+                  font-normal
+                  text-[#69768b]
+                  transition
+                  hover:bg-slate-200
+                "
+              >
+                Reset
+              </button>
+
+              {/* VIEW SWITCH */}
+
+              <div className="flex h-11 rounded-md border border-slate-200 bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  className={`
+                    inline-flex
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded
+                    px-3
+                    text-[12px]
+                    font-normal
+                    transition
+                    ${
+                      viewMode === "grid"
+                        ? "bg-slate-100 text-slate-900"
+                        : "text-[#94a3b8] hover:bg-slate-50 hover:text-[#69768b]"
+                    }
+                  `}
+                >
+                  <FiGrid />
+                  Cards
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className={`
+                    inline-flex
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded
+                    px-3
+                    text-[12px]
+                    font-normal
+                    transition
+                    ${
+                      viewMode === "table"
+                        ? "bg-slate-100 text-slate-900"
+                        : "text-[#94a3b8] hover:bg-slate-50 hover:text-[#69768b]"
+                    }
+                  `}
+                >
+                  <FiList />
+                  Table
+                </button>
               </div>
             </div>
           </div>
-
-          <div className="rounded-md bg-slate-50 px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">Teacher</p>
-
-            <p className="mt-1 text-sm font-semibold text-slate-900">
-              {student.teacherName}
-            </p>
-          </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <SummaryCard label="Total Records" value={studentLogs.length} />
-          <SummaryCard label="Present" value={presentCount} />
-          <SummaryCard label="Absent" value={absentCount} />
-        </div>
-      </div>
+        {/* CONTENT */}
 
-      <div className="rounded-md bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-100 p-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-950">
-              Attendance History
-            </h2>
+        {isLoading ? (
+          <AttendanceLoading />
+        ) : viewMode === "grid" ? (
+          <AttendanceGrid
+            records={paginatedRecords}
+            onView={handleViewStudent}
+            onUpdateStatus={updateAttendanceStatus}
+          />
+        ) : (
+          <AttendanceTable
+            records={paginatedRecords}
+            onView={handleViewStudent}
+            onUpdateStatus={updateAttendanceStatus}
+          />
+        )}
 
-            <p className="mt-1 text-sm text-slate-500">
-              View and update this student's attendance records.
-            </p>
-          </div>
+        {/* PAGINATION */}
 
-          <div className="grid gap-3 xl:grid-cols-[1fr_180px_220px_220px_auto]">
-            <div className="relative">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search status, date, time..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-              />
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-            >
-              <option value="All">All Status</option>
-              <option value="Present">Present</option>
-              <option value="Absent">Absent</option>
-            </select>
-
-            <div className="relative">
-              <FiCalendar className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-slate-400" />
-
-              <DatePicker
-                selected={startDate}
-                onChange={setStartDate}
-                selectsStart
-                startDate={startDate}
-                endDate={endDate}
-                maxDate={endDate || undefined}
-                placeholderText="Start date"
-                dateFormat="MMM dd, yyyy"
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-              />
-            </div>
-
-            <div className="relative">
-              <FiCalendar className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-slate-400" />
-
-              <DatePicker
-                selected={endDate}
-                onChange={setEndDate}
-                selectsEnd
-                startDate={startDate}
-                endDate={endDate}
-                minDate={startDate || undefined}
-                placeholderText="End date"
-                dateFormat="MMM dd, yyyy"
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleResetFilter}
-              className="h-11 rounded-md bg-slate-100 px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-200"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px] table-fixed border-collapse text-center">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                <TableHeader label="Date" className="w-[22%]" />
-                <TableHeader label="Time In" className="w-[22%]" />
-                <TableHeader label="Status" className="w-[18%]" />
-                <TableHeader label="Set Attendance" className="w-[38%]" />
-              </tr>
-            </thead>
-
-            <tbody>
-              {paginatedLogs.length > 0 ? (
-                paginatedLogs.map((record) => (
-                  <tr
-                    key={record.id}
-                    className="border-b border-slate-100 transition hover:bg-slate-50"
-                  >
-                    <td className="px-4 py-3 text-center text-sm font-medium text-slate-600">
-                      {formatDate(record.date)}
-                    </td>
-
-                    <td className="px-4 py-3 text-center">
-                      <TimeText value={record.timeIn} />
-                    </td>
-
-                    <td className="px-4 py-3 text-center">
-                      <StatusBadge status={record.status} />
-                    </td>
-
-                    <td className="px-4 py-3 text-center">
-                      <StatusActionButtons
-                        record={record}
-                        onUpdateStatus={updateAttendanceStatus}
-                      />
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4">
-                    <EmptyState />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationFooter
-          currentPage={currentPage}
-          totalPages={totalPages}
-          rowsPerPage={rowsPerPage}
-          totalRows={displayedLogs.length}
-          showingStart={showingStart}
-          showingEnd={showingEnd}
-          onRowsPerPageChange={setRowsPerPage}
-          onPageChange={setCurrentPage}
-        />
+        {!isLoading && (
+          <PaginationFooter
+            currentPage={currentPage}
+            totalPages={totalPages}
+            rowsPerPage={rowsPerPage}
+            totalRows={filteredRecords.length}
+            showingStart={showingStart}
+            showingEnd={showingEnd}
+            onRowsPerPageChange={setRowsPerPage}
+            onPageChange={setCurrentPage}
+          />
+        )}
       </div>
 
       <DatePickerStyles />
@@ -542,73 +879,491 @@ const AttendanceDetails = () => {
   );
 };
 
-const StatusActionButtons = ({ record, onUpdateStatus }) => {
+/* =========================================================
+   GRID VIEW
+========================================================= */
+
+const AttendanceGrid = ({ records, onView, onUpdateStatus }) => {
+  if (records.length === 0) {
+    return <EmptyState />;
+  }
+
   return (
-    <div className="flex w-full items-center justify-center gap-2">
+    <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      {records.map((record) => (
+        <div
+          key={record.studentId}
+          className="
+            group
+            overflow-hidden
+            rounded-lg
+            border
+            border-slate-200
+            bg-white
+            shadow-sm
+            transition-all
+            duration-200
+            hover:-translate-y-0.5
+            hover:border-[#01B8E5]/30
+            hover:shadow-md
+          "
+        >
+          {/* PROFILE */}
+
+          <div className="relative border-b border-slate-100 px-5 pb-5 pt-6">
+            {/* VIEW BUTTON */}
+
+            <button
+              type="button"
+              onClick={() => onView(record)}
+              title="View Attendance History"
+              className="
+                absolute
+                right-4
+                top-4
+                flex
+                h-9
+                w-9
+                items-center
+                justify-center
+                rounded-md
+                bg-slate-100
+                text-[#69768b]
+                transition
+                duration-200
+                hover:bg-[#01B8E5]
+                hover:text-white
+              "
+            >
+              <FiEye />
+            </button>
+
+            <div className="flex flex-col items-center text-center">
+              {/* AVATAR */}
+
+              <div
+                className={`
+                  flex
+                  h-20
+                  w-20
+                  items-center
+                  justify-center
+                  rounded-full
+                  text-xl
+                  font-medium
+                  ring-4
+                  ${getAvatarStyle(record.id)}
+                `}
+              >
+                {getInitials(record)}
+              </div>
+
+              {/* NAME */}
+
+              <p className="mt-4 text-[14px] font-medium text-slate-800">
+                {getFullName(record)}
+              </p>
+
+              {/* STUDENT ID */}
+
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[#94a3b8]">
+                <FiHash />
+
+                <span>{record.studentId}</span>
+              </div>
+
+              {/* SECTION */}
+
+              <div className="mt-3 rounded-md bg-slate-50 px-3 py-1.5 text-[10px] text-[#69768b]">
+                {record.gradeLevel} - {record.section}
+              </div>
+            </div>
+          </div>
+
+          {/* ATTENDANCE INFORMATION */}
+
+          <div className="p-5">
+            <div className="grid grid-cols-2 gap-3">
+              <InfoBox
+                icon={<FiCalendar />}
+                label="Date"
+                value={formatDate(record.date)}
+              />
+
+              <InfoBox
+                icon={<FiClock />}
+                label="Time In"
+                value={record.timeIn || "-"}
+              />
+            </div>
+
+            {/* STATUS */}
+
+            <div className="mt-4 rounded-md bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] uppercase tracking-wide text-[#94a3b8]">
+                  Status
+                </span>
+
+                <StatusBadge status={record.status} />
+              </div>
+            </div>
+
+            {/* PRESENT / ABSENT */}
+
+            <div className="mt-4">
+              <StatusActionButtons
+                record={record}
+                onUpdateStatus={onUpdateStatus}
+                fullWidth
+              />
+            </div>
+
+            {/* VIEW PROFILE / HISTORY */}
+
+            <button
+              type="button"
+              onClick={() => onView(record)}
+              className="
+                mt-3
+                inline-flex
+                h-9
+                w-full
+                items-center
+                justify-center
+                gap-2
+                rounded-md
+                border
+                border-slate-200
+                bg-white
+                text-[11px]
+                font-normal
+                text-[#69768b]
+                transition
+                hover:border-[#01B8E5]/30
+                hover:bg-[#01B8E5]/5
+                hover:text-[#019BC2]
+              "
+            >
+              <FiEye />
+              View Attendance History
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* =========================================================
+   TABLE VIEW
+========================================================= */
+
+const AttendanceTable = ({ records, onView, onUpdateStatus }) => {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1080px] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50">
+            <TableHeader label="Student Number" />
+
+            <TableHeader label="Student" />
+
+            <TableHeader label="Date" />
+
+            <TableHeader label="Time In" />
+
+            <TableHeader label="Status" />
+
+            <TableHeader label="Attendance" />
+
+            <th className="px-5 py-3 text-right text-[10px] font-medium uppercase tracking-wide text-[#94a3b8]">
+              Action
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {records.length > 0 ? (
+            records.map((record) => (
+              <tr
+                key={record.studentId}
+                className="
+                  border-b
+                  border-slate-100
+                  transition
+                  duration-200
+                  hover:bg-slate-50
+                "
+              >
+                {/* STUDENT NUMBER */}
+
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2 text-[12px] text-[#69768b]">
+                    <FiHash className="text-[#94a3b8]" />
+
+                    {record.studentId}
+                  </div>
+                </td>
+
+                {/* STUDENT PROFILE */}
+
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`
+                        flex
+                        h-10
+                        w-10
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-full
+                        text-[10px]
+                        font-medium
+                        ring-2
+                        ${getAvatarStyle(record.id)}
+                      `}
+                    >
+                      {getInitials(record)}
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-[12px] font-normal text-[#69768b]">
+                        {getDisplayName(record)}
+                      </p>
+
+                      <p className="mt-0.5 text-[10px] text-[#94a3b8]">
+                        {record.gradeLevel} - {record.section}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+
+                {/* DATE */}
+
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2 text-[12px] text-[#69768b]">
+                    <FiCalendar className="text-[#94a3b8]" />
+
+                    {formatDate(record.date)}
+                  </div>
+                </td>
+
+                {/* TIME */}
+
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2 text-[12px] text-[#69768b]">
+                    <FiClock className="text-[#94a3b8]" />
+
+                    {record.timeIn || "-"}
+                  </div>
+                </td>
+
+                {/* STATUS */}
+
+                <td className="px-5 py-4">
+                  <StatusBadge status={record.status} />
+                </td>
+
+                {/* ATTENDANCE */}
+
+                <td className="px-5 py-4">
+                  <StatusActionButtons
+                    record={record}
+                    onUpdateStatus={onUpdateStatus}
+                  />
+                </td>
+
+                {/* ACTION */}
+
+                <td className="px-5 py-4">
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => onView(record)}
+                      title="View Attendance History"
+                      className="
+                        flex
+                        h-9
+                        w-9
+                        items-center
+                        justify-center
+                        rounded-md
+                        bg-slate-100
+                        text-[#69768b]
+                        transition
+                        hover:bg-[#01B8E5]
+                        hover:text-white
+                      "
+                    >
+                      <FiEye />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="7">
+                <EmptyState />
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+/* =========================================================
+   STATUS BUTTONS
+========================================================= */
+
+const StatusActionButtons = ({ record, onUpdateStatus, fullWidth = false }) => {
+  return (
+    <div className={`flex items-center gap-2 ${fullWidth ? "w-full" : ""}`}>
       <button
         type="button"
         onClick={() => onUpdateStatus(record, "Present")}
-        className={`inline-flex h-8 min-w-[108px] items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition ${
-          record.status === "Present"
-            ? "bg-emerald-600 text-white"
-            : "bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white"
-        }`}
+        className={`
+          inline-flex
+          h-8
+          items-center
+          justify-center
+          gap-1.5
+          rounded-md
+          px-3
+          text-[10px]
+          font-normal
+          transition
+          ${fullWidth ? "flex-1" : ""}
+          ${
+            record.status === "Present"
+              ? "bg-[#01B8E5] text-white"
+              : "bg-[#01B8E5]/10 text-[#019BC2] hover:bg-[#01B8E5]/15"
+          }
+        `}
       >
-        <FiUserCheck className="text-sm" />
+        <FiUserCheck />
         Present
       </button>
 
       <button
         type="button"
         onClick={() => onUpdateStatus(record, "Absent")}
-        className={`inline-flex h-8 min-w-[108px] items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition ${
-          record.status === "Absent"
-            ? "bg-red-600 text-white"
-            : "bg-red-50 text-red-700 hover:bg-red-600 hover:text-white"
-        }`}
+        className={`
+          inline-flex
+          h-8
+          items-center
+          justify-center
+          gap-1.5
+          rounded-md
+          px-3
+          text-[10px]
+          font-normal
+          transition
+          ${fullWidth ? "flex-1" : ""}
+          ${
+            record.status === "Absent"
+              ? "bg-[#69768b] text-white"
+              : "bg-slate-100 text-[#69768b] hover:bg-slate-200"
+          }
+        `}
       >
-        <FiUserX className="text-sm" />
+        <FiUserX />
         Absent
       </button>
     </div>
   );
 };
 
-const TimeText = ({ value }) => {
-  return (
-    <div className="inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-slate-600">
-      <FiClock className="text-sm text-slate-400" />
-      {value || "-"}
-    </div>
-  );
-};
+/* =========================================================
+   STATUS BADGE
+========================================================= */
 
 const StatusBadge = ({ status }) => {
-  const styles = {
-    Present: "bg-emerald-50 text-emerald-700",
-    Absent: "bg-red-50 text-red-700",
-  };
-
-  const dotStyles = {
-    Present: "bg-emerald-500",
-    Absent: "bg-red-500",
-  };
+  const present = status === "Present";
 
   return (
     <span
-      className={`inline-flex h-8 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium ${
-        styles[status] || styles.Absent
-      }`}
+      className={`
+        inline-flex
+        items-center
+        gap-2
+        rounded-md
+        px-2.5
+        py-1.5
+        text-[10px]
+        font-normal
+        ${
+          present
+            ? "bg-[#01B8E5]/10 text-[#019BC2]"
+            : "bg-slate-100 text-[#69768b]"
+        }
+      `}
     >
       <span
-        className={`h-2 w-2 rounded-full ${
-          dotStyles[status] || dotStyles.Absent
-        }`}
+        className={`
+          h-1.5
+          w-1.5
+          rounded-full
+          ${present ? "bg-[#01B8E5]" : "bg-slate-400"}
+        `}
       />
+
       {status}
     </span>
   );
 };
+
+/* =========================================================
+   INFO BOX
+========================================================= */
+
+const InfoBox = ({ label, icon, value }) => {
+  return (
+    <div className="rounded-md border border-slate-100 bg-white p-3">
+      <div className="flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
+        {icon}
+
+        <span>{label}</span>
+      </div>
+
+      <p className="mt-2 truncate text-[11px] text-[#69768b]">{value}</p>
+    </div>
+  );
+};
+
+/* =========================================================
+   SUMMARY
+========================================================= */
+
+const SummaryCard = ({ label, value }) => {
+  return (
+    <div className="rounded-md bg-white p-4 shadow-sm">
+      <p className="text-[12px] font-normal text-[#94a3b8]">{label}</p>
+
+      <p className="mt-2 text-[20px] font-medium text-[#475569]">{value}</p>
+    </div>
+  );
+};
+
+/* =========================================================
+   TABLE HEADER
+========================================================= */
+
+const TableHeader = ({ label }) => {
+  return (
+    <th className="px-5 py-3 text-[10px] font-medium uppercase tracking-wide text-[#94a3b8]">
+      {label}
+    </th>
+  );
+};
+
+/* =========================================================
+   PAGINATION
+========================================================= */
 
 const PaginationFooter = ({
   currentPage,
@@ -621,29 +1376,42 @@ const PaginationFooter = ({
   onPageChange,
 }) => {
   return (
-    <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-        <span>Show</span>
+    <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-[#94a3b8]">Show</span>
 
-        <select
-          value={rowsPerPage}
-          onChange={(event) => onRowsPerPageChange(Number(event.target.value))}
-          className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-        >
-          {rowsPerPageOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+          <select
+            value={rowsPerPage}
+            onChange={(event) =>
+              onRowsPerPageChange(Number(event.target.value))
+            }
+            className="
+              h-8
+              rounded-md
+              border
+              border-slate-200
+              bg-white
+              px-2
+              text-[11px]
+              text-[#69768b]
+              outline-none
+              focus:border-[#01B8E5]
+            "
+          >
+            {rowsPerPageOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
 
-        <span>entries</span>
+          <span className="text-[11px] text-[#94a3b8]">entries</span>
+        </div>
 
-        <span className="hidden text-slate-300 sm:inline">|</span>
-
-        <span>
-          Showing {showingStart} to {showingEnd} of {totalRows} records
-        </span>
+        <p className="text-[11px] text-[#94a3b8]">
+          Showing {showingStart} to {showingEnd} of {totalRows}
+        </p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -651,13 +1419,29 @@ const PaginationFooter = ({
           type="button"
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="
+            inline-flex
+            h-8
+            items-center
+            gap-1
+            rounded-md
+            border
+            border-slate-200
+            bg-white
+            px-2.5
+            text-[11px]
+            text-[#69768b]
+            transition
+            hover:bg-slate-50
+            disabled:cursor-not-allowed
+            disabled:opacity-40
+          "
         >
           <FiChevronLeft />
           Prev
         </button>
 
-        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+        <div className="rounded-md bg-slate-50 px-3 py-2 text-[11px] text-[#69768b]">
           Page {currentPage} of {totalPages}
         </div>
 
@@ -665,7 +1449,23 @@ const PaginationFooter = ({
           type="button"
           disabled={currentPage === totalPages}
           onClick={() => onPageChange(currentPage + 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="
+            inline-flex
+            h-8
+            items-center
+            gap-1
+            rounded-md
+            border
+            border-slate-200
+            bg-white
+            px-2.5
+            text-[11px]
+            text-[#69768b]
+            transition
+            hover:bg-slate-50
+            disabled:cursor-not-allowed
+            disabled:opacity-40
+          "
         >
           Next
           <FiChevronRight />
@@ -675,37 +1475,39 @@ const PaginationFooter = ({
   );
 };
 
-const TableHeader = ({ label, className = "" }) => {
-  return (
-    <th
-      className={`px-4 py-2.5 text-center text-xs font-medium uppercase tracking-wide text-slate-500 ${className}`}
-    >
-      {label}
-    </th>
-  );
-};
-
-const SummaryCard = ({ label, value }) => {
-  return (
-    <div className="rounded-md bg-white p-4 shadow-sm">
-      <p className="text-sm font-medium text-slate-500">{label}</p>
-      <h2 className="mt-2 text-2xl font-semibold text-slate-950">{value}</h2>
-    </div>
-  );
-};
+/* =========================================================
+   EMPTY STATE
+========================================================= */
 
 const EmptyState = () => {
   return (
     <div className="px-5 py-12 text-center">
-      <p className="font-semibold text-slate-900">
-        No attendance records found
-      </p>
-      <p className="mt-1 text-sm text-slate-500">
-        Try changing your search or date filter.
+      <p className="text-[13px] text-[#69768b]">No attendance records found</p>
+
+      <p className="mt-1 text-[11px] text-[#94a3b8]">
+        Try changing your filters.
       </p>
     </div>
   );
 };
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+const AttendanceLoading = () => {
+  return (
+    <div className="px-5 py-14 text-center">
+      <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-[#01B8E5]" />
+
+      <p className="mt-3 text-[12px] text-[#94a3b8]">Loading attendance...</p>
+    </div>
+  );
+};
+
+/* =========================================================
+   DATE PICKER STYLE
+========================================================= */
 
 const DatePickerStyles = () => {
   return (
@@ -713,10 +1515,10 @@ const DatePickerStyles = () => {
       {`
         .react-datepicker {
           border: 1px solid #e2e8f0;
-          border-radius: 10px;
+          border-radius: 8px;
           overflow: hidden;
           font-family: inherit;
-          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+          box-shadow: 0 14px 36px rgba(15, 23, 42, 0.10);
         }
 
         .react-datepicker__header {
@@ -727,20 +1529,32 @@ const DatePickerStyles = () => {
         .react-datepicker__current-month,
         .react-datepicker-time__header,
         .react-datepicker-year-header {
-          color: #0f172a;
-          font-weight: 600;
+          color: #69768b;
+          font-weight: 500;
         }
 
         .react-datepicker__day--selected,
-        .react-datepicker__day--keyboard-selected,
-        .react-datepicker__day--in-range,
-        .react-datepicker__day--in-selecting-range {
-          background-color: #0891b2 !important;
-          color: white !important;
+        .react-datepicker__day--keyboard-selected {
+          background-color: #01B8E5 !important;
+          color: #ffffff !important;
+        }
+
+        .react-datepicker__day--today {
+          font-weight: 500;
+          color: #01B8E5;
         }
 
         .react-datepicker__day:hover {
-          background-color: #cffafe;
+          background-color: rgba(1, 184, 229, 0.08);
+        }
+
+        .react-datepicker__navigation-icon::before {
+          border-color: #94a3b8;
+        }
+
+        .react-datepicker__navigation:hover
+          .react-datepicker__navigation-icon::before {
+          border-color: #01B8E5;
         }
       `}
     </style>

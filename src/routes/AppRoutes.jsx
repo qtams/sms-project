@@ -15,21 +15,23 @@ import StudentDetails from "../pages/StudentDetails";
 import TeacherDetails from "../pages/TeacherDetails";
 import RfidDetails from "../pages/RfidDetails";
 import Rfid from "../pages/Rfid";
+
 import Attendance from "../pages/Attendance";
 import AttendanceDetails from "../pages/AttendanceDetails";
+import StudentAttendanceHistory from "../pages/StudentAttendanceHistory";
+
 import AdminUsers from "../pages/AdminUsers";
 import GuardUsers from "../pages/GuardUsers";
 import RegistrarUsers from "../pages/RegistrarUsers";
 import UserManagementDetails from "../pages/UserManagementDetails";
 
-import AttendanceMonitoring from "../pages/AttendanceMonitoring";
+import TimeLogger from "../pages/TimeLogger";
 
 import { useAuth } from "../context/AuthContext";
 
 /* =========================================================
-   TIME LOGGER
+   COMING SOON
 ========================================================= */
-import TimeLogger from "../pages/TimeLogger";
 
 const ComingSoon = ({ title }) => {
   return (
@@ -59,6 +61,10 @@ const ComingSoon = ({ title }) => {
   );
 };
 
+/* =========================================================
+   PROTECTED ROUTE
+========================================================= */
+
 const ProtectedRoute = () => {
   const { user, isAuthLoading } = useAuth();
 
@@ -79,53 +85,59 @@ const ProtectedRoute = () => {
   return <Outlet />;
 };
 
+/* =========================================================
+   APP ROUTES
+========================================================= */
+
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* ================================================================
-          PUBLIC ROUTES
-      ================================================================= */}
+      {/* =====================================================
+          PUBLIC
+      ===================================================== */}
+
       <Route path="/login" element={<Login />} />
 
-      {/* ================================================================
-          PROTECTED ROUTES
-      ================================================================= */}
-      <Route element={<ProtectedRoute />}>
-        {/* ==============================================================
-            ADMIN PAGES
+      {/* =====================================================
+          PROTECTED
+      ===================================================== */}
 
-            These routes use:
-            - AdminLayout
-            - Sidebar
-            - Header
-        ============================================================== */}
+      <Route element={<ProtectedRoute />}>
         {/* ===================================================
             TIME LOGGER
 
-            This is outside AdminLayout so it will display
-            fullscreen without admin sidebar/header.
+            Outside AdminLayout.
         =================================================== */}
 
         <Route path="/time-logger" element={<TimeLogger />} />
 
+        {/* ===================================================
+            ADMIN LAYOUT
+        =================================================== */}
+
         <Route element={<AdminLayout />}>
           {/* DEFAULT */}
+
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          {/* DASHBOARD */}
+          {/* =================================================
+              DASHBOARD
+          ================================================= */}
+
           <Route path="/dashboard" element={<Dashboard />} />
 
-          {/* LOG MONITORING */}
-          <Route path="/log-monitoring" element={<AttendanceMonitoring />} />
+          {/* =================================================
+              ACCOUNT
+          ================================================= */}
 
-          {/* ACCOUNT */}
           <Route path="/account-information" element={<AccountInformation />} />
 
-          {/* ============================================================
+          {/* =================================================
               USER MANAGEMENT
-          ============================================================ */}
+          ================================================= */}
 
           {/* ADMIN */}
+
           <Route path="/user-management/admin" element={<AdminUsers />} />
 
           <Route
@@ -134,6 +146,7 @@ const AppRoutes = () => {
           />
 
           {/* GUARD */}
+
           <Route path="/user-management/guard" element={<GuardUsers />} />
 
           <Route
@@ -142,6 +155,7 @@ const AppRoutes = () => {
           />
 
           {/* REGISTRAR */}
+
           <Route
             path="/user-management/registrar"
             element={<RegistrarUsers />}
@@ -152,39 +166,57 @@ const AppRoutes = () => {
             element={<UserManagementDetails role="registrar" />}
           />
 
-          {/* ============================================================
+          {/* =================================================
               SCHOOL MANAGEMENT
-          ============================================================ */}
+          ================================================= */}
 
           {/* STUDENTS */}
+
           <Route path="/students" element={<Students />} />
 
           <Route path="/students/:studentId" element={<StudentDetails />} />
 
           {/* TEACHERS */}
+
           <Route path="/teachers" element={<Teachers />} />
 
           <Route path="/teachers/:teacherId" element={<TeacherDetails />} />
 
-          {/* CLASSES */}
+          {/* ACADEMIC SETUP */}
+
           <Route path="/academic-setup" element={<AcademicSetup />} />
 
           {/* RFID */}
+
           <Route path="/rfid" element={<Rfid />} />
 
           <Route path="/rfid/:studentId" element={<RfidDetails />} />
 
-          {/* ATTENDANCE */}
+          {/* =================================================
+              ATTENDANCE
+          ================================================= */}
+
+          {/* TEACHER ASSIGNED SECTIONS */}
+
           <Route path="/attendance" element={<Attendance />} />
 
+          {/* SECTION ATTENDANCE */}
+
           <Route
-            path="/attendance/:studentId"
+            path="/attendance/section/:gradeLevel/:section"
             element={<AttendanceDetails />}
           />
 
-          {/* ============================================================
+          {/* STUDENT ATTENDANCE HISTORY */}
+
+          <Route
+            path="/attendance/student/:studentId"
+            element={<StudentAttendanceHistory />}
+          />
+
+          {/* =================================================
               ENROLLMENT
-          ============================================================ */}
+          ================================================= */}
 
           <Route
             path="/enrollment"
@@ -200,9 +232,9 @@ const AppRoutes = () => {
             element={<ApplicantDetails />}
           />
 
-          {/* ============================================================
+          {/* =================================================
               COMING SOON
-          ============================================================ */}
+          ================================================= */}
 
           <Route path="/grades" element={<ComingSoon title="Grades" />} />
 
@@ -214,9 +246,10 @@ const AppRoutes = () => {
         </Route>
       </Route>
 
-      {/* ================================================================
+      {/* =====================================================
           FALLBACK
-      ================================================================= */}
+      ===================================================== */}
+
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
