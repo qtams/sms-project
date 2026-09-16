@@ -1,0 +1,258 @@
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+
+import AdminLayout from "../layouts/AdminLayout";
+
+import Dashboard from "../pages/dashboard/Dashboard";
+import AccountInformation from "../pages/account/AccountInformation";
+import AcademicSetup from "../pages/academic/AcademicSetup.jsx";
+import Teachers from "../pages/teachers/Teachers";
+import Students from "../pages/students/Students";
+import Application from "../pages/enrollment/Application";
+import Verification from "../pages/enrollment/Verification";
+import ApplicantDetails from "../pages/enrollment/ApplicantDetails";
+import Login from "../pages/auth/Login";
+import StudentDetails from "../pages/students/StudentDetails";
+import TeacherDetails from "../pages/teachers/TeacherDetails";
+import RfidDetails from "../pages/rfid/RfidDetails";
+import Rfid from "../pages/rfid/Rfid";
+
+import Attendance from "../pages/attendance/Attendance";
+import AttendanceDetails from "../pages/attendance/AttendanceDetails";
+import StudentAttendanceHistory from "../pages/attendance/StudentAttendanceHistory";
+
+import AdminUsers from "../pages/user-management/AdminUsers";
+import GuardUsers from "../pages/user-management/GuardUsers";
+import RegistrarUsers from "../pages/user-management/RegistrarUsers";
+import UserManagementDetails from "../pages/user-management/UserManagementDetails";
+
+import TimeLogger from "../pages/time-logger/TimeLogger";
+
+import { useAuth } from "../context/AuthContext";
+
+/* =========================================================
+   COMING SOON
+========================================================= */
+
+const ComingSoon = ({ title }) => {
+  return (
+    <div data-aos="fade-up">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+
+          <p className="mt-1 text-sm text-slate-500">
+            This module will be added later.
+          </p>
+        </div>
+
+        <div className="rounded-md bg-orange-50 px-4 py-2 text-sm font-medium text-orange-600">
+          Coming Soon
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-md border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+        <h2 className="text-xl font-semibold text-slate-900">{title} Module</h2>
+
+        <p className="mt-2 text-sm text-slate-500">
+          We will build this page next.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+/* =========================================================
+   PROTECTED ROUTE
+========================================================= */
+
+const ProtectedRoute = () => {
+  const { user, isAuthLoading } = useAuth();
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-sm font-semibold text-slate-500">
+          Checking session...
+        </p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Outlet />;
+};
+
+/* =========================================================
+   APP ROUTES
+========================================================= */
+
+const AppRoutes = () => {
+  return (
+    <Routes>
+      {/* =====================================================
+          PUBLIC
+      ===================================================== */}
+
+      <Route path="/login" element={<Login />} />
+
+      {/* =====================================================
+          PROTECTED
+      ===================================================== */}
+
+      <Route element={<ProtectedRoute />}>
+        {/* ===================================================
+            TIME LOGGER
+
+            Outside AdminLayout.
+        =================================================== */}
+
+        <Route path="/time-logger" element={<TimeLogger />} />
+
+        {/* ===================================================
+            ADMIN LAYOUT
+        =================================================== */}
+
+        <Route element={<AdminLayout />}>
+          {/* DEFAULT */}
+
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+          {/* =================================================
+              DASHBOARD
+          ================================================= */}
+
+          <Route path="/dashboard" element={<Dashboard />} />
+
+          {/* =================================================
+              ACCOUNT
+          ================================================= */}
+
+          <Route path="/account-information" element={<AccountInformation />} />
+
+          {/* =================================================
+              USER MANAGEMENT
+          ================================================= */}
+
+          {/* ADMIN */}
+
+          <Route path="/user-management/admin" element={<AdminUsers />} />
+
+          <Route
+            path="/user-management/admin/:userId"
+            element={<UserManagementDetails role="admin" />}
+          />
+
+          {/* GUARD */}
+
+          <Route path="/user-management/guard" element={<GuardUsers />} />
+
+          <Route
+            path="/user-management/guard/:userId"
+            element={<UserManagementDetails role="guard" />}
+          />
+
+          {/* REGISTRAR */}
+
+          <Route
+            path="/user-management/registrar"
+            element={<RegistrarUsers />}
+          />
+
+          <Route
+            path="/user-management/registrar/:userId"
+            element={<UserManagementDetails role="registrar" />}
+          />
+
+          {/* =================================================
+              SCHOOL MANAGEMENT
+          ================================================= */}
+
+          {/* STUDENTS */}
+
+          <Route path="/students" element={<Students />} />
+
+          <Route path="/students/:studentId" element={<StudentDetails />} />
+
+          {/* TEACHERS */}
+
+          <Route path="/teachers" element={<Teachers />} />
+
+          <Route path="/teachers/:teacherId" element={<TeacherDetails />} />
+
+          {/* ACADEMIC SETUP */}
+
+          <Route path="/academic-setup" element={<AcademicSetup />} />
+
+          {/* RFID */}
+
+          <Route path="/rfid" element={<Rfid />} />
+
+          <Route path="/rfid/:studentId" element={<RfidDetails />} />
+
+          {/* =================================================
+              ATTENDANCE
+          ================================================= */}
+
+          {/* TEACHER ASSIGNED SECTIONS */}
+
+          <Route path="/attendance" element={<Attendance />} />
+
+          {/* SECTION ATTENDANCE */}
+
+          <Route
+            path="/attendance/section/:gradeLevel/:section"
+            element={<AttendanceDetails />}
+          />
+
+          {/* STUDENT ATTENDANCE HISTORY */}
+
+          <Route
+            path="/attendance/student/:studentId"
+            element={<StudentAttendanceHistory />}
+          />
+
+          {/* =================================================
+              ENROLLMENT
+          ================================================= */}
+
+          <Route
+            path="/enrollment"
+            element={<Navigate to="/enrollment/application" replace />}
+          />
+
+          <Route path="/enrollment/application" element={<Application />} />
+
+          <Route path="/enrollment/verification" element={<Verification />} />
+
+          <Route
+            path="/enrollment/verification/:registrationNumber"
+            element={<ApplicantDetails />}
+          />
+
+          {/* =================================================
+              COMING SOON
+          ================================================= */}
+
+          <Route path="/grades" element={<ComingSoon title="Grades" />} />
+
+          <Route path="/payments" element={<ComingSoon title="Payments" />} />
+
+          <Route path="/reports" element={<ComingSoon title="Reports" />} />
+
+          <Route path="/settings" element={<ComingSoon title="Settings" />} />
+        </Route>
+      </Route>
+
+      {/* =====================================================
+          FALLBACK
+      ===================================================== */}
+
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+};
+
+export default AppRoutes;
