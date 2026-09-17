@@ -1,75 +1,54 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import Swal from "sweetalert2";
 
 import { ToastContainer, toast } from "react-toastify";
 
-import "react-toastify/dist/ReactToastify.css";
-
 import {
-  FiCheckCircle,
+  FiArrowLeft,
+  FiCreditCard,
   FiDownload,
   FiEdit2,
-  FiEye,
+  FiHash,
+  FiKey,
   FiMail,
-  FiPhone,
-  FiPlus,
-  FiTrash2,
+  FiShield,
   FiUser,
-  FiXCircle,
 } from "react-icons/fi";
 
 import api from "../../services/api";
 
 import UserManagementModal from "../../components/modals/user-management/UserManagementModal";
 
-import { DataTable } from "../../components/data-table";
-import { SummaryCards } from "../../components/summary";
-import { Skeleton } from "../../components/skeleton";
-
 import {
   csvValue,
   extractUser,
-  extractUsers,
+  formatBirthday,
   formatUsername,
   getApiErrorMessage,
+  getInitials,
   getRoleConfig,
+  normalizeUser,
 } from "../../data/user-management/userManagementData";
 
-/* =========================================================
-  PAGINATION
-========================================================= */
-
-// const rowsPerPageOptions = [5, 10, 25, 50];
-// (handled inside TablePagination now)
+const TEMPORARY_PASSWORD = "Spry@12345";
 
 /* =========================================================
-  STATE
+   STATE
 ========================================================= */
 
-const initialState = {
-  users: [],
+const createInitialState = (navigationUser) => {
+  return {
+    user: normalizeUser(navigationUser),
 
-  isLoading: true,
-  isSaving: false,
+    isLoading: true,
 
-  searchTerm: "",
-  statusFilter: "All",
+    isSaving: false,
 
-  viewMode: "table",
-
-  currentPage: 1,
-  rowsPerPage: 10,
-
-  pendingActionId: null,
-
-  modal: {
-    isOpen: false,
-    mode: "create",
-    user: null,
-  },
+    modalOpen: false,
+  };
 };
 
 const reducer = (state, action) => {
@@ -77,206 +56,53 @@ const reducer = (state, action) => {
     case "LOAD_START":
       return {
         ...state,
-
-        users: [],
-
         isLoading: true,
-
-        currentPage: 1,
-
-        pendingActionId: null,
-
-        modal: {
-          isOpen: false,
-          mode: "create",
-          user: null,
-        },
       };
 
     case "LOAD_SUCCESS":
       return {
         ...state,
-
-        users: action.payload,
-
+        user: action.payload,
         isLoading: false,
       };
 
     case "LOAD_FAILED":
       return {
         ...state,
-
-        users: [],
-
+        user: null,
         isLoading: false,
       };
 
-    case "SET_USERS":
+    case "OPEN_MODAL":
       return {
         ...state,
-
-        users: action.payload,
-      };
-
-    case "SET_SEARCH":
-      return {
-        ...state,
-
-        searchTerm: action.payload,
-
-        currentPage: 1,
-      };
-
-    case "SET_STATUS_FILTER":
-      return {
-        ...state,
-
-        statusFilter: action.payload,
-
-        currentPage: 1,
-      };
-
-    case "SET_VIEW_MODE":
-      return {
-        ...state,
-
-        viewMode: action.payload,
-      };
-
-    case "RESET_FILTERS":
-      return {
-        ...state,
-
-        searchTerm: "",
-
-        statusFilter: "All",
-
-        currentPage: 1,
-      };
-
-    case "SET_CURRENT_PAGE":
-      return {
-        ...state,
-
-        currentPage: action.payload,
-      };
-
-    case "SET_ROWS_PER_PAGE":
-      return {
-        ...state,
-
-        rowsPerPage: action.payload,
-
-        currentPage: 1,
-      };
-
-    case "OPEN_CREATE":
-      return {
-        ...state,
-
-        modal: {
-          isOpen: true,
-          mode: "create",
-          user: null,
-        },
-      };
-
-    case "OPEN_EDIT":
-      return {
-        ...state,
-
-        modal: {
-          isOpen: true,
-          mode: "edit",
-          user: action.payload,
-        },
+        modalOpen: true,
       };
 
     case "CLOSE_MODAL":
       return {
         ...state,
-
-        modal: {
-          isOpen: false,
-          mode: "create",
-          user: null,
-        },
+        modalOpen: false,
       };
 
     case "SAVE_START":
       return {
         ...state,
-
         isSaving: true,
+      };
+
+    case "SAVE_SUCCESS":
+      return {
+        ...state,
+        user: action.payload,
+        isSaving: false,
+        modalOpen: false,
       };
 
     case "SAVE_END":
       return {
         ...state,
-
         isSaving: false,
-      };
-
-    case "UPSERT_USER": {
-      const incomingUser = action.payload;
-
-      const exists = state.users.some(
-        (item) => String(item.id) === String(incomingUser.id),
-      );
-
-      if (exists) {
-        return {
-          ...state,
-
-          users: state.users.map((item) =>
-            String(item.id) === String(incomingUser.id) ? incomingUser : item,
-          ),
-        };
-      }
-
-      return {
-        ...state,
-
-        users: [incomingUser, ...state.users],
-      };
-    }
-
-    case "UPDATE_STATUS":
-      return {
-        ...state,
-
-        users: state.users.map((user) =>
-          String(user.id) === String(action.payload.id)
-            ? {
-                ...user,
-
-                status: action.payload.status,
-              }
-            : user,
-        ),
-      };
-
-    case "REMOVE_USER":
-      return {
-        ...state,
-
-        users: state.users.filter(
-          (user) => String(user.id) !== String(action.payload),
-        ),
-      };
-
-    case "ACTION_START":
-      return {
-        ...state,
-
-        pendingActionId: action.payload,
-      };
-
-    case "ACTION_END":
-      return {
-        ...state,
-
-        pendingActionId: null,
       };
 
     default:
@@ -285,26 +111,38 @@ const reducer = (state, action) => {
 };
 
 /* =========================================================
-  COMPONENT
+   COMPONENT
 ========================================================= */
 
-const UserManagementPage = ({ role }) => {
+const UserManagementDetails = ({ role }) => {
   const navigate = useNavigate();
+
+  const location = useLocation();
+
+  const { userId } = useParams();
 
   const config = getRoleConfig(role);
 
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(
+    reducer,
+    location.state?.user,
+    createInitialState,
+  );
 
   const requestIdRef = useRef(0);
 
   /* =======================================================
-    LOAD USERS
+     LOAD USER
   ======================================================= */
 
-  const loadUsers = useCallback(
+  const loadUser = useCallback(
     async ({ showSkeleton = true } = {}) => {
-      if (!config?.apiPath) {
-        return;
+      if (!config?.apiPath || !userId) {
+        dispatch({
+          type: "LOAD_FAILED",
+        });
+
+        return null;
       }
 
       const requestId = ++requestIdRef.current;
@@ -316,199 +154,84 @@ const UserManagementPage = ({ role }) => {
       }
 
       try {
-        const response = await api.get(config.apiPath);
+        const response = await api.get(
+          `${config.apiPath}/${encodeURIComponent(userId)}`,
+        );
 
         if (requestId !== requestIdRef.current) {
-          return;
+          return null;
         }
 
-        const users = extractUsers(response);
+        const user = extractUser(response);
 
-        if (showSkeleton) {
-          dispatch({
-            type: "LOAD_SUCCESS",
-
-            payload: users,
-          });
-        } else {
-          dispatch({
-            type: "SET_USERS",
-
-            payload: users,
-          });
-        }
-      } catch (error) {
-        if (requestId !== requestIdRef.current) {
-          return;
-        }
-
-        if (showSkeleton) {
+        if (!user?.id) {
           dispatch({
             type: "LOAD_FAILED",
           });
+
+          return null;
         }
 
-        toast.error(getApiErrorMessage(error, "Unable to load user accounts."));
+        dispatch({
+          type: "LOAD_SUCCESS",
+
+          payload: user,
+        });
+
+        return user;
+      } catch (error) {
+        if (requestId !== requestIdRef.current) {
+          return null;
+        }
+
+        dispatch({
+          type: "LOAD_FAILED",
+        });
+
+        if (error?.response?.status !== 404) {
+          toast.error(
+            getApiErrorMessage(error, "Unable to load user details."),
+          );
+        }
+
+        return null;
       }
     },
-    [config?.apiPath],
+    [config?.apiPath, userId],
   );
 
   useEffect(() => {
-    loadUsers();
+    loadUser();
 
     return () => {
       requestIdRef.current += 1;
     };
-  }, [loadUsers]);
+  }, [loadUser]);
 
   /* =======================================================
-    FILTER USERS
+     BACK
   ======================================================= */
 
-  const filteredUsers = useMemo(() => {
-    const query = state.searchTerm.trim().toLowerCase();
-
-    return state.users.filter((user) => {
-      const matchesSearch =
-        !query ||
-        [
-          user.fullName,
-          user.username,
-          user.email,
-          user.userId,
-          user.mobile,
-        ].some((value) =>
-          String(value || "")
-            .toLowerCase()
-            .includes(query),
-        );
-
-      const matchesStatus =
-        state.statusFilter === "All" || user.status === state.statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [state.users, state.searchTerm, state.statusFilter]);
-
-  /* =======================================================
-    PAGINATION CALCULATIONS
-  ======================================================= */
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredUsers.length / state.rowsPerPage),
-  );
-
-  const startIndex = (state.currentPage - 1) * state.rowsPerPage;
-
-  const endIndex = startIndex + state.rowsPerPage;
-
-  const paginatedUsers = useMemo(() => {
-    return filteredUsers.slice(startIndex, endIndex);
-  }, [filteredUsers, startIndex, endIndex]);
-
-  const showingStart = filteredUsers.length === 0 ? 0 : startIndex + 1;
-
-  const showingEnd = Math.min(endIndex, filteredUsers.length);
-
-  /* =======================================================
-    KEEP CURRENT PAGE VALID
-  ======================================================= */
-
-  useEffect(() => {
-    if (state.currentPage > totalPages) {
-      dispatch({
-        type: "SET_CURRENT_PAGE",
-
-        payload: totalPages,
-      });
-    }
-  }, [state.currentPage, totalPages]);
-
-  /* =======================================================
-    SUMMARY
-  ======================================================= */
-
-  const summary = useMemo(() => {
-    const active = state.users.filter(
-      (user) => user.status === "Active",
-    ).length;
-
-    const inactive = state.users.filter(
-      (user) => user.status === "Inactive",
-    ).length;
-
-    return {
-      total: state.users.length,
-
-      active,
-
-      inactive,
-    };
-  }, [state.users]);
-
-  const summaryItems = [
-    {
-      key: "total",
-      label: "Total Users",
-      value: summary.total,
-    },
-
-    {
-      key: "active",
-      label: "Active",
-      value: summary.active,
-    },
-
-    {
-      key: "inactive",
-      label: "Inactive",
-      value: summary.inactive,
-    },
-  ];
-
-  /* =======================================================
-    VIEW USER
-  ======================================================= */
-
-  const handleViewUser = (user) => {
-    const userId = user?.id ?? user?.user_id;
-
-    if (!userId) {
-      toast.error("Unable to open this user. User ID is missing.");
-
+  const handleBack = () => {
+    if (!config) {
+      navigate("/");
       return;
     }
 
-    const detailsPath = `${config.listPath}/${encodeURIComponent(userId)}`;
-
-    navigate(detailsPath, {
-      state: {
-        user,
-      },
-    });
+    navigate(config.listPath);
   };
 
   /* =======================================================
-    MODAL
+     EDIT
   ======================================================= */
 
-  const openCreateModal = () => {
+  const openEditModal = () => {
     dispatch({
-      type: "OPEN_CREATE",
+      type: "OPEN_MODAL",
     });
   };
 
-  const openEditModal = (user) => {
-    dispatch({
-      type: "OPEN_EDIT",
-
-      payload: user,
-    });
-  };
-
-  const closeModal = () => {
+  const closeEditModal = () => {
     if (state.isSaving) {
       return;
     }
@@ -519,54 +242,26 @@ const UserManagementPage = ({ role }) => {
   };
 
   /* =======================================================
-    SAVE USER
+     SAVE USER
   ======================================================= */
 
   const handleSaveUser = async (formData) => {
-    const mode = state.modal.mode;
-
-    const editingUser = state.modal.user;
-
-    if (
-      !formData.firstName?.trim() ||
-      !formData.lastName?.trim() ||
-      !formData.username?.trim()
-    ) {
-      toast.error("First name, last name, and username are required.");
+    if (!state.user?.id) {
+      toast.error("Unable to update this account.");
 
       return false;
     }
 
-    if (mode === "create") {
-      if (!formData.password) {
-        toast.error("Password is required.");
-
-        return false;
-      }
-
-      if (formData.password !== formData.password_confirmation) {
-        toast.error("Passwords do not match.");
-
-        return false;
-      }
-    }
-
     const confirmation = await Swal.fire({
-      title:
-        mode === "edit"
-          ? "Save changes?"
-          : `Create ${config.roleLabel.toLowerCase()}?`,
+      title: "Save changes?",
 
-      text:
-        mode === "edit"
-          ? `Save changes for ${formatUsername(formData.username)}?`
-          : `Create the account for ${formatUsername(formData.username)}?`,
+      text: `Save changes for ${formatUsername(formData.username)}?`,
 
       icon: "question",
 
       showCancelButton: true,
 
-      confirmButtonText: mode === "edit" ? "Save changes" : "Create account",
+      confirmButtonText: "Save changes",
 
       cancelButtonText: "Cancel",
 
@@ -575,8 +270,6 @@ const UserManagementPage = ({ role }) => {
       cancelButtonColor: "#64748b",
 
       reverseButtons: true,
-
-      focusCancel: true,
     });
 
     if (!confirmation.isConfirmed) {
@@ -588,171 +281,86 @@ const UserManagementPage = ({ role }) => {
     });
 
     try {
-      let response;
+      const response = await api.put(
+        `${config.apiPath}/${state.user.id}`,
+        formData,
+      );
 
-      if (mode === "edit") {
-        if (!editingUser?.id) {
-          throw new Error("User ID is missing.");
-        }
+      let updatedUser = extractUser(response);
 
-        response = await api.put(
-          `${config.apiPath}/${editingUser.id}`,
-          formData,
+      /*
+       * Some APIs return only:
+       *
+       * {
+       *   message: "Updated"
+       * }
+       *
+       * If that happens, fetch
+       * the user again.
+       */
+      if (!updatedUser?.id) {
+        const refreshResponse = await api.get(
+          `${config.apiPath}/${state.user.id}`,
         );
-      } else {
-        response = await api.post(config.apiPath, formData);
+
+        updatedUser = extractUser(refreshResponse);
       }
-
-      const savedUser = extractUser(response);
-
-      if (savedUser?.id) {
-        dispatch({
-          type: "UPSERT_USER",
-
-          payload: savedUser,
-        });
-      } else {
-        await loadUsers({
-          showSkeleton: false,
-        });
-      }
-
-      dispatch({
-        type: "CLOSE_MODAL",
-      });
-
-      toast.success(
-        response?.data?.message ||
-          (mode === "edit"
-            ? `${config.roleLabel} updated successfully.`
-            : `${config.roleLabel} created successfully.`),
-      );
-
-      return true;
-    } catch (error) {
-      toast.error(
-        getApiErrorMessage(
-          error,
-          `Unable to save ${config.roleLabel.toLowerCase()}.`,
-        ),
-      );
-
-      return false;
-    } finally {
-      dispatch({
-        type: "SAVE_END",
-      });
-    }
-  };
-
-  /* =======================================================
-    STATUS
-  ======================================================= */
-
-  const handleStatusToggle = async (user) => {
-    if (state.pendingActionId) {
-      return;
-    }
-
-    const nextStatus = user.status === "Active" ? "Inactive" : "Active";
-
-    const result = await Swal.fire({
-      title:
-        nextStatus === "Active" ? "Activate account?" : "Deactivate account?",
-
-      text:
-        nextStatus === "Active"
-          ? `${user.fullName} will be able to use this account.`
-          : `${user.fullName} will no longer be able to use this account.`,
-
-      icon: "question",
-
-      showCancelButton: true,
-
-      confirmButtonText: nextStatus === "Active" ? "Activate" : "Deactivate",
-
-      cancelButtonText: "Cancel",
-
-      confirmButtonColor: nextStatus === "Active" ? "#059669" : "#f97316",
-
-      cancelButtonColor: "#64748b",
-
-      reverseButtons: true,
-    });
-
-    if (!result.isConfirmed) {
-      return;
-    }
-
-    dispatch({
-      type: "ACTION_START",
-
-      payload: user.id,
-    });
-
-    try {
-      const response = await api.patch(`${config.apiPath}/${user.id}/status`, {
-        status: nextStatus,
-      });
-
-      const updatedUser = extractUser(response);
 
       if (updatedUser?.id) {
         dispatch({
-          type: "UPSERT_USER",
+          type: "SAVE_SUCCESS",
 
           payload: updatedUser,
         });
       } else {
         dispatch({
-          type: "UPDATE_STATUS",
+          type: "SAVE_END",
+        });
 
-          payload: {
-            id: user.id,
-
-            status: nextStatus,
-          },
+        dispatch({
+          type: "CLOSE_MODAL",
         });
       }
 
       toast.success(
-        response?.data?.message ||
-          `${user.fullName} is now ${nextStatus.toLowerCase()}.`,
+        response?.data?.message || "User details updated successfully.",
       );
+
+      return true;
     } catch (error) {
-      toast.error(
-        getApiErrorMessage(error, "Unable to update account status."),
-      );
-    } finally {
       dispatch({
-        type: "ACTION_END",
+        type: "SAVE_END",
       });
+
+      toast.error(getApiErrorMessage(error, "Unable to update user details."));
+
+      return false;
     }
   };
 
   /* =======================================================
-    DELETE
+     RESET PASSWORD
   ======================================================= */
 
-  const handleDelete = async (user) => {
-    if (state.pendingActionId) {
+  const handleResetPassword = async () => {
+    if (!state.user?.id) {
       return;
     }
 
     const result = await Swal.fire({
-      title: "Delete account?",
+      title: "Reset password?",
 
-      text: `Delete ${user.fullName}? This action cannot be undone.`,
+      text: `Reset the password for ${state.user.fullName}?`,
 
       icon: "warning",
 
       showCancelButton: true,
 
-      confirmButtonText: "Delete",
+      confirmButtonText: "Reset password",
 
       cancelButtonText: "Cancel",
 
-      confirmButtonColor: "#dc2626",
+      confirmButtonColor: "#f97316",
 
       cancelButtonColor: "#64748b",
 
@@ -763,246 +371,160 @@ const UserManagementPage = ({ role }) => {
       return;
     }
 
-    dispatch({
-      type: "ACTION_START",
-
-      payload: user.id,
-    });
-
     try {
-      const response = await api.delete(`${config.apiPath}/${user.id}`);
+      Swal.fire({
+        title: "Resetting password",
 
-      dispatch({
-        type: "REMOVE_USER",
+        text: "Please wait...",
 
-        payload: user.id,
+        allowOutsideClick: false,
+
+        allowEscapeKey: false,
+
+        showConfirmButton: false,
+
+        didOpen: () => {
+          Swal.showLoading();
+        },
       });
 
-      toast.success(response?.data?.message || "Account deleted successfully.");
+      const response = await api.post(
+        `${config.apiPath}/${state.user.id}/reset-password`,
+        {
+          password: TEMPORARY_PASSWORD,
+
+          password_confirmation: TEMPORARY_PASSWORD,
+        },
+      );
+
+      Swal.close();
+
+      await Swal.fire({
+        title: "Password reset",
+
+        html: `
+            <div style="
+              font-size: 14px;
+              color: #64748b;
+            ">
+              Temporary password
+            </div>
+
+            <div style="
+              margin-top: 10px;
+              padding: 12px 14px;
+              border-radius: 6px;
+              background: #f1f5f9;
+              color: #0f172a;
+              font-size: 17px;
+              font-weight: 500;
+              letter-spacing: 0.5px;
+            ">
+              ${TEMPORARY_PASSWORD}
+            </div>
+          `,
+
+        icon: "success",
+
+        confirmButtonText: "Done",
+
+        confirmButtonColor: "#0891b2",
+      });
+
+      toast.success(response?.data?.message || "Password reset successfully.");
     } catch (error) {
-      toast.error(getApiErrorMessage(error, "Unable to delete account."));
-    } finally {
-      dispatch({
-        type: "ACTION_END",
-      });
+      Swal.close();
+
+      toast.error(getApiErrorMessage(error, "Unable to reset password."));
     }
   };
 
   /* =======================================================
-    RESET
+     EXPORT
   ======================================================= */
 
-  const handleResetFilter = () => {
-    dispatch({
-      type: "RESET_FILTERS",
-    });
-  };
+  const handleExportUser = () => {
+    const user = state.user;
 
-  /* =======================================================
-    EXPORT
-  ======================================================= */
-
-  const handleExport = () => {
-    if (filteredUsers.length === 0) {
-      toast.info("There are no records to export.");
+    if (!user) {
+      toast.error("No user information available.");
 
       return;
     }
 
-    const header = [
-      "User ID",
-      "Name",
-      "Username",
-      "Email",
-      "Mobile",
-      "Department",
-      "Position",
-      "Status",
-    ];
+    try {
+      const row = {
+        userId: user.userId,
 
-    const rows = filteredUsers.map((user) =>
-      [
-        user.userId,
-        user.fullName,
-        user.username,
-        user.email,
-        user.mobile,
-        user.department,
-        user.position,
-        user.status,
-      ]
-        .map(csvValue)
-        .join(","),
-    );
+        fullName: user.fullName,
 
-    const content = [header.map(csvValue).join(","), ...rows].join("\n");
+        username: user.username,
 
-    const blob = new Blob([content], {
-      type: "text/csv;charset=utf-8;",
-    });
+        email: user.email,
 
-    const url = URL.createObjectURL(blob);
+        mobile: user.mobile,
 
-    const link = document.createElement("a");
+        birthday: user.birthday,
 
-    link.href = url;
+        rfid: user.rfid,
 
-    link.download = `${role}-users.csv`;
+        department: user.department,
 
-    document.body.appendChild(link);
+        position: user.position,
 
-    link.click();
+        role: config.roleLabel,
 
-    link.remove();
+        status: user.status,
+      };
 
-    URL.revokeObjectURL(url);
+      const csvContent = [
+        Object.keys(row).map(csvValue).join(","),
 
-    toast.success("Users exported successfully.");
+        Object.values(row).map(csvValue).join(","),
+      ].join("\n");
+
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+
+      link.href = url;
+
+      link.download = `${user.userId || user.id}-details.csv`;
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.remove();
+
+      URL.revokeObjectURL(url);
+
+      toast.success("User details exported successfully.");
+    } catch (error) {
+      console.error("Export failed:", error);
+
+      toast.error("Unable to export user details.");
+    }
   };
 
   /* =======================================================
-    INVALID ROLE
+     INVALID ROLE
   ======================================================= */
 
   if (!config) {
     return (
       <div className="rounded-md bg-white p-6 text-sm font-normal text-slate-500 shadow-sm">
-        This user management page is not available.
+        This user page is not available.
       </div>
     );
   }
 
   /* =======================================================
-    TABLE COLUMNS
-  ======================================================= */
-
-  const userColumns = [
-    {
-      key: "userId",
-      label: "User ID",
-
-      render: (user) => (
-        <span className="text-[12px] text-[#69768b]">{user.userId || "-"}</span>
-      ),
-    },
-
-    {
-      key: "fullName",
-      label: "Name",
-
-      render: (user) => (
-        <span className="text-[12px] text-slate-900">
-          {user.fullName || "-"}
-        </span>
-      ),
-    },
-
-    {
-      key: "username",
-      label: "Username",
-
-      render: (user) => (
-        <span className="text-[12px] text-[#69768b]">
-          {formatUsername(user.username)}
-        </span>
-      ),
-    },
-
-    {
-      key: "email",
-      label: "Email",
-
-      render: (user) => (
-        <span className="flex items-center gap-2 text-[12px] text-[#69768b]">
-          <FiMail className="shrink-0 text-[#94a3b8]" />
-
-          {user.email || "-"}
-        </span>
-      ),
-    },
-
-    {
-      key: "mobile",
-      label: "Mobile Number",
-
-      render: (user) => (
-        <span className="flex items-center gap-2 text-[12px] text-[#69768b]">
-          <FiPhone className="shrink-0 text-[#94a3b8]" />
-
-          {user.mobile || "-"}
-        </span>
-      ),
-    },
-
-    {
-      key: "role",
-      label: "Role",
-
-      render: () => (
-        <span className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-2.5 py-1.5 text-[10px] text-[#69768b]">
-          <FiUser />
-
-          {config.roleLabel}
-        </span>
-      ),
-    },
-
-    {
-      key: "status",
-      label: "Status",
-
-      render: (user) => (
-        <button
-          type="button"
-          disabled={String(state.pendingActionId) === String(user.id)}
-          onClick={() => handleStatusToggle(user)}
-          className="disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <StatusBadge status={user.status} />
-        </button>
-      ),
-    },
-
-    {
-      key: "action",
-      label: "Action",
-      align: "right",
-
-      render: (user) => {
-        const pending = String(state.pendingActionId) === String(user.id);
-
-        return (
-          <div className="flex justify-end gap-2">
-            <IconButton
-              title="View"
-              icon={<FiEye />}
-              onClick={() => handleViewUser(user)}
-              className="bg-slate-100 text-[#69768b] hover:bg-slate-900 hover:text-white"
-            />
-
-            <IconButton
-              title="Edit"
-              icon={<FiEdit2 />}
-              disabled={pending}
-              onClick={() => openEditModal(user)}
-              className="bg-[#01B8E5]/10 text-[#019BC2] hover:bg-[#01B8E5] hover:text-white"
-            />
-
-            <IconButton
-              title="Delete"
-              icon={<FiTrash2 />}
-              disabled={pending}
-              onClick={() => handleDelete(user)}
-              className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white"
-            />
-          </div>
-        );
-      },
-    },
-  ];
-
-  /* =======================================================
-    RENDER
+     RENDER
   ======================================================= */
 
   return (
@@ -1016,415 +538,407 @@ const UserManagementPage = ({ role }) => {
         theme="light"
       />
 
-      <div className="space-y-5 [font-family:'Poppins',sans-serif]">
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-          {state.isLoading ? (
-            <>
-              <div>
-                <Skeleton className="h-7 w-44" />
-
-                <Skeleton className="mt-2 h-4 w-60" />
-              </div>
-
-              <div className="flex gap-2">
-                <Skeleton className="h-10 w-24 rounded-md" />
-
-                <Skeleton className="h-10 w-28 rounded-md" />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <h1 className="text-[22px] font-medium text-slate-900">
-                  {config.title}
-                </h1>
-
-                <p className="mt-1 text-[13px] text-[#94a3b8]">
-                  Manage {config.roleLabel.toLowerCase()} accounts.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleExport}
-                  className="
-                    inline-flex
-                    h-10
-                    items-center
-                    justify-center
-                    gap-2
-                    rounded-md
-                    border
-                    border-slate-200
-                    bg-white
-                    px-4
-                    text-[12px]
-                    text-[#69768b]
-                    transition
-                    hover:border-[#01B8E5]/40
-                    hover:text-[#01B8E5]
-                  "
-                >
-                  <FiDownload />
-                  Export
-                </button>
-
-                <button
-                  type="button"
-                  onClick={openCreateModal}
-                  className="
-                    inline-flex
-                    h-10
-                    items-center
-                    justify-center
-                    gap-2
-                    rounded-md
-                    bg-[#01B8E5]
-                    px-4
-                    text-[12px]
-                    text-white
-                    transition
-                    hover:bg-[#019BC2]
-                  "
-                >
-                  <FiPlus />
-                  Add User
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* =================================================
-            SUMMARY
-
-            loading=true
-            -> SummaryCards automatically renders
-               SummarySkeleton
-        ================================================= */}
-
-        <SummaryCards
-          columns={3}
-          loading={state.isLoading}
-          items={summaryItems}
-        />
-
-        {/* =================================================
-            DATA TABLE
-
-            table mode + loading
-            -> TableSkeleton
-
-            cards mode + loading
-            -> CardSkeleton
-        ================================================= */}
-
-        <DataTable
-          title={`${config.roleLabel} Accounts`}
-          subtitle="View and manage user accounts."
-          columns={userColumns}
-          rows={paginatedUsers}
-          rowKey="id"
-          /* SHARED SKELETON LOADING */
-          loading={state.isLoading}
-          search={{
-            value: state.searchTerm,
-
-            onChange: (value) =>
-              dispatch({
-                type: "SET_SEARCH",
-
-                payload: value,
-              }),
-
-            placeholder: "Search name, username, email, or staff ID...",
-          }}
-          statusFilter={{
-            value: state.statusFilter,
-
-            onChange: (value) =>
-              dispatch({
-                type: "SET_STATUS_FILTER",
-
-                payload: value,
-              }),
-
-            options: [
-              {
-                label: "All Status",
-                value: "All",
-              },
-
-              {
-                label: "Active",
-                value: "Active",
-              },
-
-              {
-                label: "Inactive",
-                value: "Inactive",
-              },
-            ],
-          }}
-          onReset={handleResetFilter}
-          view={{
-            mode: state.viewMode,
-
-            onChange: (mode) =>
-              dispatch({
-                type: "SET_VIEW_MODE",
-
-                payload: mode,
-              }),
-          }}
-          renderCard={(user) => (
-            <UserCard
-              user={user}
-              roleLabel={config.roleLabel}
-              pending={String(state.pendingActionId) === String(user.id)}
-              onView={handleViewUser}
-              onEdit={openEditModal}
-              onDelete={handleDelete}
-              onToggleStatus={handleStatusToggle}
-            />
-          )}
-          pagination={{
-            currentPage: state.currentPage,
-            totalPages,
-
-            rowsPerPage: state.rowsPerPage,
-
-            totalRows: filteredUsers.length,
-
-            showingStart,
-            showingEnd,
-
-            onRowsPerPageChange: (value) =>
-              dispatch({
-                type: "SET_ROWS_PER_PAGE",
-
-                payload: value,
-              }),
-
-            onPageChange: (page) =>
-              dispatch({
-                type: "SET_CURRENT_PAGE",
-
-                payload: page,
-              }),
-          }}
-          emptyTitle={
-            state.searchTerm.trim() || state.statusFilter !== "All"
-              ? `No matching ${config.roleLabel.toLowerCase()} accounts.`
-              : `No ${config.roleLabel.toLowerCase()} accounts yet.`
-          }
-          emptyDescription={
-            state.searchTerm.trim() || state.statusFilter !== "All"
-              ? "Try another search or status."
-              : `${config.roleLabel} accounts will appear here once they are added.`
-          }
-        />
-
-        {/* =================================================
-            MODAL
-        ================================================= */}
-
-        <UserManagementModal
-          isOpen={state.modal.isOpen}
-          mode={state.modal.mode}
-          role={role}
-          roleLabel={config.roleLabel}
-          user={state.modal.user}
+      {state.isLoading ? (
+        <DetailsSkeleton />
+      ) : !state.user ? (
+        <NotFoundState roleLabel={config.roleLabel} onBack={handleBack} />
+      ) : (
+        <UserDetailsContent
+          user={state.user}
+          config={config}
           isSaving={state.isSaving}
-          onClose={closeModal}
+          modalOpen={state.modalOpen}
+          onBack={handleBack}
+          onEdit={openEditModal}
+          onCloseEdit={closeEditModal}
           onSave={handleSaveUser}
+          onExport={handleExportUser}
+          onResetPassword={handleResetPassword}
         />
-      </div>
+      )}
     </>
   );
 };
 
 /* =========================================================
-  USER CARD
+   MAIN DETAILS CONTENT
 ========================================================= */
 
-const UserCard = ({
+const UserDetailsContent = ({
   user,
-  roleLabel,
-  pending,
-  onView,
+  config,
+  isSaving,
+  modalOpen,
+  onBack,
   onEdit,
-  onDelete,
-  onToggleStatus,
+  onCloseEdit,
+  onSave,
+  onExport,
+  onResetPassword,
 }) => {
   return (
-    <div
-      className="
-        group
-        relative
-        overflow-hidden
-        rounded-lg
-        border
-        border-slate-200
-        bg-white
-        shadow-sm
-        transition-all
-        duration-200
-        hover:-translate-y-0.5
-        hover:border-[#01B8E5]/30
-        hover:shadow-md
-      "
-    >
-      <div className="p-5">
-        {/* PROFILE */}
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <h1 className="text-2xl font-medium text-slate-950">
+          {config.detailTitle}
+        </h1>
 
-        <div className="flex items-center gap-3">
-          <div
-            className="
-              flex
-              h-12
-              w-12
-              shrink-0
-              items-center
-              justify-center
-              rounded-full
-              bg-[#01B8E5]/10
-              text-[#01B8E5]
-            "
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onExport}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
           >
-            <FiUser size={20} />
+            <FiDownload />
+            Export
+          </button>
+
+          <button
+            type="button"
+            onClick={onResetPassword}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-50 px-4 text-sm font-normal text-orange-600 transition hover:bg-orange-500 hover:text-white"
+          >
+            <FiKey />
+            Reset Password
+          </button>
+
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-medium text-white transition hover:bg-cyan-700"
+          >
+            <FiEdit2 />
+            Edit
+          </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-normal text-white transition hover:bg-slate-800"
+          >
+            <FiArrowLeft />
+            Back
+          </button>
+        </div>
+      </div>
+
+      {/* PROFILE */}
+      <div className="rounded-md bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xl font-medium text-cyan-700 ring-4 ring-cyan-100">
+              {getInitials(user.fullName)}
+            </div>
+
+            <div>
+              <p className="text-sm font-normal text-slate-500">
+                {config.roleLabel}
+              </p>
+
+              <p className="text-xl font-medium text-slate-950">
+                {user.fullName || "-"}
+              </p>
+
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-1 text-xs font-normal text-slate-600">
+                  <FiHash />
+
+                  {user.userId || "-"}
+                </span>
+
+                <StatusBadge status={user.status} />
+              </div>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <p className="truncate text-[13px] text-slate-900">
-              {user.fullName || "-"}
+          <div className="rounded-md bg-slate-50 px-4 py-3">
+            <p className="text-xs font-normal text-slate-500">RFID</p>
+
+            <p className="mt-1 text-sm font-normal text-slate-900">
+              {user.rfid || "Not assigned"}
             </p>
+          </div>
+        </div>
 
-            <p className="mt-0.5 truncate text-[11px] text-[#94a3b8]">
-              {formatUsername(user.username)}
+        {/* CARDS */}
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          <DetailCard
+            title="User Information"
+            icon={<FiUser />}
+            onEdit={onEdit}
+            items={[
+              ["Full Name", user.fullName],
+
+              ["Username", formatUsername(user.username)],
+
+              ["User ID", user.userId],
+
+              ["Birthday", formatBirthday(user.birthday)],
+
+              ["Status", user.status],
+            ]}
+          />
+
+          <DetailCard
+            title="Contact Information"
+            icon={<FiMail />}
+            onEdit={onEdit}
+            items={[
+              ["Email", user.email],
+
+              ["Mobile Number", user.mobile],
+
+              ["Address", user.address],
+            ]}
+          />
+
+          <DetailCard
+            title="RFID Information"
+            icon={<FiCreditCard />}
+            onEdit={onEdit}
+            items={[
+              ["RFID Number", user.rfid || "Not assigned"],
+
+              ["Assigned To", user.fullName],
+
+              ["User ID", user.userId],
+            ]}
+          />
+
+          <DetailCard
+            title="Access Information"
+            icon={<FiShield />}
+            onEdit={onEdit}
+            items={[
+              ["Role", config.roleLabel],
+
+              ["Status", user.status],
+
+              ["Department", user.department],
+
+              ["Position", user.position],
+
+              [
+                "Employment Status",
+                formatEmploymentStatus(user.employmentStatus),
+              ],
+
+              ["Hire Date", formatBirthday(user.hireDate)],
+            ]}
+          />
+        </div>
+      </div>
+
+      <UserManagementModal
+        isOpen={modalOpen}
+        mode="edit"
+        roleLabel={config.roleLabel}
+        user={user}
+        isSaving={isSaving}
+        onClose={onCloseEdit}
+        onSave={onSave}
+      />
+    </div>
+  );
+};
+
+/* =========================================================
+   DETAIL CARD
+========================================================= */
+
+const DetailCard = ({ title, icon, items, onEdit }) => {
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-600">
+            {icon}
+          </div>
+
+          <p className="text-sm font-medium text-slate-900">{title}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Edit ${title}`}
+          className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-cyan-600 transition hover:bg-cyan-600 hover:text-white"
+        >
+          <FiEdit2 />
+        </button>
+      </div>
+
+      <div className="grid gap-5 p-5 sm:grid-cols-2">
+        {items.map(([label, value]) => (
+          <div key={label}>
+            <p className="text-xs font-normal text-slate-500">{label}</p>
+
+            <p className="mt-1 break-words text-sm font-normal text-slate-900">
+              {value || "-"}
             </p>
           </div>
-        </div>
-
-        {/* DETAILS */}
-
-        <div className="mt-4 space-y-2">
-          <div className="flex items-center gap-2 text-[11px] text-[#69768b]">
-            <FiMail className="shrink-0 text-[#94a3b8]" />
-
-            <span className="truncate">{user.email || "-"}</span>
-          </div>
-
-          <div className="flex items-center gap-2 text-[11px] text-[#69768b]">
-            <FiPhone className="shrink-0 text-[#94a3b8]" />
-
-            <span className="truncate">{user.mobile || "-"}</span>
-          </div>
-        </div>
-
-        {/* STATUS */}
-
-        <div className="mt-4 rounded-md bg-slate-50 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[10px] uppercase tracking-wide text-[#94a3b8]">
-              {roleLabel}
-            </span>
-
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => onToggleStatus(user)}
-              className="disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <StatusBadge status={user.status} />
-            </button>
-          </div>
-        </div>
-
-        {/* ACTION */}
-
-        <div className="mt-4 flex justify-end gap-2">
-          <IconButton
-            title="View"
-            icon={<FiEye />}
-            onClick={() => onView(user)}
-            className="bg-slate-100 text-[#69768b] hover:bg-slate-900 hover:text-white"
-          />
-
-          <IconButton
-            title="Edit"
-            icon={<FiEdit2 />}
-            disabled={pending}
-            onClick={() => onEdit(user)}
-            className="bg-[#01B8E5]/10 text-[#019BC2] hover:bg-[#01B8E5] hover:text-white"
-          />
-
-          <IconButton
-            title="Delete"
-            icon={<FiTrash2 />}
-            disabled={pending}
-            onClick={() => onDelete(user)}
-            className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white"
-          />
-        </div>
+        ))}
       </div>
     </div>
   );
 };
 
 /* =========================================================
-  STATUS
+   STATUS
 ========================================================= */
 
 const StatusBadge = ({ status }) => {
-  const active = status === "Active";
-
   return (
     <span
-      className={`
-        inline-flex
-        items-center
-        gap-2
-        rounded-md
-        px-2.5
-        py-1.5
-        text-[10px]
-        ${
-          active
-            ? "bg-emerald-50 text-emerald-700"
-            : "bg-slate-100 text-[#69768b]"
-        }
-      `}
+      className={`inline-flex items-center rounded-md px-3 py-1.5 text-xs font-normal ${
+        status === "Active"
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-slate-100 text-slate-500"
+      }`}
     >
-      {active ? <FiCheckCircle /> : <FiXCircle />}
-
       {status || "Inactive"}
     </span>
   );
 };
 
 /* =========================================================
-  ICON BUTTON
+   NOT FOUND
 ========================================================= */
 
-const IconButton = ({ title, icon, className, onClick, disabled = false }) => {
+const NotFoundState = ({ roleLabel, onBack }) => {
   return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      onClick={onClick}
-      className={`flex h-9 w-9 items-center justify-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
-    >
-      {icon}
-    </button>
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-50"
+      >
+        <FiArrowLeft />
+        Back
+      </button>
+
+      <div className="rounded-md bg-white px-6 py-12 text-center shadow-sm">
+        <p className="text-sm font-normal text-slate-600">
+          No {String(roleLabel || "user").toLowerCase()} account found.
+        </p>
+
+        <p className="mt-1 text-xs font-normal text-slate-400">
+          The account may have been removed or is no longer available.
+        </p>
+      </div>
+    </div>
   );
 };
 
-export default UserManagementPage;
+/* =========================================================
+   SKELETON
+========================================================= */
+
+const Skeleton = ({ className = "" }) => {
+  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
+};
+
+const DetailsSkeleton = () => {
+  return (
+    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
+      {/* HEADER */}
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <Skeleton className="h-8 w-44" />
+
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-10 w-24 rounded-md" />
+
+          <Skeleton className="h-10 w-36 rounded-md" />
+
+          <Skeleton className="h-10 w-20 rounded-md" />
+
+          <Skeleton className="h-10 w-20 rounded-md" />
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div className="rounded-md bg-white p-5 shadow-sm">
+        {/* PROFILE */}
+        <div className="flex flex-col gap-5 border-b border-slate-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
+
+            <div>
+              <Skeleton className="h-4 w-20" />
+
+              <Skeleton className="mt-2 h-6 w-48" />
+
+              <div className="mt-2 flex gap-3">
+                <Skeleton className="h-4 w-24" />
+
+                <Skeleton className="h-7 w-20 rounded-md" />
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full rounded-md bg-slate-50 p-4 lg:w-52">
+            <Skeleton className="h-3 w-12" />
+
+            <Skeleton className="mt-2 h-4 w-32" />
+          </div>
+        </div>
+
+        {/* DETAIL CARDS */}
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          {Array.from({
+            length: 4,
+          }).map((_, index) => (
+            <DetailCardSkeleton key={index} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DetailCardSkeleton = () => {
+  return (
+    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-md" />
+
+          <Skeleton className="h-4 w-36" />
+        </div>
+
+        <Skeleton className="h-9 w-9 rounded-md" />
+      </div>
+
+      <div className="grid gap-5 p-5 sm:grid-cols-2">
+        {Array.from({
+          length: 6,
+        }).map((_, index) => (
+          <div key={index}>
+            <Skeleton className="h-3 w-20" />
+
+            <Skeleton
+              className={`mt-2 h-4 ${index % 2 === 0 ? "w-32" : "w-40"}`}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* =========================================================
+   FORMAT
+========================================================= */
+
+const formatEmploymentStatus = (status) => {
+  if (!status) {
+    return "-";
+  }
+
+  return String(status)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+export default UserManagementDetails;

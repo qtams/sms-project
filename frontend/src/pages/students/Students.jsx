@@ -4,14 +4,9 @@ import { useNavigate } from "react-router-dom";
 
 import {
   FiBookOpen,
-  FiChevronLeft,
-  FiChevronRight,
   FiCreditCard,
   FiDownload,
   FiEye,
-  FiGrid,
-  FiList,
-  FiSearch,
   FiTrash2,
   FiUploadCloud,
 } from "react-icons/fi";
@@ -22,6 +17,10 @@ import { toast } from "react-toastify";
 
 import ImportStudentModal from "../../components/modals/students/ImportStudentModal";
 
+import { DataTable } from "../../components/data-table";
+import { SummaryCards } from "../../components/summary";
+import { Skeleton } from "../../components/skeleton";
+
 import api from "../../services/api";
 
 import { apiDebugRequest } from "../../utils/api/apiDebugger";
@@ -31,8 +30,6 @@ import { apiDebugRequest } from "../../utils/api/apiDebugger";
 ========================================================= */
 
 const studentStatusOptions = ["Enrolled", "Unenrolled", "Inactive"];
-
-const rowsPerPageOptions = [5, 10, 25, 50];
 
 const avatarStyles = [
   "bg-cyan-50 text-cyan-700 ring-cyan-100",
@@ -279,6 +276,35 @@ const Students = () => {
   const inactiveStudents = students.filter(
     (student) => student.status === "Inactive",
   ).length;
+
+  const summaryItems = [
+    {
+      key: "total",
+      label: "Total Students",
+      value: students.length,
+    },
+    {
+      key: "enrolled",
+      label: "Enrolled",
+      value: enrolledStudents,
+    },
+    {
+      key: "unenrolled",
+      label: "Unenrolled",
+      value: unenrolledStudents,
+    },
+    {
+      key: "inactive",
+      label: "Inactive",
+      value: inactiveStudents,
+    },
+  ];
+
+  const handleResetFilter = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setCurrentPage(1);
+  };
 
   /* =======================================================
      SELECTION
@@ -750,12 +776,99 @@ const Students = () => {
   };
 
   /* =======================================================
-     LOADING
+     TABLE COLUMNS
   ======================================================= */
 
-  if (isLoading) {
-    return <StudentsSkeleton />;
-  }
+  const studentColumns = [
+    {
+      key: "select",
+      label: (
+        <input
+          type="checkbox"
+          checked={allDisplayedSelected}
+          onChange={handleSelectAllDisplayed}
+          aria-label="Select all students on this page"
+          className="h-4 w-4 cursor-pointer accent-cyan-600"
+        />
+      ),
+      render: (student) => (
+        <input
+          type="checkbox"
+          checked={selectedStudentIds.includes(student.id)}
+          onChange={() => handleToggleSelect(student.id)}
+          aria-label={`Select ${getStudentDisplayName(student)}`}
+          className="h-4 w-4 cursor-pointer accent-cyan-600"
+        />
+      ),
+    },
+    {
+      key: "studentId",
+      label: "Student Number",
+      render: (student) => (
+        <span className="whitespace-nowrap font-mono text-[12px] font-medium text-[#69768b]">
+          {student.studentId || "-"}
+        </span>
+      ),
+    },
+    {
+      key: "student",
+      label: "Student Name",
+      render: (student) => {
+        const isInactive = student.status === "Inactive";
+        const isMoving = movingStudentId === student.id;
+        const isPopped = poppedStudentId === student.id;
+
+        return (
+          <div
+            className={`flex items-center gap-3 ${
+              isInactive ? "opacity-75" : ""
+            } ${isMoving ? "student-pop-out" : ""} ${
+              isPopped ? "student-pop-in" : ""
+            }`}
+          >
+            <StudentAvatar student={student} inactive={isInactive} />
+
+            <StudentNameBlock student={student} inactive={isInactive} />
+          </div>
+        );
+      },
+    },
+    {
+      key: "rfid",
+      label: "RFID",
+      render: (student) => <RfidInfo rfid={student.rfid} />,
+    },
+    {
+      key: "class",
+      label: "Class",
+      render: (student) => <ClassInfo student={student} />,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (student) => (
+        <StatusButton
+          status={student.status}
+          disabled={Boolean(movingStudentId)}
+          onClick={() => handleToggleStudentStatus(student)}
+        />
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (student) => (
+        <div className="flex justify-end gap-2">
+          <IconButton type="view" onClick={() => handleViewStudent(student)} />
+
+          <IconButton
+            type="delete"
+            onClick={() => handleDeleteStudent(student)}
+          />
+        </div>
+      ),
+    },
+  ];
 
   /* =======================================================
      RENDER
@@ -771,182 +884,120 @@ const Students = () => {
       ================================================= */}
 
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h1 className="text-2xl font-medium text-slate-950">Students</h1>
+        {isLoading ? (
+          <>
+            <Skeleton className="h-7 w-36" />
 
-          {/* <p className="mt-1 text-sm font-normal text-slate-500">
-            Manage imported students, enrollment status, RFID, and class
-            details.
-          </p> */}
-        </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-10 w-24 rounded-md" />
+              <Skeleton className="h-10 w-32 rounded-md" />
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-medium text-slate-950">Students</h1>
 
-        <div className="flex flex-wrap gap-2">
-          {selectedStudentIds.length > 0 && (
-            <button
-              type="button"
-              onClick={handleBulkDelete}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-red-500 px-4 text-sm font-normal text-white transition hover:bg-red-600"
-            >
-              <FiTrash2 />
-              Delete Selected ({selectedStudentIds.length})
-            </button>
-          )}
+            <div className="flex flex-wrap gap-2">
+              {selectedStudentIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-red-500 px-4 text-sm font-normal text-white transition hover:bg-red-600"
+                >
+                  <FiTrash2 />
+                  Delete Selected ({selectedStudentIds.length})
+                </button>
+              )}
 
-          <button
-            type="button"
-            onClick={handleExportStudents}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
-          >
-            <FiDownload />
-            Export
-          </button>
+              <button
+                type="button"
+                onClick={handleExportStudents}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
+              >
+                <FiDownload />
+                Export
+              </button>
 
-          <button
-            type="button"
-            onClick={openImportModal}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-normal text-white transition hover:bg-cyan-700"
-          >
-            <FiUploadCloud />
-            Import Student
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={openImportModal}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-normal text-white transition hover:bg-cyan-700"
+              >
+                <FiUploadCloud />
+                Import Student
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* =================================================
           SUMMARY
       ================================================= */}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Total Students" value={students.length} />
-
-        <SummaryCard label="Enrolled" value={enrolledStudents} />
-
-        <SummaryCard label="Unenrolled" value={unenrolledStudents} />
-
-        <SummaryCard label="Inactive" value={inactiveStudents} />
-      </div>
+      <SummaryCards columns={4} loading={isLoading} items={summaryItems} />
 
       {/* =================================================
           STUDENT LIST
       ================================================= */}
 
-      <div className="overflow-hidden rounded-md bg-white shadow-sm">
-        {/* HEADER / FILTER */}
-
-        <div className="border-b border-slate-100 p-4">
-          <p className="text-base font-medium text-slate-900">Student List</p>
-
-          {/* <p className="mt-1 text-sm font-normal text-slate-500">
-            Student numbers, names, RFID assignments, and classes are shown in
-            separate columns.
-          </p> */}
-
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_auto]">
-            {/* SEARCH */}
-
-            <div className="relative">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search student, ID, RFID..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-normal text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-              />
-            </div>
-
-            {/* STATUS */}
-
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-            >
-              <option value="All">All Status</option>
-
-              {studentStatusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-
-            {/* GRID / TABLE */}
-
-            <div className="flex h-11 w-fit rounded-md border border-slate-200 bg-white p-1">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`inline-flex items-center justify-center gap-2 rounded px-3 text-sm font-normal transition ${
-                  viewMode === "grid"
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                <FiGrid />
-                Cards
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`inline-flex items-center justify-center gap-2 rounded px-3 text-sm font-normal transition ${
-                  viewMode === "table"
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                <FiList />
-                Table
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* =================================================
-            CONTENT
-        ================================================= */}
-
-        {viewMode === "grid" ? (
-          <StudentGrid
-            students={paginatedStudents}
-            selectedStudentIds={selectedStudentIds}
-            movingStudentId={movingStudentId}
-            poppedStudentId={poppedStudentId}
+      <DataTable
+        title="Student List"
+        subtitle="Manage student numbers, RFID assignments, classes, and enrollment status."
+        columns={studentColumns}
+        rows={paginatedStudents}
+        rowKey="id"
+        loading={isLoading}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search student, ID, RFID...",
+        }}
+        statusFilter={{
+          value: statusFilter,
+          onChange: setStatusFilter,
+          options: [
+            {
+              label: "All Status",
+              value: "All",
+            },
+            ...studentStatusOptions.map((status) => ({
+              label: status,
+              value: status,
+            })),
+          ],
+        }}
+        onReset={handleResetFilter}
+        view={{
+          mode: viewMode,
+          onChange: setViewMode,
+        }}
+        renderCard={(student) => (
+          <StudentCard
+            student={student}
+            selected={selectedStudentIds.includes(student.id)}
+            moving={movingStudentId === student.id}
+            popped={poppedStudentId === student.id}
+            disabled={Boolean(movingStudentId)}
             onSelect={handleToggleSelect}
-            onView={handleViewStudent}
-            onDelete={handleDeleteStudent}
-            onToggleStatus={handleToggleStudentStatus}
-          />
-        ) : (
-          <StudentTable
-            students={paginatedStudents}
-            selectedStudentIds={selectedStudentIds}
-            movingStudentId={movingStudentId}
-            poppedStudentId={poppedStudentId}
-            allDisplayedSelected={allDisplayedSelected}
-            onSelect={handleToggleSelect}
-            onSelectAll={handleSelectAllDisplayed}
             onView={handleViewStudent}
             onDelete={handleDeleteStudent}
             onToggleStatus={handleToggleStudentStatus}
           />
         )}
-
-        {/* PAGINATION */}
-
-        <PaginationFooter
-          currentPage={currentPage}
-          totalPages={totalPages}
-          rowsPerPage={rowsPerPage}
-          totalRows={displayedStudents.length}
-          showingStart={showingStart}
-          showingEnd={showingEnd}
-          onRowsPerPageChange={setRowsPerPage}
-          onPageChange={setCurrentPage}
-        />
-      </div>
+        pagination={{
+          currentPage,
+          totalPages,
+          rowsPerPage,
+          totalRows: displayedStudents.length,
+          showingStart,
+          showingEnd,
+          onRowsPerPageChange: setRowsPerPage,
+          onPageChange: setCurrentPage,
+        }}
+        emptyTitle="No students found"
+        emptyDescription="Try changing your filters or import student records."
+      />
 
       {/* =================================================
           IMPORT MODAL
@@ -1058,324 +1109,84 @@ const ClassInfo = ({ student }) => {
 };
 
 /* =========================================================
-   GRID
+   STUDENT CARD
 ========================================================= */
 
-const StudentGrid = ({
-  students,
-  selectedStudentIds,
-  movingStudentId,
-  poppedStudentId,
+const StudentCard = ({
+  student,
+  selected,
+  moving,
+  popped,
+  disabled,
   onSelect,
   onView,
   onDelete,
   onToggleStatus,
 }) => {
-  if (students.length === 0) {
-    return <EmptyState />;
-  }
+  const isInactive = student.status === "Inactive";
 
   return (
-    <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      {students.map((student) => {
-        const isInactive = student.status === "Inactive";
+    <div
+      className={`relative overflow-hidden rounded-md border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        selected ? "border-cyan-300 ring-4 ring-cyan-50" : "border-slate-200"
+      } ${isInactive ? "bg-slate-50 opacity-75" : "bg-white"} ${
+        moving ? "student-pop-out" : ""
+      } ${popped ? "student-pop-in" : ""}`}
+    >
+      <div className="flex items-center justify-between">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onSelect(student.id)}
+          aria-label={`Select ${getStudentDisplayName(student)}`}
+          className="h-4 w-4 cursor-pointer accent-cyan-600"
+        />
 
-        const isMoving = movingStudentId === student.id;
+        <div className="flex gap-2">
+          <IconButton type="view" onClick={() => onView(student)} />
 
-        const isPopped = poppedStudentId === student.id;
+          <IconButton type="delete" onClick={() => onDelete(student)} />
+        </div>
+      </div>
 
-        const isSelected = selectedStudentIds.includes(student.id);
+      <div className="mt-5 flex flex-col items-center text-center">
+        <StudentAvatar student={student} size="hero" inactive={isInactive} />
 
-        return (
-          <div
-            key={student.id}
-            className={`relative overflow-hidden rounded-md border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-              isSelected
-                ? "border-cyan-300 ring-4 ring-cyan-50"
-                : "border-slate-200"
-            } ${isInactive ? "bg-slate-50 opacity-75" : "bg-white"} ${
-              isMoving ? "student-pop-out" : ""
-            } ${isPopped ? "student-pop-in" : ""}`}
-          >
-            {/* TOP */}
-
-            <div className="flex items-center justify-between">
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={() => onSelect(student.id)}
-                className="h-4 w-4 cursor-pointer accent-cyan-600"
-              />
-
-              <div className="flex gap-2">
-                <IconButton type="view" onClick={() => onView(student)} />
-
-                <IconButton type="delete" onClick={() => onDelete(student)} />
-              </div>
-            </div>
-
-            {/* STUDENT */}
-
-            <div className="mt-5 flex flex-col items-center text-center">
-              <StudentAvatar
-                student={student}
-                size="hero"
-                inactive={isInactive}
-              />
-
-              <div className="mt-5 text-center">
-                <StudentNameBlock student={student} inactive={isInactive} />
-              </div>
-            </div>
-
-            {/* INFO */}
-
-            <div className="mt-5 space-y-3 rounded-md bg-slate-50 p-4 text-left">
-              <div>
-                <p className="mb-1 text-xs font-normal uppercase tracking-wide text-slate-400">
-                  RFID
-                </p>
-
-                <RfidInfo rfid={student.rfid} />
-              </div>
-
-              <div>
-                <p className="mb-1 text-xs font-normal uppercase tracking-wide text-slate-400">
-                  Class
-                </p>
-
-                <ClassInfo student={student} />
-              </div>
-            </div>
-
-            {/* STATUS */}
-
-            <div className="mt-5 flex justify-center">
-              <StatusToggle
-                status={student.status}
-                disabled={Boolean(movingStudentId)}
-                onClick={() => onToggleStatus(student)}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-/* =========================================================
-   TABLE
-========================================================= */
-
-const StudentTable = ({
-  students,
-  selectedStudentIds,
-  movingStudentId,
-  poppedStudentId,
-  allDisplayedSelected,
-  onSelect,
-  onSelectAll,
-  onView,
-  onDelete,
-  onToggleStatus,
-}) => {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1080px] border-collapse text-left">
-        <thead>
-          <tr className="border-b border-slate-100 bg-slate-50">
-            <th className="w-14 px-5 py-3">
-              <input
-                type="checkbox"
-                checked={allDisplayedSelected}
-                onChange={onSelectAll}
-                className="h-4 w-4 cursor-pointer accent-cyan-600"
-              />
-            </th>
-
-            <TableHeader label="Student Number" />
-
-            <TableHeader label="Student Name" />
-
-            <TableHeader label="RFID" />
-
-            <TableHeader label="Class" />
-
-            <TableHeader label="Status" />
-
-            <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500">
-              Actions
-            </th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {students.length > 0 ? (
-            students.map((student) => {
-              const isInactive = student.status === "Inactive";
-
-              const isMoving = movingStudentId === student.id;
-
-              const isPopped = poppedStudentId === student.id;
-
-              const isSelected = selectedStudentIds.includes(student.id);
-
-              return (
-                <tr
-                  key={student.id}
-                  className={`border-b border-slate-100 transition hover:bg-slate-50 ${
-                    isSelected ? "bg-cyan-50/40" : ""
-                  } ${isInactive ? "bg-slate-50 opacity-75" : ""} ${
-                    isMoving ? "student-pop-out" : ""
-                  } ${isPopped ? "student-pop-in" : ""}`}
-                >
-                  <td className="px-5 py-4">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => onSelect(student.id)}
-                      className="h-4 w-4 cursor-pointer accent-cyan-600"
-                    />
-                  </td>
-
-                  <td className="whitespace-nowrap px-5 py-4 font-mono text-sm font-medium text-slate-600">
-                    {student.studentId}
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <StudentAvatar student={student} inactive={isInactive} />
-
-                      <StudentNameBlock
-                        student={student}
-                        inactive={isInactive}
-                      />
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <RfidInfo rfid={student.rfid} />
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <ClassInfo student={student} />
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <StatusButton
-                      status={student.status}
-                      disabled={Boolean(movingStudentId)}
-                      onClick={() => onToggleStatus(student)}
-                    />
-                  </td>
-
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-2">
-                      <IconButton type="view" onClick={() => onView(student)} />
-
-                      <IconButton
-                        type="delete"
-                        onClick={() => onDelete(student)}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })
-          ) : (
-            <tr>
-              <td colSpan="7">
-                <EmptyState />
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-/* =========================================================
-   PAGINATION
-========================================================= */
-
-const PaginationFooter = ({
-  currentPage,
-  totalPages,
-  rowsPerPage,
-  totalRows,
-  showingStart,
-  showingEnd,
-  onRowsPerPageChange,
-  onPageChange,
-}) => {
-  return (
-    <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-normal text-slate-500">Show</span>
-
-          <select
-            value={rowsPerPage}
-            onChange={(event) =>
-              onRowsPerPageChange(Number(event.target.value))
-            }
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-          >
-            {rowsPerPageOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-
-          <span className="text-sm font-normal text-slate-500">entries</span>
+        <div className="mt-5 text-center">
+          <StudentNameBlock student={student} inactive={isInactive} />
         </div>
 
-        <p className="text-sm font-normal text-slate-500">
-          Showing {showingStart} to {showingEnd} of {totalRows} students
+        <p className="mt-1 font-mono text-[11px] text-[#94a3b8]">
+          {student.studentId || "-"}
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={currentPage === 1}
-          onClick={() => onPageChange(currentPage - 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <FiChevronLeft />
-          Prev
-        </button>
+      <div className="mt-5 space-y-3 rounded-md bg-slate-50 p-4 text-left">
+        <div>
+          <p className="mb-1 text-xs font-normal uppercase tracking-wide text-slate-400">
+            RFID
+          </p>
 
-        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
-          Page {currentPage} of {totalPages}
+          <RfidInfo rfid={student.rfid} />
         </div>
 
-        <button
-          type="button"
-          disabled={currentPage === totalPages}
-          onClick={() => onPageChange(currentPage + 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Next
-          <FiChevronRight />
-        </button>
+        <div>
+          <p className="mb-1 text-xs font-normal uppercase tracking-wide text-slate-400">
+            Class
+          </p>
+
+          <ClassInfo student={student} />
+        </div>
+      </div>
+
+      <div className="mt-5 flex justify-center">
+        <StatusToggle
+          status={student.status}
+          disabled={disabled}
+          onClick={() => onToggleStatus(student)}
+        />
       </div>
     </div>
-  );
-};
-
-/* =========================================================
-   TABLE HEADER
-========================================================= */
-
-const TableHeader = ({ label }) => {
-  return (
-    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-      {label}
-    </th>
   );
 };
 
@@ -1483,20 +1294,6 @@ const StatusButton = ({ status, disabled = false, onClick }) => {
 };
 
 /* =========================================================
-   SUMMARY
-========================================================= */
-
-const SummaryCard = ({ label, value }) => {
-  return (
-    <div className="rounded-md bg-white p-4 shadow-sm">
-      <p className="text-sm font-normal text-slate-500">{label}</p>
-
-      <p className="mt-2 text-2xl font-medium text-slate-950">{value}</p>
-    </div>
-  );
-};
-
-/* =========================================================
    ACTION BUTTON
 ========================================================= */
 
@@ -1529,150 +1326,6 @@ const IconButton = ({ type, onClick }) => {
     >
       {icons[type]}
     </button>
-  );
-};
-
-/* =========================================================
-   EMPTY
-========================================================= */
-
-const EmptyState = () => {
-  return (
-    <div className="px-5 py-12 text-center">
-      <p className="text-sm font-normal text-slate-600">No students found.</p>
-
-      <p className="mt-1 text-xs font-normal text-slate-400">
-        Try changing your search or import student records.
-      </p>
-    </div>
-  );
-};
-
-/* =========================================================
-   SKELETON
-========================================================= */
-
-const Skeleton = ({ className = "" }) => {
-  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
-};
-
-const StudentsSkeleton = () => {
-  return (
-    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
-      {/* HEADER */}
-
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <Skeleton className="h-8 w-36" />
-
-          <Skeleton className="mt-2 h-4 w-80 max-w-full" />
-        </div>
-
-        <div className="flex gap-2">
-          <Skeleton className="h-10 w-24" />
-
-          <Skeleton className="h-10 w-32" />
-        </div>
-      </div>
-
-      {/* SUMMARY */}
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({
-          length: 4,
-        }).map((_, index) => (
-          <div key={index} className="rounded-md bg-white p-4 shadow-sm">
-            <Skeleton className="h-4 w-24" />
-
-            <Skeleton className="mt-3 h-7 w-12" />
-          </div>
-        ))}
-      </div>
-
-      {/* LIST */}
-
-      <div className="overflow-hidden rounded-md bg-white shadow-sm">
-        <div className="border-b border-slate-100 p-4">
-          <Skeleton className="h-5 w-28" />
-
-          <Skeleton className="mt-2 h-3 w-72" />
-
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_auto]">
-            <Skeleton className="h-11 w-full" />
-
-            <Skeleton className="h-11 w-full" />
-
-            <Skeleton className="h-11 w-40" />
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px]">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                {Array.from({
-                  length: 7,
-                }).map((_, index) => (
-                  <th key={index} className="px-5 py-4">
-                    <Skeleton className="h-3 w-16" />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {Array.from({
-                length: 6,
-              }).map((_, rowIndex) => (
-                <tr key={rowIndex} className="border-b border-slate-100">
-                  <td className="px-5 py-5">
-                    <Skeleton className="h-4 w-4" />
-                  </td>
-
-                  <td className="px-5 py-5">
-                    <Skeleton className="h-4 w-24" />
-                  </td>
-
-                  <td className="px-5 py-5">
-                    <div className="flex items-center gap-3">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                  </td>
-
-                  <td className="px-5 py-5">
-                    <Skeleton className="h-4 w-24" />
-                  </td>
-
-                  <td className="px-5 py-5">
-                    <Skeleton className="h-4 w-28" />
-                  </td>
-
-                  <td className="px-5 py-5">
-                    <Skeleton className="h-7 w-20" />
-                  </td>
-
-                  <td className="px-5 py-5">
-                    <div className="flex justify-end gap-2">
-                      <Skeleton className="h-9 w-9" />
-
-                      <Skeleton className="h-9 w-9" />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-col gap-4 border-t border-slate-100 p-4 md:flex-row md:justify-between">
-          <Skeleton className="h-9 w-56" />
-
-          <Skeleton className="h-9 w-56" />
-        </div>
-      </div>
-    </div>
   );
 };
 

@@ -1,35 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-
 import { useNavigate } from "react-router-dom";
-
 import DatePicker from "react-datepicker";
-
 import {
   FiBookOpen,
   FiCalendar,
-  FiChevronLeft,
-  FiChevronRight,
   FiClock,
   FiCreditCard,
   FiDownload,
-  FiEye,
-  FiGrid,
   FiHash,
-  FiList,
-  FiSearch,
 } from "react-icons/fi";
-
 import { toast } from "react-toastify";
 
 import api from "../../services/api";
+import { Skeleton } from "../../components/skeleton";
+import { DataTable } from "../../components/data-table";
+import { SummaryCards } from "../../components/summary";
+import { ViewButton } from "../../components/actions";
 
 import "react-datepicker/dist/react-datepicker.css";
 
 /* =========================================================
-   OPTIONS
+   AVATAR COLORS
 ========================================================= */
-
-const rowsPerPageOptions = [5, 10, 25, 50];
 
 const avatarStyles = [
   "bg-cyan-50 text-cyan-700 ring-cyan-100",
@@ -50,29 +42,17 @@ const normalizeRecord = (record) => {
 
   return {
     ...record,
-
     id: record.id ?? record.attendance_id ?? record.attendanceId,
-
     studentId: record.studentId ?? record.student_id ?? "",
-
     rfid: record.rfid ?? record.rfid_number ?? "",
-
     firstName: record.firstName ?? record.first_name ?? "",
-
     middleName: record.middleName ?? record.middle_name ?? "",
-
     lastName: record.lastName ?? record.last_name ?? "",
-
     gradeLevel: record.gradeLevel ?? record.grade_level ?? "",
-
     section: record.section ?? "",
-
     date: record.date ?? record.attendance_date ?? "",
-
     timeIn: record.timeIn ?? record.time_in ?? "",
-
     timeOut: record.timeOut ?? record.time_out ?? "",
-
     status: record.status ?? "No Tap",
   };
 };
@@ -109,7 +89,6 @@ const getFullName = (record) => {
 
 const getDisplayName = (record) => {
   const lastName = record.lastName || "";
-
   const firstName = record.firstName || "";
 
   if (lastName && firstName) {
@@ -121,7 +100,6 @@ const getDisplayName = (record) => {
 
 const getInitials = (record) => {
   const first = record.firstName?.[0] || "";
-
   const last = record.lastName?.[0] || "";
 
   return `${first}${last}`.toUpperCase() || "?";
@@ -173,7 +151,6 @@ const parseTimeToMinutes = (timeValue) => {
   }
 
   const [time, period] = parts;
-
   const [hourValue, minuteValue] = time.split(":").map(Number);
 
   if (Number.isNaN(hourValue) || Number.isNaN(minuteValue)) {
@@ -237,21 +214,13 @@ const Rfid = () => {
   const navigate = useNavigate();
 
   const [logs, setLogs] = useState([]);
-
   const [isLoading, setIsLoading] = useState(true);
-
   const [searchTerm, setSearchTerm] = useState("");
-
   const [statusFilter, setStatusFilter] = useState("All");
-
   const [viewMode, setViewMode] = useState("table");
-
   const [startDate, setStartDate] = useState(null);
-
   const [endDate, setEndDate] = useState(null);
-
   const [currentPage, setCurrentPage] = useState(1);
-
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   /* =======================================================
@@ -312,6 +281,8 @@ const Rfid = () => {
 
   const filteredLogs = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
+    const start = getDateValue(startDate);
+    const end = getDateValue(endDate);
 
     return latestStudentLogs.filter((record) => {
       const recordDate = getDateValue(record.date);
@@ -320,9 +291,7 @@ const Rfid = () => {
         !query ||
         [
           getFullName(record),
-
           getDisplayName(record),
-
           record.studentId,
           record.rfid,
           record.gradeLevel,
@@ -335,10 +304,6 @@ const Rfid = () => {
 
       const matchesStatus =
         statusFilter === "All" || record.status === statusFilter;
-
-      const start = getDateValue(startDate);
-
-      const end = getDateValue(endDate);
 
       const matchesDate =
         (!start || (recordDate && recordDate >= start)) &&
@@ -363,15 +328,10 @@ const Rfid = () => {
   ======================================================= */
 
   const totalPages = Math.max(1, Math.ceil(displayedLogs.length / rowsPerPage));
-
   const startIndex = (currentPage - 1) * rowsPerPage;
-
   const endIndex = startIndex + rowsPerPage;
-
   const paginatedLogs = displayedLogs.slice(startIndex, endIndex);
-
   const showingStart = displayedLogs.length === 0 ? 0 : startIndex + 1;
-
   const showingEnd = Math.min(endIndex, displayedLogs.length);
 
   useEffect(() => {
@@ -400,6 +360,29 @@ const Rfid = () => {
     (item) => item.status === "No Tap",
   ).length;
 
+  const summaryItems = [
+    {
+      key: "students",
+      label: "Students",
+      value: latestStudentLogs.length,
+    },
+    {
+      key: "complete",
+      label: "Complete",
+      value: completeCount,
+    },
+    {
+      key: "time-in-only",
+      label: "Time In Only",
+      value: timeInOnlyCount,
+    },
+    {
+      key: "no-tap",
+      label: "No Tap",
+      value: noTapCount,
+    },
+  ];
+
   /* =======================================================
      RESET
   ======================================================= */
@@ -414,10 +397,13 @@ const Rfid = () => {
 
   /* =======================================================
      EXPORT
-     API DEBUGGER REMOVED
   ======================================================= */
 
   const handleExport = () => {
+    if (isLoading) {
+      return;
+    }
+
     if (displayedLogs.length === 0) {
       toast.info("There are no RFID records to export.");
 
@@ -426,19 +412,12 @@ const Rfid = () => {
 
     const rows = displayedLogs.map((record) => ({
       date: record.date,
-
       studentId: record.studentId,
-
       rfid: record.rfid,
-
       name: getDisplayName(record),
-
       class: `${record.gradeLevel} - ${record.section}`,
-
       latestTimeIn: record.timeIn,
-
       latestTimeOut: record.timeOut,
-
       latestStatus: record.status,
     }));
 
@@ -475,17 +454,13 @@ const Rfid = () => {
     });
 
     const url = URL.createObjectURL(blob);
-
     const link = document.createElement("a");
 
     link.href = url;
-
     link.download = "rfid-latest-student-logs.csv";
 
     document.body.appendChild(link);
-
     link.click();
-
     link.remove();
 
     URL.revokeObjectURL(url);
@@ -495,7 +470,6 @@ const Rfid = () => {
 
   /* =======================================================
      VIEW
-     API DEBUGGER REMOVED
   ======================================================= */
 
   const handleView = (record) => {
@@ -509,12 +483,100 @@ const Rfid = () => {
   };
 
   /* =======================================================
-     LOADING
+     DATA TABLE COLUMNS
   ======================================================= */
 
-  if (isLoading) {
-    return <RfidSkeleton />;
-  }
+  const rfidColumns = [
+    {
+      key: "student",
+      label: "Student",
+      render: (record) => (
+        <div className="flex items-center gap-3">
+          <div
+            className={`
+              flex
+              h-10
+              w-10
+              shrink-0
+              items-center
+              justify-center
+              rounded-full
+              text-[10px]
+              font-medium
+              ring-2
+              ${getAvatarStyle(record.id)}
+            `}
+          >
+            {getInitials(record)}
+          </div>
+
+          <div className="min-w-0">
+            <p className="truncate text-[12px] text-[#69768b]">
+              {getDisplayName(record)}
+            </p>
+
+            <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
+              <FiHash />
+              {record.studentId || "-"}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "rfid",
+      label: "RFID",
+      render: (record) => <RfidText value={record.rfid} />,
+    },
+    {
+      key: "class",
+      label: "Class",
+      render: (record) => (
+        <div className="flex items-center gap-2 text-[12px] text-[#69768b]">
+          <FiBookOpen className="text-[#94a3b8]" />
+          <span>
+            {record.gradeLevel || "-"} - {record.section || "-"}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "date",
+      label: "Latest Date",
+      render: (record) => (
+        <div className="flex items-center gap-2 text-[12px] text-[#69768b]">
+          <FiCalendar className="text-[#94a3b8]" />
+          {formatDate(record.date)}
+        </div>
+      ),
+    },
+    {
+      key: "timeIn",
+      label: "Time In",
+      render: (record) => <TimeText value={record.timeIn || "-"} />,
+    },
+    {
+      key: "timeOut",
+      label: "Time Out",
+      render: (record) => <TimeText value={record.timeOut || "-"} />,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (record) => <StatusBadge status={record.status} />,
+    },
+    {
+      key: "action",
+      label: "Action",
+      render: (record) => (
+        <ViewButton
+          variant="table"
+          label="View"
+          onClick={() => handleView(record)}
+        />
+      ),
+    },
+  ];
 
   /* =======================================================
      UI
@@ -525,125 +587,88 @@ const Rfid = () => {
       data-aos="fade-up"
       className="space-y-5 [font-family:'Poppins',sans-serif]"
     >
-      {/* =================================================
+      {/* ===================================================
           HEADER
-      ================================================= */}
+      =================================================== */}
 
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h1 className="text-2xl font-medium text-slate-950">
-            RFID Attendance
-          </h1>
-
-          {/* <p className="mt-1 text-sm font-normal text-slate-500">
-            View the latest RFID attendance summary per student.
-          </p> */}
-        </div>
-
-        <button
-          type="button"
-          onClick={handleExport}
-          className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
-        >
-          <FiDownload />
-          Export
-        </button>
-      </div>
-
-      {/* =================================================
-          SUMMARY
-      ================================================= */}
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Students" value={latestStudentLogs.length} />
-
-        <SummaryCard label="Complete" value={completeCount} />
-
-        <SummaryCard label="Time In Only" value={timeInOnlyCount} />
-
-        <SummaryCard label="No Tap" value={noTapCount} />
-      </div>
-
-      {/* =================================================
-          LIST
-      ================================================= */}
-
-      <div className="overflow-hidden rounded-md bg-white shadow-sm">
-        {/* HEADER */}
-
-        <div className="border-b border-slate-100 p-4">
-          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+        {isLoading ? (
+          <>
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-10 w-24 rounded-md" />
+          </>
+        ) : (
+          <>
             <div>
-              <p className="text-base font-medium text-slate-900">
-                Student RFID Summary
-              </p>
-
-              {/* <p className="mt-1 text-sm font-normal text-slate-500">
-                Click the eye button to view the student's complete time in and
-                time out history.
-              </p> */}
+              <h1 className="text-2xl font-medium text-slate-950">
+                RFID Attendance
+              </h1>
             </div>
 
-            {/* VIEW MODE */}
-
-            <div className="flex h-11 w-fit rounded-md border border-slate-200 bg-white p-1">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`inline-flex items-center justify-center gap-2 rounded px-3 text-sm font-normal transition ${
-                  viewMode === "grid"
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                <FiGrid />
-                Cards
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`inline-flex items-center justify-center gap-2 rounded px-3 text-sm font-normal transition ${
-                  viewMode === "table"
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                <FiList />
-                Table
-              </button>
-            </div>
-          </div>
-
-          {/* FILTERS */}
-
-          <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_220px_220px_auto]">
-            <div className="relative">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search student, RFID, ID, class..."
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-normal text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-              />
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="h-11 w-full cursor-pointer rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+            <button
+              type="button"
+              onClick={handleExport}
+              className="inline-flex h-10 w-fit items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-[12px] text-[#69768b] transition hover:border-[#01B8E5]/40 hover:text-[#01B8E5]"
             >
-              <option value="All">All Status</option>
+              <FiDownload />
+              Export
+            </button>
+          </>
+        )}
+      </div>
 
-              <option value="Complete">Complete</option>
+      {/* ===================================================
+          SUMMARY
 
-              <option value="Time In Only">Time In Only</option>
+          loading=true
+          -> SummaryCards automatically renders SummarySkeleton
+      =================================================== */}
 
-              <option value="No Tap">No Tap</option>
-            </select>
+      <SummaryCards columns={4} loading={isLoading} items={summaryItems} />
 
+      {/* ===================================================
+          DATA TABLE
+
+          table mode + loading -> TableSkeleton
+          cards mode + loading -> CardSkeleton
+      =================================================== */}
+
+      <DataTable
+        title="Student RFID Summary"
+        subtitle="View the latest RFID attendance summary per student."
+        columns={rfidColumns}
+        rows={paginatedLogs}
+        rowKey="studentId"
+        loading={isLoading}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search student, RFID, ID, class...",
+        }}
+        statusFilter={{
+          value: statusFilter,
+          onChange: setStatusFilter,
+          options: [
+            {
+              label: "All Status",
+              value: "All",
+            },
+            {
+              label: "Complete",
+              value: "Complete",
+            },
+            {
+              label: "Time In Only",
+              value: "Time In Only",
+            },
+            {
+              label: "No Tap",
+              value: "No Tap",
+            },
+          ],
+        }}
+        extraFilters={
+          <div className="grid w-full gap-3 xl:w-auto xl:grid-cols-2">
             <DateFilter
               selected={startDate}
               onChange={setStartDate}
@@ -663,43 +688,29 @@ const Rfid = () => {
               selectsEnd
               placeholder="End date"
             />
-
-            <button
-              type="button"
-              onClick={handleResetFilter}
-              className="h-11 rounded-md bg-slate-100 px-4 text-sm font-normal text-slate-600 transition hover:bg-slate-200"
-            >
-              Reset
-            </button>
           </div>
-        </div>
-
-        {/* =================================================
-            GRID / TABLE
-        ================================================= */}
-
-        {viewMode === "grid" ? (
-          <RfidGrid records={paginatedLogs} onView={handleView} />
-        ) : (
-          <RfidTable records={paginatedLogs} onView={handleView} />
+        }
+        onReset={handleResetFilter}
+        view={{
+          mode: viewMode,
+          onChange: setViewMode,
+        }}
+        renderCard={(record) => (
+          <RfidCard record={record} onView={handleView} />
         )}
-
-        {/* =================================================
-            PAGINATION
-        ================================================= */}
-
-        <PaginationFooter
-          currentPage={currentPage}
-          totalPages={totalPages}
-          rowsPerPage={rowsPerPage}
-          totalRows={displayedLogs.length}
-          showingStart={showingStart}
-          showingEnd={showingEnd}
-          onRowsPerPageChange={setRowsPerPage}
-          onPageChange={setCurrentPage}
-          label="students"
-        />
-      </div>
+        pagination={{
+          currentPage,
+          totalPages,
+          rowsPerPage,
+          totalRows: displayedLogs.length,
+          showingStart,
+          showingEnd,
+          onRowsPerPageChange: setRowsPerPage,
+          onPageChange: setCurrentPage,
+        }}
+        emptyTitle="No RFID records found"
+        emptyDescription="Try changing the search, status, or date range."
+      />
 
       <DatePickerStyles />
     </div>
@@ -707,209 +718,80 @@ const Rfid = () => {
 };
 
 /* =========================================================
-   GRID
+   RFID CARD
 ========================================================= */
 
-const RfidGrid = ({ records, onView }) => {
-  if (records.length === 0) {
-    return <EmptyState />;
-  }
-
+const RfidCard = ({ record, onView }) => {
   return (
-    <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      {records.map((record) => (
-        <div
-          key={record.studentId}
-          className="overflow-hidden rounded-md border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
-          {/* ACTION */}
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => onView(record)}
-              title="View all logs"
-              aria-label="View all logs"
-              className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-slate-900 hover:text-white"
-            >
-              <FiEye />
-            </button>
-          </div>
-
-          {/* STUDENT */}
-
-          <div className="mt-2 flex flex-col items-center text-center">
+    <div className="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#01B8E5]/30 hover:shadow-md">
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div
-              className={`flex h-24 w-24 items-center justify-center rounded-full text-2xl font-normal ring-4 ${getAvatarStyle(
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[12px] font-medium ring-2 ${getAvatarStyle(
                 record.id,
               )}`}
             >
               {getInitials(record)}
             </div>
 
-            <p className="mt-4 text-sm font-normal text-slate-900">
-              {getDisplayName(record)}
-            </p>
+            <div className="min-w-0">
+              <p className="truncate text-[12px] font-medium text-slate-900">
+                {getDisplayName(record)}
+              </p>
 
-            <div className="mt-1 flex items-center gap-1.5 text-xs font-normal text-slate-400">
-              <FiHash />
-
-              {record.studentId}
+              <p className="mt-1 flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
+                <FiHash />
+                {record.studentId || "-"}
+              </p>
             </div>
           </div>
 
-          {/* INFO */}
+          <ViewButton label="View" onClick={() => onView(record)} />
+        </div>
 
-          <div className="mt-5 rounded-md bg-slate-50 p-4">
-            <div className="grid grid-cols-2 gap-4">
-              <InfoRow
-                icon={<FiCreditCard />}
-                label="RFID"
-                value={record.rfid}
-              />
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <InfoBox
+            icon={<FiCreditCard />}
+            label="RFID"
+            value={record.rfid || "-"}
+          />
 
-              <InfoRow
-                icon={<FiBookOpen />}
-                label="Class"
-                value={`${record.gradeLevel} - ${record.section}`}
-              />
+          <InfoBox
+            icon={<FiBookOpen />}
+            label="Class"
+            value={`${record.gradeLevel || "-"} - ${record.section || "-"}`}
+          />
 
-              <InfoRow
-                icon={<FiCalendar />}
-                label="Date"
-                value={formatDate(record.date)}
-              />
+          <InfoBox
+            icon={<FiCalendar />}
+            label="Date"
+            value={formatDate(record.date)}
+          />
 
-              <div>
-                <p className="mb-1 text-xs font-normal uppercase tracking-wide text-slate-400">
-                  Status
-                </p>
+          <div className="rounded-md border border-slate-100 bg-white p-3">
+            <p className="text-[10px] uppercase tracking-wide text-[#94a3b8]">
+              Status
+            </p>
 
-                <StatusBadge status={record.status} />
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <TimeBox label="Time In" value={record.timeIn || "-"} />
-
-              <TimeBox label="Time Out" value={record.timeOut || "-"} />
+            <div className="mt-2">
+              <StatusBadge status={record.status} />
             </div>
           </div>
         </div>
-      ))}
-    </div>
-  );
-};
 
-/* =========================================================
-   TABLE
-========================================================= */
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <TimeBox label="Time In" value={record.timeIn || "-"} />
+          <TimeBox label="Time Out" value={record.timeOut || "-"} />
+        </div>
 
-const RfidTable = ({ records, onView }) => {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1100px] border-collapse text-left">
-        <thead>
-          <tr className="border-b border-slate-100 bg-slate-50">
-            <TableHeader label="Student" />
-
-            <TableHeader label="RFID" />
-
-            <TableHeader label="Class" />
-
-            <TableHeader label="Latest Date" />
-
-            <TableHeader label="Time In" />
-
-            <TableHeader label="Time Out" />
-
-            <TableHeader label="Status" />
-
-            <th className="px-5 py-3 text-right text-xs font-medium uppercase tracking-wide text-slate-500">
-              Action
-            </th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {records.length > 0 ? (
-            records.map((record) => (
-              <tr
-                key={record.studentId}
-                className="border-b border-slate-100 transition hover:bg-slate-50"
-              >
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-normal ring-4 ${getAvatarStyle(
-                        record.id,
-                      )}`}
-                    >
-                      {getInitials(record)}
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-normal text-slate-900">
-                        {getDisplayName(record)}
-                      </p>
-
-                      <p className="mt-1 flex items-center gap-1.5 text-xs font-normal text-slate-400">
-                        <FiHash />
-
-                        {record.studentId}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-
-                <td className="px-5 py-4">
-                  <RfidText value={record.rfid} />
-                </td>
-
-                <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                  {record.gradeLevel} - {record.section}
-                </td>
-
-                <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                  {formatDate(record.date)}
-                </td>
-
-                <td className="px-5 py-4">
-                  <TimeText value={record.timeIn || "-"} />
-                </td>
-
-                <td className="px-5 py-4">
-                  <TimeText value={record.timeOut || "-"} />
-                </td>
-
-                <td className="px-5 py-4">
-                  <StatusBadge status={record.status} />
-                </td>
-
-                <td className="px-5 py-4">
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => onView(record)}
-                      title="View all logs"
-                      aria-label="View all logs"
-                      className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-100 text-slate-600 transition hover:bg-slate-900 hover:text-white"
-                    >
-                      <FiEye />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="8">
-                <EmptyState />
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+        <div className="mt-4">
+          <ViewButton
+            label="View Attendance History"
+            onClick={() => onView(record)}
+          />
+        </div>
+      </div>
     </div>
   );
 };
@@ -930,8 +812,8 @@ const DateFilter = ({
   placeholder,
 }) => {
   return (
-    <div className="relative">
-      <FiCalendar className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-slate-400" />
+    <div className="relative w-full xl:w-[220px]">
+      <FiCalendar className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[#94a3b8]" />
 
       <DatePicker
         selected={selected}
@@ -944,7 +826,8 @@ const DateFilter = ({
         maxDate={maxDate}
         placeholderText={placeholder}
         dateFormat="MMM dd, yyyy"
-        className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-normal text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
+        wrapperClassName="w-full"
+        className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-[12px] text-[#69768b] outline-none transition placeholder:text-[#94a3b8] focus:border-[#01B8E5]"
       />
     </div>
   );
@@ -954,34 +837,30 @@ const DateFilter = ({
    INFO
 ========================================================= */
 
-const InfoRow = ({ icon, label, value }) => {
+const InfoBox = ({ icon, label, value }) => {
   return (
-    <div className="min-w-0">
-      <p className="text-xs font-normal uppercase tracking-wide text-slate-400">
-        {label}
-      </p>
-
-      <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs font-normal text-slate-600">
-        <span className="shrink-0 text-slate-400">{icon}</span>
-
-        <span className="truncate">{value || "-"}</span>
+    <div className="rounded-md border border-slate-100 bg-white p-3">
+      <div className="flex items-center gap-1.5 text-[10px] text-[#94a3b8]">
+        {icon}
+        <span>{label}</span>
       </div>
+
+      <p className="mt-2 truncate text-[11px] text-[#69768b]">{value || "-"}</p>
     </div>
   );
 };
 
 /* =========================================================
-   TIME
+   TIME / RFID TEXT
 ========================================================= */
 
 const TimeBox = ({ label, value }) => {
   return (
-    <div className="rounded-md bg-white px-3 py-2">
-      <p className="text-xs font-normal text-slate-400">{label}</p>
+    <div className="rounded-md bg-slate-50 px-3 py-2">
+      <p className="text-[10px] text-[#94a3b8]">{label}</p>
 
-      <p className="mt-1 flex items-center gap-1.5 text-sm font-normal text-slate-900">
-        <FiClock className="shrink-0 text-cyan-600" />
-
+      <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[#69768b]">
+        <FiClock className="shrink-0 text-[#01B8E5]" />
         {value}
       </p>
     </div>
@@ -990,9 +869,8 @@ const TimeBox = ({ label, value }) => {
 
 const TimeText = ({ value }) => {
   return (
-    <div className="inline-flex items-center gap-2 text-sm font-normal text-slate-600">
-      <FiClock className="text-slate-400" />
-
+    <div className="inline-flex items-center gap-2 text-[12px] text-[#69768b]">
+      <FiClock className="text-[#94a3b8]" />
       {value}
     </div>
   );
@@ -1000,9 +878,8 @@ const TimeText = ({ value }) => {
 
 const RfidText = ({ value }) => {
   return (
-    <div className="inline-flex items-center gap-2 text-sm font-normal text-slate-600">
-      <FiCreditCard className="text-slate-400" />
-
+    <div className="inline-flex items-center gap-2 text-[12px] text-[#69768b]">
+      <FiCreditCard className="text-[#94a3b8]" />
       {value || "-"}
     </div>
   );
@@ -1015,17 +892,13 @@ const RfidText = ({ value }) => {
 const StatusBadge = ({ status }) => {
   const styles = {
     Complete: "bg-emerald-50 text-emerald-700",
-
     "Time In Only": "bg-orange-50 text-orange-700",
-
     "No Tap": "bg-slate-100 text-slate-500",
   };
 
   const dotStyles = {
     Complete: "bg-emerald-500",
-
     "Time In Only": "bg-orange-500",
-
     "No Tap": "bg-slate-400",
   };
 
@@ -1033,282 +906,18 @@ const StatusBadge = ({ status }) => {
 
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-normal ${
+      className={`inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[10px] ${
         styles[currentStatus] || styles["No Tap"]
       }`}
     >
       <span
-        className={`h-2 w-2 rounded-full ${
+        className={`h-1.5 w-1.5 rounded-full ${
           dotStyles[currentStatus] || dotStyles["No Tap"]
         }`}
       />
 
       {currentStatus}
     </span>
-  );
-};
-
-/* =========================================================
-   PAGINATION
-========================================================= */
-
-const PaginationFooter = ({
-  currentPage,
-  totalPages,
-  rowsPerPage,
-  totalRows,
-  showingStart,
-  showingEnd,
-  onRowsPerPageChange,
-  onPageChange,
-  label,
-}) => {
-  return (
-    <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-normal text-slate-500">Show</span>
-
-          <select
-            value={rowsPerPage}
-            onChange={(event) =>
-              onRowsPerPageChange(Number(event.target.value))
-            }
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-          >
-            {rowsPerPageOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-
-          <span className="text-sm font-normal text-slate-500">entries</span>
-        </div>
-
-        <p className="text-sm font-normal text-slate-500">
-          Showing {showingStart} to {showingEnd} of {totalRows} {label}
-        </p>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={currentPage === 1}
-          onClick={() => onPageChange(currentPage - 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-70"
-        >
-          <FiChevronLeft />
-          Prev
-        </button>
-
-        <div className="rounded-md bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
-          Page {currentPage} of {totalPages}
-        </div>
-
-        <button
-          type="button"
-          disabled={currentPage === totalPages}
-          onClick={() => onPageChange(currentPage + 1)}
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-70"
-        >
-          Next
-          <FiChevronRight />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/* =========================================================
-   TABLE HEADER
-========================================================= */
-
-const TableHeader = ({ label }) => {
-  return (
-    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-slate-500">
-      {label}
-    </th>
-  );
-};
-
-/* =========================================================
-   SUMMARY
-========================================================= */
-
-const SummaryCard = ({ label, value }) => {
-  return (
-    <div className="rounded-md bg-white p-4 shadow-sm">
-      <p className="text-sm font-normal text-slate-500">{label}</p>
-
-      <p className="mt-2 text-2xl font-medium text-slate-950">{value}</p>
-    </div>
-  );
-};
-
-/* =========================================================
-   EMPTY
-========================================================= */
-
-const EmptyState = () => {
-  return (
-    <div className="px-5 py-12 text-center">
-      <p className="text-sm font-normal text-slate-600">
-        No RFID records found.
-      </p>
-
-      <p className="mt-1 text-xs font-normal text-slate-400">
-        Try changing the search, status, or date range.
-      </p>
-    </div>
-  );
-};
-
-/* =========================================================
-   SKELETON
-========================================================= */
-
-const Skeleton = ({ className = "" }) => {
-  return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
-};
-
-const RfidSkeleton = () => {
-  return (
-    <div className="space-y-5 [font-family:'Poppins',sans-serif]">
-      {/* HEADER */}
-
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <Skeleton className="h-8 w-48" />
-
-          <Skeleton className="mt-2 h-4 w-80 max-w-full" />
-        </div>
-
-        <Skeleton className="h-10 w-24" />
-      </div>
-
-      {/* SUMMARY */}
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({
-          length: 4,
-        }).map((_, index) => (
-          <div key={index} className="rounded-md bg-white p-4 shadow-sm">
-            <Skeleton className="h-4 w-24" />
-
-            <Skeleton className="mt-3 h-7 w-12" />
-          </div>
-        ))}
-      </div>
-
-      {/* LIST */}
-
-      <div className="overflow-hidden rounded-md bg-white shadow-sm">
-        <div className="border-b border-slate-100 p-4">
-          <div className="flex justify-between gap-4">
-            <div>
-              <Skeleton className="h-5 w-40" />
-
-              <Skeleton className="mt-2 h-3 w-72" />
-            </div>
-
-            <Skeleton className="h-11 w-40" />
-          </div>
-
-          <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_220px_220px_auto]">
-            <Skeleton className="h-11 w-full" />
-
-            <Skeleton className="h-11 w-full" />
-
-            <Skeleton className="h-11 w-full" />
-
-            <Skeleton className="h-11 w-full" />
-
-            <Skeleton className="h-11 w-20" />
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px]">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                {Array.from({
-                  length: 8,
-                }).map((_, index) => (
-                  <th key={index} className="px-5 py-4">
-                    <Skeleton className="h-3 w-16" />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {Array.from({
-                length: 6,
-              }).map((_, rowIndex) => (
-                <tr key={rowIndex} className="border-b border-slate-100">
-                  <td className="px-5 py-5">
-                    <div className="flex items-center gap-3">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-
-                      <div>
-                        <Skeleton className="h-4 w-32" />
-
-                        <Skeleton className="mt-2 h-3 w-20" />
-                      </div>
-                    </div>
-                  </td>
-
-                  {Array.from({
-                    length: 6,
-                  }).map((_, index) => (
-                    <td key={index} className="px-5 py-5">
-                      <Skeleton className="h-4 w-24" />
-                    </td>
-                  ))}
-
-                  <td className="px-5 py-5">
-                    <div className="flex justify-end">
-                      <Skeleton className="h-9 w-9" />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationSkeleton />
-      </div>
-    </div>
-  );
-};
-
-/* =========================================================
-   PAGINATION SKELETON
-========================================================= */
-
-const PaginationSkeleton = () => {
-  return (
-    <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-4 w-8" />
-
-        <Skeleton className="h-9 w-16" />
-
-        <Skeleton className="h-4 w-12" />
-
-        <Skeleton className="h-4 w-48" />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-9 w-20" />
-
-        <Skeleton className="h-9 w-24" />
-
-        <Skeleton className="h-9 w-20" />
-      </div>
-    </div>
   );
 };
 
@@ -1322,10 +931,10 @@ const DatePickerStyles = () => {
       {`
         .react-datepicker {
           border: 1px solid #e2e8f0;
-          border-radius: 10px;
+          border-radius: 8px;
           overflow: hidden;
           font-family: inherit;
-          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+          box-shadow: 0 14px 36px rgba(15, 23, 42, 0.10);
         }
 
         .react-datepicker__header {
@@ -1336,7 +945,7 @@ const DatePickerStyles = () => {
         .react-datepicker__current-month,
         .react-datepicker-time__header,
         .react-datepicker-year-header {
-          color: #0f172a;
+          color: #69768b;
           font-weight: 500;
         }
 
@@ -1344,12 +953,26 @@ const DatePickerStyles = () => {
         .react-datepicker__day--keyboard-selected,
         .react-datepicker__day--in-range,
         .react-datepicker__day--in-selecting-range {
-          background-color: #0891b2 !important;
-          color: white !important;
+          background-color: #01B8E5 !important;
+          color: #ffffff !important;
+        }
+
+        .react-datepicker__day--today {
+          font-weight: 500;
+          color: #01B8E5;
         }
 
         .react-datepicker__day:hover {
-          background-color: #cffafe;
+          background-color: rgba(1, 184, 229, 0.08);
+        }
+
+        .react-datepicker__navigation-icon::before {
+          border-color: #94a3b8;
+        }
+
+        .react-datepicker__navigation:hover
+          .react-datepicker__navigation-icon::before {
+          border-color: #01B8E5;
         }
       `}
     </style>
