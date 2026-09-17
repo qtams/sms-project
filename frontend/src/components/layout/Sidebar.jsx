@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import {
+  BookOpenCheck,
   ChevronDown,
   ClipboardList,
   GraduationCap,
@@ -60,6 +61,23 @@ const menuSections = [
         label: "Teacher",
         path: "/teachers",
         icon: GraduationCap,
+      },
+
+      {
+        type: "dropdown",
+        key: "enrollment",
+        label: "Enrollment",
+        icon: BookOpenCheck,
+        items: [
+          {
+            label: "Application",
+            path: "/enrollment/application",
+          },
+          {
+            label: "Verification",
+            path: "/enrollment/verification",
+          },
+        ],
       },
     ],
   },
@@ -255,7 +273,6 @@ const Sidebar = () => {
           />
         </button>
 
-        {/* Dropdown animation */}
         <div
           className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
             isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
@@ -362,7 +379,7 @@ const SidebarSkeleton = () => {
 
             <div className="space-y-1">
               {Array.from({
-                length: sectionIndex === 1 ? 3 : 1,
+                length: sectionIndex === 1 ? 4 : 1,
               }).map((_, itemIndex) => (
                 <div
                   key={itemIndex}
