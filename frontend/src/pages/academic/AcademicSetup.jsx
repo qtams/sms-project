@@ -1,17 +1,29 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import {
+  FiBookOpen,
+  FiCalendar,
   FiCheckCircle,
-  FiChevronLeft,
+  FiChevronDown,
   FiChevronRight,
-  FiDownload,
+  FiLayers,
   FiLoader,
   FiPlus,
   FiSearch,
   FiTrash2,
+  FiUsers,
   FiXCircle,
 } from "react-icons/fi";
 import { toast } from "react-toastify";
 import Swal from "sweetalert2";
+import { AnimatePresence, motion } from "framer-motion";
+
 import api from "../../services/api";
 
 import AcademicUnitModal from "../../components/modals/academic/AcademicUnitModal";
@@ -19,6 +31,9 @@ import ProgramModal from "../../components/modals/academic/ProgramModal";
 import SchoolYearModal from "../../components/modals/academic/SchoolYearModal";
 import GradeLevelModal from "../../components/modals/academic/GradeLevelModal";
 import SectionModal from "../../components/modals/academic/SectionModal";
+
+import { DataTable } from "../../components/data-table";
+import { Skeleton } from "../../components/skeleton";
 
 /* =========================================================
    FORM DEFAULTS
@@ -68,12 +83,6 @@ const emptySection = {
 };
 
 /* =========================================================
-   PAGINATION
-========================================================= */
-
-const rowsPerPageOptions = [5, 10, 25, 50];
-
-/* =========================================================
    UTILITIES
 ========================================================= */
 
@@ -85,11 +94,159 @@ const csvValue = (value) => {
   return `"${normalized}"`;
 };
 
+const normalizeId = (value) =>
+  value === null || value === undefined || value === "" ? null : String(value);
+
+const formatEducationLevel = (value) =>
+  value === "higher_education" ? "Higher Education" : "Basic Education";
+
+const titleCase = (value) =>
+  String(value || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+const buildAcademicUnitTree = (units = []) => {
+  const normalized = units.map((item) => ({
+    ...item,
+    _id: normalizeId(item.id),
+    _parentId: normalizeId(item.parent_id),
+  }));
+
+  const idMap = new Map(normalized.map((item) => [item._id, item]));
+  const childrenMap = new Map();
+
+  normalized.forEach((item) => {
+    const parentKey =
+      item._parentId && idMap.has(item._parentId) ? item._parentId : "__root__";
+
+    if (!childrenMap.has(parentKey)) {
+      childrenMap.set(parentKey, []);
+    }
+
+    childrenMap.get(parentKey).push(item);
+  });
+
+  for (const children of childrenMap.values()) {
+    children.sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || "")),
+    );
+  }
+
+  const flattened = [];
+  const visited = new Set();
+
+  const walk = (parentKey, depth, parentPath = []) => {
+    const children = childrenMap.get(parentKey) || [];
+
+    children.forEach((item) => {
+      if (visited.has(item._id)) {
+        return;
+      }
+
+      visited.add(item._id);
+
+      const path = [...parentPath, item.name].filter(Boolean);
+
+      flattened.push({
+        ...item,
+        hierarchyDepth: depth,
+        hierarchyPath: path.join(" / "),
+        childrenCount: (childrenMap.get(item._id) || []).length,
+        hasChildren: (childrenMap.get(item._id) || []).length > 0,
+      });
+
+      walk(item._id, depth + 1, path);
+    });
+  };
+
+  walk("__root__", 0, []);
+
+  normalized.forEach((item) => {
+    if (!visited.has(item._id)) {
+      flattened.push({
+        ...item,
+        hierarchyDepth: 0,
+        hierarchyPath: item.name || "",
+        childrenCount: 0,
+        hasChildren: false,
+      });
+    }
+  });
+
+  return {
+    rows: flattened,
+    idMap,
+  };
+};
+
+/* =========================================================
+   UI STATE
+   Keep page navigation, filters, pagination, and drill-down
+   context in one predictable reducer instead of many
+   unrelated useState calls.
+========================================================= */
+
+const initialUiState = {
+  activeView: "academicUnits",
+  showAddForm: false,
+  search: "",
+  statusFilter: "All",
+  hierarchyFilters: {},
+  currentPage: 1,
+  rowsPerPage: 10,
+  selectedUnitId: null,
+  selectedProgramId: null,
+  selectedGradeLevelId: null,
+  schoolYearContextId: null,
+  showAdvancedFilters: false,
+};
+
+const uiReducer = (state, action) => {
+  switch (action.type) {
+    case "PATCH":
+      return {
+        ...state,
+        ...action.payload,
+      };
+
+    case "SET_FILTERS":
+      return {
+        ...state,
+        hierarchyFilters: action.payload,
+        currentPage: 1,
+      };
+
+    case "RESET_FILTERS":
+      return {
+        ...state,
+        search: "",
+        statusFilter: "All",
+        hierarchyFilters: action.payload || {},
+        currentPage: 1,
+      };
+
+    case "CLEAR_CONTEXT":
+      return {
+        ...state,
+        selectedUnitId: null,
+        selectedProgramId: null,
+        selectedGradeLevelId: null,
+        hierarchyFilters: {},
+        search: "",
+        statusFilter: "All",
+        currentPage: 1,
+      };
+
+    default:
+      return state;
+  }
+};
+
 /* =========================================================
    COMPONENT
 ========================================================= */
 
-export default function GradeSections() {
+export default function AcademicSetup() {
   const [data, setData] = useState({
     schoolYears: [],
     academicUnits: [],
@@ -103,14 +260,57 @@ export default function GradeSections() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingActionId, setPendingActionId] = useState(null);
 
-  const [activeView, setActiveView] = useState("academicUnits");
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [hierarchyFilters, setHierarchyFilters] = useState({});
+  const [ui, uiDispatch] = useReducer(uiReducer, initialUiState);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const {
+    activeView,
+    showAddForm,
+    search,
+    statusFilter,
+    hierarchyFilters,
+    currentPage,
+    rowsPerPage,
+    selectedUnitId,
+    selectedProgramId,
+    selectedGradeLevelId,
+    schoolYearContextId,
+    showAdvancedFilters,
+  } = ui;
+
+  // Small compatibility setters keep the rest of the page readable.
+  const setActiveView = (value) =>
+    uiDispatch({ type: "PATCH", payload: { activeView: value } });
+
+  const setShowAddForm = (value) =>
+    uiDispatch({ type: "PATCH", payload: { showAddForm: value } });
+
+  const setSearch = (value) =>
+    uiDispatch({ type: "PATCH", payload: { search: value } });
+
+  const setStatusFilter = (value) =>
+    uiDispatch({ type: "PATCH", payload: { statusFilter: value } });
+
+  const setHierarchyFilters = (valueOrUpdater) => {
+    const next =
+      typeof valueOrUpdater === "function"
+        ? valueOrUpdater(hierarchyFilters)
+        : valueOrUpdater;
+
+    uiDispatch({ type: "PATCH", payload: { hierarchyFilters: next } });
+  };
+
+  const setCurrentPage = (value) =>
+    uiDispatch({ type: "PATCH", payload: { currentPage: value } });
+
+  const setRowsPerPage = (value) =>
+    uiDispatch({ type: "PATCH", payload: { rowsPerPage: value } });
+
+  /*
+   * Academic Structure opens parent units by default on first load.
+   * After that, the user's expand/collapse choices are preserved.
+   */
+  const [expandedUnitIds, setExpandedUnitIds] = useState(() => new Set());
+  const didInitializeExpandedUnits = useRef(false);
 
   const [year, setYear] = useState(emptyYear);
   const [unit, setUnit] = useState(emptyUnit);
@@ -131,22 +331,52 @@ export default function GradeSections() {
       const response = await api.get("/api/academic-setup");
       const payload = response?.data || {};
 
+      const schoolYears = Array.isArray(payload.schoolYears)
+        ? payload.schoolYears
+        : [];
+      const academicUnits = Array.isArray(payload.academicUnits)
+        ? payload.academicUnits
+        : [];
+      const academicPrograms = Array.isArray(payload.academicPrograms)
+        ? payload.academicPrograms
+        : [];
+      const gradeLevels = Array.isArray(payload.gradeLevels)
+        ? payload.gradeLevels
+        : [];
+      const sections = Array.isArray(payload.sections) ? payload.sections : [];
+      const teachers = Array.isArray(payload.teachers) ? payload.teachers : [];
+
       setData({
-        schoolYears: Array.isArray(payload.schoolYears)
-          ? payload.schoolYears
-          : [],
-        academicUnits: Array.isArray(payload.academicUnits)
-          ? payload.academicUnits
-          : [],
-        academicPrograms: Array.isArray(payload.academicPrograms)
-          ? payload.academicPrograms
-          : [],
-        gradeLevels: Array.isArray(payload.gradeLevels)
-          ? payload.gradeLevels
-          : [],
-        sections: Array.isArray(payload.sections) ? payload.sections : [],
-        teachers: Array.isArray(payload.teachers) ? payload.teachers : [],
+        schoolYears,
+        academicUnits,
+        academicPrograms,
+        gradeLevels,
+        sections,
+        teachers,
       });
+
+      /*
+       * Default-open only on the first successful load.
+       * Parent IDs tell us which rows actually have children.
+       */
+      if (!didInitializeExpandedUnits.current) {
+        const parentIds = new Set(
+          academicUnits
+            .map((item) => normalizeId(item.parent_id))
+            .filter(Boolean),
+        );
+
+        setExpandedUnitIds(
+          new Set(
+            academicUnits
+              .filter((item) => parentIds.has(normalizeId(item.id)))
+              .map((item) => normalizeId(item.id))
+              .filter(Boolean),
+          ),
+        );
+
+        didInitializeExpandedUnits.current = true;
+      }
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {
@@ -163,74 +393,351 @@ export default function GradeSections() {
   }, [load]);
 
   /* =======================================================
-     CARDS
+     TREE DATA
   ======================================================= */
 
-  const cards = [
-      {
+  const academicUnitTree = useMemo(
+    () => buildAcademicUnitTree(data.academicUnits),
+    [data.academicUnits],
+  );
+
+  const toggleAcademicUnit = (unitId) => {
+    const id = normalizeId(unitId);
+
+    if (!id) {
+      return;
+    }
+
+    setExpandedUnitIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+
+      return next;
+    });
+  };
+
+  const expandAllAcademicUnits = () => {
+    setExpandedUnitIds(
+      new Set(
+        academicUnitTree.rows
+          .filter((item) => item.hasChildren)
+          .map((item) => item._id),
+      ),
+    );
+  };
+
+  const collapseAllAcademicUnits = () => {
+    setExpandedUnitIds(new Set());
+  };
+
+  /* =======================================================
+     VIEW CONFIG
+  ======================================================= */
+
+  const viewConfig = useMemo(
+    () => ({
+      academicUnits: {
         key: "academicUnits",
-        label: "Structure",
+        step: 1,
+        label: "Academic Structure",
         singular: "Organizational Unit",
         description: "Divisions, colleges, and departments",
+        value: data.academicUnits.length,
       },
-      {
+      academicPrograms: {
         key: "academicPrograms",
-        label: "Offerings",
+        step: 2,
+        label: "Programs / Tracks",
         singular: "Academic Offering",
         description: "Programs, tracks, strands, and specializations",
+        value: data.academicPrograms.length,
       },
-      {
+      gradeLevels: {
         key: "gradeLevels",
-        label: "Levels",
+        step: 3,
+        label: "Grade / Year Levels",
         singular: "Grade / Year Level",
         description: "Ordered grade and year levels",
+        value: data.gradeLevels.length,
       },
-      {
+      sections: {
+        key: "sections",
+        step: 4,
+        label: "Sections",
+        singular: "Section",
+        description: "Classes, capacity, and teacher assignments",
+        value: data.sections.length,
+      },
+      schoolYears: {
         key: "schoolYears",
         label: "School Years",
         singular: "School Year",
         description: "Academic delivery periods",
+        value: data.schoolYears.length,
       },
-      {
-        key: "sections",
-        label: "Sections",
-        singular: "Section",
-        description: "Classes, capacity, and teachers",
-      },
-    ];
+    }),
+    [data],
+  );
 
-  const activeCard = cards.find((card) => card.key === activeView) || cards[0];
+  const workflowSteps = [
+    viewConfig.academicUnits,
+    viewConfig.academicPrograms,
+    viewConfig.gradeLevels,
+    viewConfig.sections,
+  ];
 
-  /* =======================================================
-     SELECT VIEW
-  ======================================================= */
+  const activeCard = viewConfig[activeView] || viewConfig.academicUnits;
+
+  const selectedUnit = useMemo(
+    () =>
+      data.academicUnits.find(
+        (item) => normalizeId(item.id) === normalizeId(selectedUnitId),
+      ) || null,
+    [data.academicUnits, selectedUnitId],
+  );
+
+  const selectedProgram = useMemo(
+    () =>
+      data.academicPrograms.find(
+        (item) => normalizeId(item.id) === normalizeId(selectedProgramId),
+      ) || null,
+    [data.academicPrograms, selectedProgramId],
+  );
+
+  const selectedGradeLevel = useMemo(
+    () =>
+      data.gradeLevels.find(
+        (item) => normalizeId(item.id) === normalizeId(selectedGradeLevelId),
+      ) || null,
+    [data.gradeLevels, selectedGradeLevelId],
+  );
+
+  const activeSchoolYear = useMemo(() => {
+    if (schoolYearContextId) {
+      return (
+        data.schoolYears.find(
+          (item) => normalizeId(item.id) === normalizeId(schoolYearContextId),
+        ) || null
+      );
+    }
+
+    return (
+      data.schoolYears.find((item) => item.is_active) ||
+      data.schoolYears[0] ||
+      null
+    );
+  }, [data.schoolYears, schoolYearContextId]);
+
+  useEffect(() => {
+    if (schoolYearContextId || data.schoolYears.length === 0) {
+      return;
+    }
+
+    const nextYear =
+      data.schoolYears.find((item) => item.is_active) || data.schoolYears[0];
+
+    if (nextYear?.id) {
+      uiDispatch({
+        type: "PATCH",
+        payload: {
+          schoolYearContextId: normalizeId(nextYear.id),
+        },
+      });
+    }
+  }, [data.schoolYears, schoolYearContextId]);
 
   const selectView = (key) => {
-    setActiveView(key);
-    setShowAddForm(false);
-    setSearch("");
-    setStatusFilter("All");
-    setHierarchyFilters({});
-    setCurrentPage(1);
+    const clearsHierarchy = ["academicUnits", "schoolYears"].includes(key);
+
+    const nextSelectedUnitId = clearsHierarchy ? null : selectedUnitId;
+
+    const nextSelectedProgramId =
+      clearsHierarchy || key === "academicPrograms" ? null : selectedProgramId;
+
+    const nextSelectedGradeLevelId =
+      clearsHierarchy || ["academicPrograms", "gradeLevels"].includes(key)
+        ? null
+        : selectedGradeLevelId;
+
+    const nextFilters = {};
+
+    if (nextSelectedUnitId && key !== "academicUnits") {
+      nextFilters.academicUnitId = normalizeId(nextSelectedUnitId);
+    }
+
+    if (nextSelectedProgramId && ["gradeLevels", "sections"].includes(key)) {
+      nextFilters.academicProgramId = normalizeId(nextSelectedProgramId);
+    }
+
+    if (nextSelectedGradeLevelId && key === "sections") {
+      nextFilters.gradeLevelId = normalizeId(nextSelectedGradeLevelId);
+    }
+
+    if (activeSchoolYear?.id && key === "sections") {
+      nextFilters.schoolYearId = normalizeId(activeSchoolYear.id);
+    }
+
+    uiDispatch({
+      type: "PATCH",
+      payload: {
+        activeView: key,
+        showAddForm: false,
+        search: "",
+        statusFilter: "All",
+        hierarchyFilters: nextFilters,
+        currentPage: 1,
+        showAdvancedFilters: false,
+        selectedUnitId: nextSelectedUnitId,
+        selectedProgramId: nextSelectedProgramId,
+        selectedGradeLevelId: nextSelectedGradeLevelId,
+      },
+    });
+  };
+
+  const selectAcademicUnit = (item) => {
+    const unitId = normalizeId(item?.id);
+
+    uiDispatch({
+      type: "PATCH",
+      payload: {
+        activeView: "academicPrograms",
+        selectedUnitId: unitId,
+        selectedProgramId: null,
+        selectedGradeLevelId: null,
+        showAdvancedFilters: false,
+        search: "",
+        statusFilter: "All",
+        hierarchyFilters: unitId ? { academicUnitId: unitId } : {},
+        currentPage: 1,
+      },
+    });
+  };
+
+  const selectAcademicProgram = (item) => {
+    const programId = normalizeId(item?.id);
+    const unitId = normalizeId(item?.academic_unit_id || selectedUnitId);
+
+    uiDispatch({
+      type: "PATCH",
+      payload: {
+        activeView: "gradeLevels",
+        selectedUnitId: unitId,
+        selectedProgramId: programId,
+        selectedGradeLevelId: null,
+        showAdvancedFilters: false,
+        search: "",
+        statusFilter: "All",
+        hierarchyFilters: {
+          ...(unitId ? { academicUnitId: unitId } : {}),
+          ...(programId ? { academicProgramId: programId } : {}),
+        },
+        currentPage: 1,
+      },
+    });
+  };
+
+  const selectGradeLevel = (item) => {
+    const gradeLevelId = normalizeId(item?.id);
+    const unitId = normalizeId(item?.academic_unit_id || selectedUnitId);
+    const programId = normalizeId(
+      item?.academic_program_id || selectedProgramId,
+    );
+
+    uiDispatch({
+      type: "PATCH",
+      payload: {
+        activeView: "sections",
+        selectedUnitId: unitId,
+        selectedProgramId: programId,
+        selectedGradeLevelId: gradeLevelId,
+        showAdvancedFilters: false,
+        search: "",
+        statusFilter: "All",
+        hierarchyFilters: {
+          ...(unitId ? { academicUnitId: unitId } : {}),
+          ...(programId ? { academicProgramId: programId } : {}),
+          ...(gradeLevelId ? { gradeLevelId } : {}),
+          ...(activeSchoolYear?.id
+            ? { schoolYearId: normalizeId(activeSchoolYear.id) }
+            : {}),
+        },
+        currentPage: 1,
+      },
+    });
+  };
+
+  const clearContext = () => {
+    uiDispatch({ type: "CLEAR_CONTEXT" });
+  };
+
+  const handleSchoolYearContextChange = (value) => {
+    const nextYearId = normalizeId(value);
+
+    uiDispatch({
+      type: "PATCH",
+      payload: {
+        schoolYearContextId: nextYearId,
+        hierarchyFilters:
+          activeView === "sections"
+            ? {
+                ...hierarchyFilters,
+                schoolYearId: nextYearId || "",
+              }
+            : hierarchyFilters,
+        currentPage: 1,
+      },
+    });
+  };
+
+  const openAddForm = () => {
+    if (activeView === "academicUnits" && selectedUnitId) {
+      setUnit((current) => ({
+        ...current,
+        parent_id: selectedUnitId,
+      }));
+    }
+
+    if (activeView === "academicPrograms" && selectedUnitId) {
+      setProgram((current) => ({
+        ...current,
+        academic_unit_id: selectedUnitId,
+      }));
+    }
+
+    if (activeView === "gradeLevels") {
+      setGrade((current) => ({
+        ...current,
+        academic_unit_id: selectedUnitId || current.academic_unit_id,
+        academic_program_id: selectedProgramId || current.academic_program_id,
+      }));
+    }
+
+    if (activeView === "sections") {
+      setSection((current) => ({
+        ...current,
+        grade_level_id: selectedGradeLevelId || current.grade_level_id,
+        school_year_id: activeSchoolYear?.id || current.school_year_id,
+      }));
+    }
+
+    setShowAddForm(true);
   };
 
   /* =======================================================
-     SEARCH
+     FILTER HANDLERS
   ======================================================= */
-
-  const handleSearchChange = (event) => {
-    setSearch(event.target.value);
-    setCurrentPage(1);
-  };
-
-  const handleStatusFilterChange = (event) => {
-    setStatusFilter(event.target.value);
-    setCurrentPage(1);
-  };
 
   const handleHierarchyFilterChange = (key, value) => {
     setHierarchyFilters((current) => {
-      const next = { ...current, [key]: value };
+      const next = {
+        ...current,
+        [key]: value,
+      };
 
       if (key === "academicUnitId") {
         next.academicProgramId = "";
@@ -243,14 +750,38 @@ export default function GradeSections() {
 
       return next;
     });
+
     setCurrentPage(1);
   };
 
   const resetViewFilters = () => {
-    setSearch("");
-    setStatusFilter("All");
-    setHierarchyFilters({});
-    setCurrentPage(1);
+    const contextFilters = {};
+
+    if (selectedUnitId && activeView !== "academicUnits") {
+      contextFilters.academicUnitId = normalizeId(selectedUnitId);
+    }
+
+    if (selectedProgramId && ["gradeLevels", "sections"].includes(activeView)) {
+      contextFilters.academicProgramId = normalizeId(selectedProgramId);
+    }
+
+    if (selectedGradeLevelId && activeView === "sections") {
+      contextFilters.gradeLevelId = normalizeId(selectedGradeLevelId);
+    }
+
+    if (activeSchoolYear?.id && activeView === "sections") {
+      contextFilters.schoolYearId = normalizeId(activeSchoolYear.id);
+    }
+
+    uiDispatch({
+      type: "PATCH",
+      payload: {
+        search: "",
+        statusFilter: "All",
+        hierarchyFilters: contextFilters,
+        currentPage: 1,
+      },
+    });
   };
 
   /* =======================================================
@@ -266,7 +797,7 @@ export default function GradeSections() {
       }
 
       return statusFilter === "Active"
-        ? row.is_active
+        ? Boolean(row.is_active)
         : !row.is_active;
     };
 
@@ -278,43 +809,25 @@ export default function GradeSections() {
         .toLowerCase()
         .includes(term);
 
+    /*
+     * Academic Structure uses the flattened hierarchy rows.
+     *
+     * Without this branch the Structure view falls through
+     * to the Sections filter, which makes the list empty even
+     * though the summary count is correct.
+     */
     if (activeView === "academicUnits") {
-      const unitMap = new Map(data.academicUnits.map((item) => [item.id, item]));
-      const withPath = (row) => {
-        const path = [];
-        const visited = new Set();
-        let current = row;
-
-        while (current && !visited.has(current.id)) {
-          visited.add(current.id);
-          path.unshift(current.name);
-          current = current.parent_id ? unitMap.get(current.parent_id) : null;
-        }
-
-        return { ...row, hierarchyPath: path.join(" / "), hierarchyDepth: path.length - 1 };
-      };
-
-      return data.academicUnits
-        .filter(
-          (row) =>
-            matchesSearch([
-              row.code,
-              row.name,
-              row.type,
-              row.education_level,
-              row.parent?.name,
-            ]) &&
-            matchesStatus(row) &&
-            (!hierarchyFilters.educationLevel ||
-              row.education_level === hierarchyFilters.educationLevel) &&
-            (!hierarchyFilters.unitType || row.type === hierarchyFilters.unitType) &&
-            (!hierarchyFilters.parentUnitId ||
-              (hierarchyFilters.parentUnitId === "root"
-                ? !row.parent_id
-                : String(row.parent_id) === hierarchyFilters.parentUnitId)),
-        )
-        .map(withPath)
-        .sort((a, b) => a.hierarchyPath.localeCompare(b.hierarchyPath));
+      return academicUnitTree.rows.filter(
+        (row) =>
+          matchesSearch([
+            row.code,
+            row.name,
+            row.type,
+            row.education_level,
+            row.parent?.name,
+            row.hierarchyPath,
+          ]) && matchesStatus(row),
+      );
     }
 
     if (activeView === "academicPrograms") {
@@ -398,36 +911,76 @@ export default function GradeSections() {
         (!hierarchyFilters.gradeLevelId ||
           String(row.grade_level_id) === hierarchyFilters.gradeLevelId),
     );
-  }, [activeView, data, hierarchyFilters, search, statusFilter]);
+  }, [
+    academicUnitTree.rows,
+    activeView,
+    data,
+    hierarchyFilters,
+    search,
+    statusFilter,
+  ]);
+
+  /* =======================================================
+     COLLAPSIBLE ACADEMIC UNIT ROWS
+  ======================================================= */
+
+  const visibleRows = useMemo(() => {
+    if (activeView !== "academicUnits") {
+      return filteredRows;
+    }
+
+    const visibleIdSet = new Set(
+      filteredRows.map((row) => normalizeId(row.id)),
+    );
+
+    return filteredRows.filter((row) => {
+      let parentId = normalizeId(row.parent_id);
+      const visited = new Set();
+
+      while (parentId && !visited.has(parentId)) {
+        visited.add(parentId);
+
+        /*
+         * If the ancestor is part of the filtered result,
+         * respect its expanded/collapsed state.
+         *
+         * If the ancestor was filtered out, keep the matching
+         * child visible so searches do not mysteriously disappear.
+         */
+        if (visibleIdSet.has(parentId) && !expandedUnitIds.has(parentId)) {
+          return false;
+        }
+
+        parentId = normalizeId(academicUnitTree.idMap.get(parentId)?.parent_id);
+      }
+
+      return true;
+    });
+  }, [academicUnitTree.idMap, activeView, expandedUnitIds, filteredRows]);
 
   /* =======================================================
      PAGINATION
   ======================================================= */
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / rowsPerPage));
 
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
 
   const paginatedRows = useMemo(
-    () => filteredRows.slice(startIndex, endIndex),
-    [filteredRows, startIndex, endIndex],
+    () => visibleRows.slice(startIndex, endIndex),
+    [endIndex, startIndex, visibleRows],
   );
 
-  const showingStart = filteredRows.length === 0 ? 0 : startIndex + 1;
+  const showingStart = visibleRows.length === 0 ? 0 : startIndex + 1;
 
-  const showingEnd = Math.min(endIndex, filteredRows.length);
+  const showingEnd = Math.min(endIndex, visibleRows.length);
 
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
-
-  const handleRowsPerPageChange = (value) => {
-    setRowsPerPage(value);
-    setCurrentPage(1);
-  };
 
   /* =======================================================
      EXPORT
@@ -456,14 +1009,13 @@ export default function GradeSections() {
           item.name,
           item.parent?.name,
           item.type,
-          item.education_level === "higher_education"
-            ? "Higher Education"
-            : "Basic Education",
+          formatEducationLevel(item.education_level),
           item.programs_count || 0,
           item.grade_levels_count || 0,
           item.is_active ? "Active" : "Inactive",
         ],
       },
+
       academicPrograms: {
         headers: [
           "Code",
@@ -484,6 +1036,7 @@ export default function GradeSections() {
           item.is_active ? "Active" : "Inactive",
         ],
       },
+
       schoolYears: {
         headers: [
           "School Year",
@@ -500,6 +1053,7 @@ export default function GradeSections() {
           item.is_active ? "Active" : "Inactive",
         ],
       },
+
       gradeLevels: {
         headers: [
           "Grade Level",
@@ -518,6 +1072,7 @@ export default function GradeSections() {
           item.is_active ? "Active" : "Inactive",
         ],
       },
+
       sections: {
         headers: [
           "Grade Level",
@@ -550,6 +1105,7 @@ export default function GradeSections() {
     };
 
     const selected = exportConfig[activeView];
+
     const content = [
       selected.headers.map(csvValue).join(","),
       ...filteredRows.map((item) => selected.row(item).map(csvValue).join(",")),
@@ -564,9 +1120,11 @@ export default function GradeSections() {
 
     link.href = url;
     link.download = `${activeView}.csv`;
+
     document.body.appendChild(link);
     link.click();
     link.remove();
+
     URL.revokeObjectURL(url);
 
     toast.success(`${activeCard.label} exported successfully.`);
@@ -684,213 +1242,578 @@ export default function GradeSections() {
   };
 
   /* =======================================================
-     SKELETON
+     TABLE COLUMNS
   ======================================================= */
 
-  if (loading) {
-    return <PageSkeleton />;
-  }
+  const columns = useMemo(() => {
+    if (activeView === "academicPrograms") {
+      return [
+        {
+          key: "offering",
+          label: "Academic Offering",
+          render: (row) => (
+            <button
+              type="button"
+              onClick={() => selectAcademicProgram(row)}
+              className="group flex min-w-[190px] items-center gap-2 text-left"
+              title="Open grade / year levels"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[12px] font-medium text-slate-900 transition group-hover:text-[#019BC2]">
+                  {row.name || "-"}
+                </span>
+
+                <span className="mt-1 block text-[10px] text-[#94a3b8]">
+                  {row.code || "-"}
+                </span>
+              </span>
+
+              <FiChevronRight
+                size={13}
+                className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#01B8E5]"
+              />
+            </button>
+          ),
+        },
+        {
+          key: "parentOffering",
+          label: "Parent Offering",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.parent?.name || "Top level"}
+            </span>
+          ),
+        },
+        {
+          key: "academicHome",
+          label: "Academic Home",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.academic_unit?.parent?.name
+                ? `${row.academic_unit.parent.name} → `
+                : ""}
+              {row.academic_unit?.name || "—"}
+            </span>
+          ),
+        },
+        {
+          key: "type",
+          label: "Type",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {titleCase(row.program_type) || "—"}
+            </span>
+          ),
+        },
+        {
+          key: "gradeLevels",
+          label: "Grade Levels",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.grade_levels_count || 0}
+            </span>
+          ),
+        },
+        {
+          key: "status",
+          label: "Status",
+          render: (row) => <Status active={row.is_active} />,
+        },
+        {
+          key: "action",
+          label: "Action",
+          render: (row) => {
+            const actionId = `delete-academic-programs-${row.id}`;
+
+            return (
+              <div className="flex justify-end">
+                <DeleteButton
+                  loading={pendingActionId === actionId}
+                  disabled={Boolean(pendingActionId)}
+                  onClick={() => remove("academic-programs", row.id, row.name)}
+                />
+              </div>
+            );
+          },
+        },
+      ];
+    }
+
+    if (activeView === "schoolYears") {
+      return [
+        {
+          key: "schoolYear",
+          label: "School Year",
+          render: (row) => (
+            <span className="text-[12px] font-medium text-slate-900">
+              {row.name || "-"}
+            </span>
+          ),
+        },
+        {
+          key: "startDate",
+          label: "Start Date",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.start_date || "—"}
+            </span>
+          ),
+        },
+        {
+          key: "endDate",
+          label: "End Date",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.end_date || "—"}
+            </span>
+          ),
+        },
+        {
+          key: "sections",
+          label: "Sections",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.sections_count || 0}
+            </span>
+          ),
+        },
+        {
+          key: "status",
+          label: "Status",
+          render: (row) => <Status active={row.is_active} />,
+        },
+        {
+          key: "action",
+          label: "Action",
+          render: (row) => {
+            const actionId = `delete-school-years-${row.id}`;
+
+            return (
+              <div className="flex justify-end">
+                <DeleteButton
+                  loading={pendingActionId === actionId}
+                  disabled={Boolean(pendingActionId)}
+                  onClick={() => remove("school-years", row.id, row.name)}
+                />
+              </div>
+            );
+          },
+        },
+      ];
+    }
+
+    if (activeView === "gradeLevels") {
+      return [
+        {
+          key: "gradeLevel",
+          label: "Grade / Year Level",
+          render: (row) => (
+            <button
+              type="button"
+              onClick={() => selectGradeLevel(row)}
+              className="group flex min-w-[170px] items-center gap-2 text-left"
+              title="Open sections"
+            >
+              <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-slate-900 transition group-hover:text-[#019BC2]">
+                {row.name || "-"}
+              </span>
+
+              <FiChevronRight
+                size={13}
+                className="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-[#01B8E5]"
+              />
+            </button>
+          ),
+        },
+        {
+          key: "academicUnit",
+          label: "Academic Unit",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.academic_unit?.name || "—"}
+            </span>
+          ),
+        },
+        {
+          key: "programTrack",
+          label: "Program / Track",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.academic_program?.name || "—"}
+            </span>
+          ),
+        },
+        {
+          key: "sortOrder",
+          label: "Sort Order",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.sort_order ?? 0}
+            </span>
+          ),
+        },
+        {
+          key: "sections",
+          label: "Sections",
+          render: (row) => (
+            <span className="text-[12px] text-[#69768b]">
+              {row.sections_count || 0}
+            </span>
+          ),
+        },
+        {
+          key: "status",
+          label: "Status",
+          render: (row) => <Status active={row.is_active} />,
+        },
+        {
+          key: "action",
+          label: "Action",
+          render: (row) => {
+            const actionId = `delete-grade-levels-${row.id}`;
+
+            return (
+              <div className="flex justify-end">
+                <DeleteButton
+                  loading={pendingActionId === actionId}
+                  disabled={Boolean(pendingActionId)}
+                  onClick={() => remove("grade-levels", row.id, row.name)}
+                />
+              </div>
+            );
+          },
+        },
+      ];
+    }
+
+    return [
+      {
+        key: "gradeSection",
+        label: "Grade / Section",
+        render: (row) => (
+          <div>
+            <p className="text-[12px] font-medium text-slate-900">
+              {row.grade_level?.name || "Grade"} - {row.name}
+            </p>
+
+            <p className="mt-1 text-[10px] text-[#94a3b8]">
+              {row.grade_level?.academic_program?.name ||
+                row.grade_level?.academic_unit?.name ||
+                "—"}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: "schoolYear",
+        label: "School Year",
+        render: (row) => (
+          <span className="text-[12px] text-[#69768b]">
+            {row.school_year?.name || "—"}
+          </span>
+        ),
+      },
+      {
+        key: "capacity",
+        label: "Capacity",
+        render: (row) => (
+          <span className="text-[12px] text-[#69768b]">
+            {row.capacity || "—"}
+          </span>
+        ),
+      },
+      {
+        key: "teachers",
+        label: "Teachers",
+        render: (row) => (
+          <div className="flex min-w-[320px] flex-wrap gap-1.5">
+            {data.teachers.length > 0 ? (
+              data.teachers.map((teacher) => {
+                const selected = (row.teachers || []).some(
+                  (item) => String(item.id) === String(teacher.id),
+                );
+
+                const name = teacher.staff_profile?.first_name
+                  ? `${teacher.staff_profile.first_name} ${
+                      teacher.staff_profile.last_name || ""
+                    }`.trim()
+                  : teacher.username;
+
+                const actionId = `teacher-${row.id}-${teacher.id}`;
+
+                const actionLoading = pendingActionId === actionId;
+
+                return (
+                  <button
+                    key={teacher.id}
+                    type="button"
+                    disabled={Boolean(pendingActionId)}
+                    title={selected ? "Remove teacher" : "Assign teacher"}
+                    onClick={() => toggleTeacher(row, teacher.id)}
+                    className={`
+                      inline-flex
+                      items-center
+                      gap-1.5
+                      rounded-md
+                      px-2.5
+                      py-1.5
+                      text-[10px]
+                      font-medium
+                      transition
+                      disabled:cursor-not-allowed
+                      disabled:opacity-50
+                      ${
+                        selected
+                          ? "bg-[#01B8E5] text-white hover:bg-[#019BC2]"
+                          : "bg-slate-100 text-[#69768b] hover:bg-slate-200"
+                      }
+                    `}
+                  >
+                    {actionLoading && <FiLoader className="animate-spin" />}
+
+                    {name}
+                  </button>
+                );
+              })
+            ) : (
+              <span className="text-[12px] text-[#94a3b8]">
+                No active teacher accounts
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "status",
+        label: "Status",
+        render: (row) => <Status active={row.is_active} />,
+      },
+      {
+        key: "action",
+        label: "Action",
+        render: (row) => {
+          const actionId = `delete-sections-${row.id}`;
+
+          return (
+            <div className="flex justify-end">
+              <DeleteButton
+                loading={pendingActionId === actionId}
+                disabled={Boolean(pendingActionId)}
+                onClick={() => remove("sections", row.id, row.name)}
+              />
+            </div>
+          );
+        },
+      },
+    ];
+  }, [activeView, data.teachers, expandedUnitIds, pendingActionId]);
+
+  /* =======================================================
+     FILTER COMPONENT
+  ======================================================= */
+
+  const extraFilters = (
+    <HierarchyFilters
+      activeView={activeView}
+      data={data}
+      filters={hierarchyFilters}
+      onChange={handleHierarchyFilterChange}
+    />
+  );
+
+  const hasFilters =
+    Boolean(search.trim()) ||
+    statusFilter !== "All" ||
+    Object.values(hierarchyFilters).some(Boolean);
 
   /* =======================================================
      RENDER
   ======================================================= */
 
+  const contextItems = (() => {
+    if (activeView === "academicPrograms") {
+      return [selectedUnit?.name].filter(Boolean);
+    }
+
+    if (activeView === "gradeLevels") {
+      return [selectedUnit?.name, selectedProgram?.name].filter(Boolean);
+    }
+
+    if (activeView === "sections") {
+      return [
+        selectedUnit?.name,
+        selectedProgram?.name,
+        selectedGradeLevel?.name,
+      ].filter(Boolean);
+    }
+
+    return [];
+  })();
+
+  const railActiveView = activeView === "schoolYears" ? "sections" : activeView;
+
   return (
     <div
-      className="space-y-5 [font-family:'Poppins',sans-serif]"
+      className="space-y-4 [font-family:'Poppins',sans-serif]"
       data-aos="fade-up"
     >
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      <div className="grid items-stretch gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        {/* LEFT WORKFLOW NAVIGATION - SEPARATE CARD */}
+        <AcademicStepRail
+          loading={loading}
+          steps={workflowSteps}
+          activeView={railActiveView}
+          onChange={selectView}
+        />
 
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h1 className="text-2xl font-medium text-slate-950">
-            Academic Setup
-          </h1>
-          <p className="mt-1 text-sm font-normal text-slate-500">
-            Build the academic structure from parent units down to yearly sections.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={handleExport}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 transition hover:bg-slate-50"
-          >
-            <FiDownload />
-            Export
-          </button>
-
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => setShowAddForm(true)}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-600 px-4 text-sm font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <FiPlus />
-            {`Add ${activeCard.singular}`}
-          </button>
-        </div>
-      </div>
-
-      {/* =================================================
-          NAVIGATION / SUMMARY CARDS
-      ================================================= */}
-
-      <div className="grid gap-2 md:grid-cols-5">
-        {cards.map(({ key, label, description }) => {
-          const active = activeView === key;
-
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={active}
-              onClick={() => selectView(key)}
-              className={`rounded-lg border bg-white p-3 text-left transition ${
-                active
-                  ? "border-cyan-500 ring-4 ring-cyan-50"
-                  : "border-transparent hover:border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              <p className="truncate text-sm font-medium text-slate-800">
-                {label}
-              </p>
-              <p className="mt-1 hidden text-xs text-slate-500 xl:block">{description}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* =================================================
-          CONTENT
-      ================================================= */}
-
-      <div className="overflow-hidden rounded-md bg-white shadow-sm">
-        {/* HEADER / FILTER */}
-
-        <div className="border-b border-slate-100 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-base font-medium text-slate-900">
-                {activeCard.label}
-              </p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Filter this stage using its parent relationships.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={resetViewFilters}
-              className="shrink-0 rounded-md px-3 py-2 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-            >
-              Clear filters
-            </button>
-          </div>
-
-          <HierarchyFilters
+        {/* RIGHT WORKSPACE - SEPARATE FROM THE NAVIGATION */}
+        <main className="min-w-0 space-y-3">
+          {/* ACTIVE MODULE HEADER + ACTIONS */}
+          <WorkspaceContextBar
+            activeCard={activeCard}
             activeView={activeView}
-            data={data}
-            filters={hierarchyFilters}
-            onChange={handleHierarchyFilterChange}
+            contextItems={contextItems}
+            activeSchoolYear={
+              activeView === "sections" ? activeSchoolYear : null
+            }
+            hasContext={contextItems.length > 0}
+            showAdvancedFilters={showAdvancedFilters}
+            loading={loading}
+            submitting={submitting}
+            addLabel={`Add ${activeCard.singular}`}
+            onExport={handleExport}
+            onAdd={openAddForm}
+            onBackToSections={
+              activeView === "schoolYears" ? () => selectView("sections") : null
+            }
+            onToggleAdvancedFilters={() =>
+              uiDispatch({
+                type: "PATCH",
+                payload: {
+                  showAdvancedFilters: !showAdvancedFilters,
+                },
+              })
+            }
+            onClearContext={() => {
+              clearContext();
+              setHierarchyFilters(
+                activeView === "sections" && activeSchoolYear?.id
+                  ? { schoolYearId: normalizeId(activeSchoolYear.id) }
+                  : {},
+              );
+            }}
           />
 
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px]">
-            <div className="relative">
-              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-
-              <input
-                type="text"
-                value={search}
-                onChange={handleSearchChange}
-                placeholder={`Search ${activeCard.label.toLowerCase()}...`}
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-sm font-normal text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-              />
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={handleStatusFilterChange}
-              className="h-11 rounded-md border border-slate-200 bg-white px-4 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
-
-        {/* =================================================
-            TABLE
-        ================================================= */}
-
-        <div className="overflow-x-auto">
-          {activeView === "academicUnits" && (
-            <AcademicUnitTable
-              rows={paginatedRows}
-              onDelete={remove}
-              pendingActionId={pendingActionId}
+          {/* SCHOOL YEAR IS SECTION CONTEXT, NOT A WORKFLOW STEP */}
+          {(activeView === "sections" || activeView === "schoolYears") && (
+            <SchoolYearContextBar
+              loading={loading}
+              schoolYears={data.schoolYears}
+              activeSchoolYear={activeSchoolYear}
+              selectedId={schoolYearContextId}
+              managing={activeView === "schoolYears"}
+              onChange={handleSchoolYearContextChange}
+              onManage={() => selectView("schoolYears")}
+              onAdd={() => {
+                setActiveView("schoolYears");
+                setShowAddForm(true);
+              }}
             />
           )}
 
-          {activeView === "academicPrograms" && (
-            <AcademicProgramTable
-              rows={paginatedRows}
-              onDelete={remove}
+          {/* CONTENT */}
+          {activeView === "academicUnits" ? (
+            <AcademicStructureList
+              rows={visibleRows}
+              loading={loading}
+              search={search}
+              statusFilter={statusFilter}
+              expandedUnitIds={expandedUnitIds}
               pendingActionId={pendingActionId}
+              onSearchChange={(value) => {
+                setSearch(value);
+                setCurrentPage(1);
+              }}
+              onStatusFilterChange={(value) => {
+                setStatusFilter(value);
+                setCurrentPage(1);
+              }}
+              onReset={() => {
+                setSearch("");
+                setStatusFilter("All");
+              }}
+              onToggle={toggleAcademicUnit}
+              onExpandAll={expandAllAcademicUnits}
+              onCollapseAll={collapseAllAcademicUnits}
+              onDelete={remove}
+              onSelect={selectAcademicUnit}
+            />
+          ) : (
+            <DataTable
+              title={null}
+              subtitle={null}
+              columns={columns}
+              rows={paginatedRows}
+              rowKey={(row) => row.id ?? row.code ?? row.name}
+              loading={loading}
+              search={{
+                value: search,
+                onChange: (value) => {
+                  setSearch(value);
+                  setCurrentPage(1);
+                },
+                placeholder: `Search ${activeCard.label.toLowerCase()}...`,
+              }}
+              statusFilter={{
+                value: statusFilter,
+                onChange: (value) => {
+                  setStatusFilter(value);
+                  setCurrentPage(1);
+                },
+                options: [
+                  { label: "All Status", value: "All" },
+                  { label: "Active", value: "Active" },
+                  { label: "Inactive", value: "Inactive" },
+                ],
+              }}
+              extraFilters={showAdvancedFilters ? extraFilters : null}
+              onReset={hasFilters ? resetViewFilters : undefined}
+              pagination={{
+                currentPage,
+                totalPages,
+                rowsPerPage,
+                totalRows: visibleRows.length,
+                showingStart,
+                showingEnd,
+                onRowsPerPageChange: (value) => {
+                  setRowsPerPage(value);
+                  setCurrentPage(1);
+                },
+                onPageChange: setCurrentPage,
+              }}
+              emptyTitle={`No ${activeCard.label.toLowerCase()} found.`}
+              emptyDescription={
+                contextItems.length > 0
+                  ? "Nothing is configured under the selected context yet."
+                  : "Try adjusting your search or add a new record."
+              }
             />
           )}
-
-          {activeView === "schoolYears" && (
-            <SchoolYearTable
-              rows={paginatedRows}
-              onDelete={remove}
-              pendingActionId={pendingActionId}
-            />
-          )}
-
-          {activeView === "gradeLevels" && (
-            <GradeLevelTable
-              rows={paginatedRows}
-              onDelete={remove}
-              pendingActionId={pendingActionId}
-            />
-          )}
-
-          {activeView === "sections" && (
-            <SectionTable
-              rows={paginatedRows}
-              teachers={data.teachers}
-              onDelete={remove}
-              onToggleTeacher={toggleTeacher}
-              pendingActionId={pendingActionId}
-            />
-          )}
-        </div>
-
-        {/* =================================================
-            PAGINATION
-        ================================================= */}
-
-        <PaginationFooter
-          currentPage={currentPage}
-          totalPages={totalPages}
-          rowsPerPage={rowsPerPage}
-          totalRows={filteredRows.length}
-          showingStart={showingStart}
-          showingEnd={showingEnd}
-          onRowsPerPageChange={handleRowsPerPageChange}
-          onPageChange={setCurrentPage}
-        />
+        </main>
       </div>
 
-      {/* =================================================
-          ADD MODALS
-      ================================================= */}
+      <style>{`
+        @keyframes academicRailArrow {
+          0%, 100% { transform: translateY(-2px); opacity: .25; }
+          50% { transform: translateY(3px); opacity: .9; }
+        }
 
+        .academic-rail-arrow {
+          animation: academicRailArrow 1.35s ease-in-out infinite;
+        }
+      `}</style>
+
+      {/* ADD MODALS */}
       <AcademicUnitModal
         isOpen={showAddForm && activeView === "academicUnits"}
         onClose={() => setShowAddForm(false)}
@@ -903,7 +1826,10 @@ export default function GradeSections() {
           submit(
             event,
             "academic-units",
-            { ...unit, parent_id: unit.parent_id || null },
+            {
+              ...unit,
+              parent_id: unit.parent_id || null,
+            },
             () => setUnit(emptyUnit),
           )
         }
@@ -920,7 +1846,10 @@ export default function GradeSections() {
           submit(
             event,
             "academic-programs",
-            { ...program, parent_id: program.parent_id || null },
+            {
+              ...program,
+              parent_id: program.parent_id || null,
+            },
             () => setProgram(emptyProgram),
           )
         }
@@ -968,7 +1897,10 @@ export default function GradeSections() {
           submit(
             event,
             "sections",
-            { ...section, capacity: section.capacity || null },
+            {
+              ...section,
+              capacity: section.capacity || null,
+            },
             () => setSection(emptySection),
           )
         }
@@ -978,29 +1910,27 @@ export default function GradeSections() {
 }
 
 /* =========================================================
-   CONTEXTUAL HIERARCHY FILTERS
+   HIERARCHY FILTERS
 ========================================================= */
 
-const filterSelectClass =
-  "h-10 min-w-0 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50";
+const filterClass =
+  "h-11 min-w-[160px] rounded-md border border-slate-200 bg-white px-3 text-[11px] text-[#69768b] outline-none transition focus:border-[#01B8E5]";
 
 const FilterSelect = ({ label, value, onChange, children }) => (
-  <label className="min-w-0 space-y-1">
-    <span className="block text-[11px] font-medium uppercase tracking-wide text-slate-500">
-      {label}
-    </span>
-    <select
-      className={`${filterSelectClass} w-full`}
-      value={value || ""}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {children}
-    </select>
-  </label>
+  <select
+    aria-label={label}
+    title={label}
+    value={value || ""}
+    onChange={(event) => onChange(event.target.value)}
+    className={filterClass}
+  >
+    {children}
+  </select>
 );
 
 const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
   const activeUnits = data.academicUnits.filter((item) => item.is_active);
+
   const activePrograms = data.academicPrograms.filter((item) => item.is_active);
 
   const scopedPrograms = activePrograms.filter(
@@ -1022,24 +1952,44 @@ const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
 
   if (activeView === "academicUnits") {
     return (
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <FilterSelect label="Education Level" value={filters.educationLevel} onChange={(value) => onChange("educationLevel", value)}>
+      <div className="flex flex-wrap gap-2">
+        <FilterSelect
+          label="Education Level"
+          value={filters.educationLevel}
+          onChange={(value) => onChange("educationLevel", value)}
+        >
           <option value="">All education levels</option>
           <option value="basic">Basic Education</option>
           <option value="higher_education">Higher Education</option>
         </FilterSelect>
-        <FilterSelect label="Unit Type" value={filters.unitType} onChange={(value) => onChange("unitType", value)}>
+
+        <FilterSelect
+          label="Unit Type"
+          value={filters.unitType}
+          onChange={(value) => onChange("unitType", value)}
+        >
           <option value="">All unit types</option>
           <option value="division">Divisions</option>
           <option value="college">Colleges</option>
           <option value="department">Departments</option>
         </FilterSelect>
-        <FilterSelect label="Parent Unit" value={filters.parentUnitId} onChange={(value) => onChange("parentUnitId", value)}>
+
+        <FilterSelect
+          label="Parent Unit"
+          value={filters.parentUnitId}
+          onChange={(value) => onChange("parentUnitId", value)}
+        >
           <option value="">All parents</option>
           <option value="root">Top-level units</option>
-          {activeUnits.filter((item) => ["division", "college"].includes(item.type)).map((item) => (
-            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
-          ))}
+
+          {activeUnits
+            .filter((item) => ["division", "college"].includes(item.type))
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.parent?.name ? `${item.parent.name} → ` : ""}
+                {item.name}
+              </option>
+            ))}
         </FilterSelect>
       </div>
     );
@@ -1047,26 +1997,52 @@ const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
 
   if (activeView === "academicPrograms") {
     return (
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <FilterSelect label="Academic Home" value={filters.academicUnitId} onChange={(value) => onChange("academicUnitId", value)}>
+      <div className="flex flex-wrap gap-2">
+        <FilterSelect
+          label="Academic Home"
+          value={filters.academicUnitId}
+          onChange={(value) => onChange("academicUnitId", value)}
+        >
           <option value="">All academic homes</option>
-          {activeUnits.filter((item) => ["college", "department"].includes(item.type)).map((item) => (
-            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
-          ))}
+
+          {activeUnits
+            .filter((item) => ["college", "department"].includes(item.type))
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.parent?.name ? `${item.parent.name} → ` : ""}
+                {item.name}
+              </option>
+            ))}
         </FilterSelect>
-        <FilterSelect label="Offering Type" value={filters.programType} onChange={(value) => onChange("programType", value)}>
+
+        <FilterSelect
+          label="Offering Type"
+          value={filters.programType}
+          onChange={(value) => onChange("programType", value)}
+        >
           <option value="">All offering types</option>
           <option value="program">Degree Programs</option>
           <option value="track">Tracks</option>
           <option value="strand">Strands</option>
           <option value="specialization">Specializations</option>
         </FilterSelect>
-        <FilterSelect label="Parent Offering" value={filters.parentProgramId} onChange={(value) => onChange("parentProgramId", value)}>
+
+        <FilterSelect
+          label="Parent Offering"
+          value={filters.parentProgramId}
+          onChange={(value) => onChange("parentProgramId", value)}
+        >
           <option value="">All parents</option>
           <option value="root">Top-level offerings</option>
-          {scopedPrograms.filter((item) => ["track", "strand"].includes(item.program_type)).map((item) => (
-            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
-          ))}
+
+          {scopedPrograms
+            .filter((item) => ["track", "strand"].includes(item.program_type))
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.parent?.name ? `${item.parent.name} → ` : ""}
+                {item.name}
+              </option>
+            ))}
         </FilterSelect>
       </div>
     );
@@ -1074,19 +2050,40 @@ const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
 
   if (activeView === "gradeLevels") {
     return (
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <FilterSelect label="Academic Home" value={filters.academicUnitId} onChange={(value) => onChange("academicUnitId", value)}>
+      <div className="flex flex-wrap gap-2">
+        <FilterSelect
+          label="Academic Home"
+          value={filters.academicUnitId}
+          onChange={(value) => onChange("academicUnitId", value)}
+        >
           <option value="">All academic homes</option>
-          {activeUnits.filter((item) => ["college", "department"].includes(item.type)).map((item) => (
-            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
-          ))}
+
+          {activeUnits
+            .filter((item) => ["college", "department"].includes(item.type))
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.parent?.name ? `${item.parent.name} → ` : ""}
+                {item.name}
+              </option>
+            ))}
         </FilterSelect>
-        <FilterSelect label="Parent Offering" value={filters.academicProgramId} onChange={(value) => onChange("academicProgramId", value)}>
+
+        <FilterSelect
+          label="Parent Offering"
+          value={filters.academicProgramId}
+          onChange={(value) => onChange("academicProgramId", value)}
+        >
           <option value="">All offerings</option>
           <option value="direct">Directly under academic home</option>
-          {scopedPrograms.filter((item) => item.children_count === 0).map((item) => (
-            <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
-          ))}
+
+          {scopedPrograms
+            .filter((item) => item.children_count === 0)
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.parent?.name ? `${item.parent.name} → ` : ""}
+                {item.name}
+              </option>
+            ))}
         </FilterSelect>
       </div>
     );
@@ -1094,488 +2091,653 @@ const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
 
   if (activeView === "schoolYears") {
     return (
-      <div className="mt-3 grid gap-3 sm:max-w-xs">
-        <FilterSelect label="School Year" value={filters.schoolYearId} onChange={(value) => onChange("schoolYearId", value)}>
+      <div className="flex flex-wrap gap-2">
+        <FilterSelect
+          label="School Year"
+          value={filters.schoolYearId}
+          onChange={(value) => onChange("schoolYearId", value)}
+        >
           <option value="">All school years</option>
-          {data.schoolYears.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+
+          {data.schoolYears.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
         </FilterSelect>
       </div>
     );
   }
 
   return (
-    <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <FilterSelect label="School Year" value={filters.schoolYearId} onChange={(value) => onChange("schoolYearId", value)}>
+    <div className="flex flex-wrap gap-2">
+      <FilterSelect
+        label="School Year"
+        value={filters.schoolYearId}
+        onChange={(value) => onChange("schoolYearId", value)}
+      >
         <option value="">All school years</option>
-        {data.schoolYears.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-      </FilterSelect>
-      <FilterSelect label="Academic Home" value={filters.academicUnitId} onChange={(value) => onChange("academicUnitId", value)}>
-        <option value="">All academic homes</option>
-        {activeUnits.filter((item) => ["college", "department"].includes(item.type)).map((item) => (
-          <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
+
+        {data.schoolYears.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name}
+          </option>
         ))}
       </FilterSelect>
-      <FilterSelect label="Parent Offering" value={filters.academicProgramId} onChange={(value) => onChange("academicProgramId", value)}>
+
+      <FilterSelect
+        label="Academic Home"
+        value={filters.academicUnitId}
+        onChange={(value) => onChange("academicUnitId", value)}
+      >
+        <option value="">All academic homes</option>
+
+        {activeUnits
+          .filter((item) => ["college", "department"].includes(item.type))
+          .map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.parent?.name ? `${item.parent.name} → ` : ""}
+              {item.name}
+            </option>
+          ))}
+      </FilterSelect>
+
+      <FilterSelect
+        label="Parent Offering"
+        value={filters.academicProgramId}
+        onChange={(value) => onChange("academicProgramId", value)}
+      >
         <option value="">All offerings</option>
         <option value="direct">Directly under academic home</option>
-        {scopedPrograms.filter((item) => item.children_count === 0).map((item) => (
-          <option key={item.id} value={item.id}>{item.parent?.name ? `${item.parent.name} → ` : ""}{item.name}</option>
-        ))}
+
+        {scopedPrograms
+          .filter((item) => item.children_count === 0)
+          .map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.parent?.name ? `${item.parent.name} → ` : ""}
+              {item.name}
+            </option>
+          ))}
       </FilterSelect>
-      <FilterSelect label="Grade / Year Level" value={filters.gradeLevelId} onChange={(value) => onChange("gradeLevelId", value)}>
+
+      <FilterSelect
+        label="Grade / Year Level"
+        value={filters.gradeLevelId}
+        onChange={(value) => onChange("gradeLevelId", value)}
+      >
         <option value="">All levels</option>
-        {scopedLevels.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+
+        {scopedLevels.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name}
+          </option>
+        ))}
       </FilterSelect>
     </div>
   );
 };
 
 /* =========================================================
-   TABLE HEADER
+   SCHOOL YEAR CONTEXT
 ========================================================= */
 
-const TableHeader = ({ label, align = "left" }) => (
-  <th
-    className={`px-5 py-3 text-xs font-medium uppercase tracking-wide text-slate-500 ${
-      align === "right"
-        ? "text-right"
-        : align === "center"
-          ? "text-center"
-          : "text-left"
-    }`}
-  >
-    {label}
-  </th>
-);
+const SchoolYearContextBar = ({
+  loading,
+  schoolYears,
+  activeSchoolYear,
+  selectedId,
+  managing,
+  onChange,
+  onManage,
+  onAdd,
+}) => {
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3 rounded-md border border-slate-100 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-10 w-44 rounded-md" />
+          <Skeleton className="h-7 w-16 rounded-md" />
+        </div>
+        <Skeleton className="h-9 w-36 rounded-md" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex flex-col gap-3 rounded-md border bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between ${
+        managing ? "border-[#01B8E5]/50" : "border-slate-100"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#94a3b8]">
+          School Year
+        </span>
+
+        <select
+          value={selectedId || activeSchoolYear?.id || ""}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-9 min-w-[150px] rounded-md border border-slate-200 bg-white px-3 text-[11px] text-[#475569] outline-none transition focus:border-[#01B8E5]"
+        >
+          {schoolYears.length === 0 && (
+            <option value="">No school years</option>
+          )}
+
+          {schoolYears.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+
+        {activeSchoolYear && (
+          <Status active={Boolean(activeSchoolYear.is_active)} compact />
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onManage}
+          className={`h-9 rounded-md px-3 text-[11px] font-medium transition ${
+            managing
+              ? "bg-cyan-50 text-[#019BC2]"
+              : "text-[#69768b] hover:bg-slate-100"
+          }`}
+        >
+          Manage School Years
+        </button>
+
+        <button
+          type="button"
+          onClick={onAdd}
+          className="inline-flex h-9 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-[11px] font-medium text-white transition hover:bg-slate-800"
+        >
+          <FiPlus />
+          New
+        </button>
+      </div>
+    </div>
+  );
+};
 
 /* =========================================================
-   ACADEMIC UNIT TABLE
+   LEFT STEP RAIL
 ========================================================= */
 
-const AcademicUnitTable = ({ rows, onDelete, pendingActionId }) => (
-  <table className="w-full min-w-[1000px] border-collapse text-left">
-    <thead>
-      <tr className="border-b border-slate-100 bg-slate-50">
-        <TableHeader label="Academic Unit" />
-        <TableHeader label="Parent" />
-        <TableHeader label="Type" />
-        <TableHeader label="Education Level" />
-        <TableHeader label="Programs / Grades" />
-        <TableHeader label="Status" />
-        <TableHeader label="Action" align="right" />
-      </tr>
-    </thead>
+const AcademicStepRail = ({ loading, steps, activeView, onChange }) => {
+  if (loading) {
+    return (
+      <aside className="h-full min-h-[520px] self-stretch rounded-md border border-slate-100 bg-white p-3 shadow-sm">
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="px-3 py-3">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="mt-2 h-2.5 w-36" />
+            </div>
+          ))}
+        </div>
+      </aside>
+    );
+  }
 
-    <tbody>
-      {rows.length > 0 ? (
-        rows.map((row) => {
-          const actionId = `delete-academic-units-${row.id}`;
+  return (
+    <aside className="h-full min-h-[520px] self-stretch rounded-md border border-slate-100 bg-white p-3 shadow-sm">
+      <nav
+        aria-label="Academic setup workflow"
+        className="flex h-full flex-col"
+      >
+        {steps.map((step, index) => {
+          const active = activeView === step.key;
 
           return (
-            <tr
-              key={row.id}
-              className="border-b border-slate-100 transition hover:bg-slate-50"
-            >
-              <td
-                className="px-5 py-4"
-                style={{ paddingLeft: `${20 + (row.hierarchyDepth || 0) * 20}px` }}
+            <div key={step.key}>
+              <button
+                type="button"
+                onClick={() => onChange(step.key)}
+                aria-current={active ? "step" : undefined}
+                className={`relative w-full rounded-md px-3 py-3 text-left transition ${
+                  active ? "bg-cyan-50/60" : "hover:bg-slate-50"
+                }`}
               >
-                <p className="text-sm font-medium text-slate-900">
-                  {row.name || "-"}
-                </p>
+                {active && (
+                  <span className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-[#01B8E5]" />
+                )}
 
-                <p className="mt-1 text-xs font-normal text-slate-400">
-                  {row.code || "-"} · {row.hierarchyPath}
-                </p>
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.parent?.name || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal capitalize text-slate-600">
-                {row.type || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.education_level === "higher_education"
-                  ? "Higher Education"
-                  : "Basic Education"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                <span className="inline-flex rounded-md bg-slate-100 px-3 py-1.5 text-xs">
-                  {row.programs_count || 0} Programs
-                  {" · "}
-                  {row.grade_levels_count || 0} Grades
+                <span
+                  className={`block text-[11px] leading-5 ${
+                    active
+                      ? "font-medium text-[#019BC2]"
+                      : "font-normal text-slate-800"
+                  }`}
+                >
+                  {step.label}
                 </span>
-              </td>
 
-              <td className="px-5 py-4">
-                <Status active={row.is_active} />
-              </td>
+                <span className="mt-0.5 block text-[9px] font-normal leading-4 text-[#94a3b8]">
+                  {step.description}
+                </span>
+              </button>
 
-              <td className="px-5 py-4 text-right">
-                <DeleteButton
-                  loading={pendingActionId === actionId}
-                  disabled={Boolean(pendingActionId)}
-                  onClick={() => onDelete("academic-units", row.id, row.name)}
-                />
-              </td>
-            </tr>
-          );
-        })
-      ) : (
-        <EmptyRow columns={7} label="academic units" />
-      )}
-    </tbody>
-  </table>
-);
-
-/* =========================================================
-   ACADEMIC PROGRAM TABLE
-========================================================= */
-
-const AcademicProgramTable = ({ rows, onDelete, pendingActionId }) => (
-  <table className="w-full min-w-[1050px] border-collapse text-left">
-    <thead>
-      <tr className="border-b border-slate-100 bg-slate-50">
-        <TableHeader label="Academic Offering" />
-        <TableHeader label="Parent Offering" />
-        <TableHeader label="Academic Home" />
-        <TableHeader label="Type" />
-        <TableHeader label="Grade Levels" />
-        <TableHeader label="Status" />
-        <TableHeader label="Action" align="right" />
-      </tr>
-    </thead>
-
-    <tbody>
-      {rows.length > 0 ? (
-        rows.map((row) => {
-          const actionId = `delete-academic-programs-${row.id}`;
-
-          return (
-            <tr
-              key={row.id}
-              className="border-b border-slate-100 transition hover:bg-slate-50"
-            >
-              <td className="px-5 py-4">
-                <p className="text-sm font-medium text-slate-900">
-                  {row.name || "-"}
-                </p>
-
-                <p className="mt-1 text-xs font-normal text-slate-400">
-                  {row.code || "-"}
-                </p>
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.parent?.name || "Top level"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.academic_unit?.parent?.name
-                  ? `${row.academic_unit.parent.name} → `
-                  : ""}
-                {row.academic_unit?.name || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal capitalize text-slate-600">
-                {row.program_type || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.grade_levels_count || 0}
-              </td>
-
-              <td className="px-5 py-4">
-                <Status active={row.is_active} />
-              </td>
-
-              <td className="px-5 py-4 text-right">
-                <DeleteButton
-                  loading={pendingActionId === actionId}
-                  disabled={Boolean(pendingActionId)}
-                  onClick={() =>
-                    onDelete("academic-programs", row.id, row.name)
-                  }
-                />
-              </td>
-            </tr>
-          );
-        })
-      ) : (
-        <EmptyRow columns={7} label="academic offerings" />
-      )}
-    </tbody>
-  </table>
-);
-
-/* =========================================================
-   SCHOOL YEAR TABLE
-========================================================= */
-
-const SchoolYearTable = ({ rows, onDelete, pendingActionId }) => (
-  <table className="w-full min-w-[850px] border-collapse text-left">
-    <thead>
-      <tr className="border-b border-slate-100 bg-slate-50">
-        <TableHeader label="School Year" />
-        <TableHeader label="Start Date" />
-        <TableHeader label="End Date" />
-        <TableHeader label="Sections" />
-        <TableHeader label="Status" />
-        <TableHeader label="Action" align="right" />
-      </tr>
-    </thead>
-
-    <tbody>
-      {rows.length > 0 ? (
-        rows.map((row) => {
-          const actionId = `delete-school-years-${row.id}`;
-
-          return (
-            <tr
-              key={row.id}
-              className="border-b border-slate-100 transition hover:bg-slate-50"
-            >
-              <td className="px-5 py-4 text-sm font-medium text-slate-900">
-                {row.name || "-"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.start_date || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.end_date || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.sections_count || 0}
-              </td>
-
-              <td className="px-5 py-4">
-                <Status active={row.is_active} />
-              </td>
-
-              <td className="px-5 py-4 text-right">
-                <DeleteButton
-                  loading={pendingActionId === actionId}
-                  disabled={Boolean(pendingActionId)}
-                  onClick={() => onDelete("school-years", row.id, row.name)}
-                />
-              </td>
-            </tr>
-          );
-        })
-      ) : (
-        <EmptyRow columns={6} label="school years" />
-      )}
-    </tbody>
-  </table>
-);
-
-/* =========================================================
-   GRADE LEVEL TABLE
-========================================================= */
-
-const GradeLevelTable = ({ rows, onDelete, pendingActionId }) => (
-  <table className="w-full min-w-[950px] border-collapse text-left">
-    <thead>
-      <tr className="border-b border-slate-100 bg-slate-50">
-        <TableHeader label="Grade Level" />
-        <TableHeader label="Academic Unit" />
-        <TableHeader label="Program / Track" />
-        <TableHeader label="Sort Order" />
-        <TableHeader label="Sections" />
-        <TableHeader label="Status" />
-        <TableHeader label="Action" align="right" />
-      </tr>
-    </thead>
-
-    <tbody>
-      {rows.length > 0 ? (
-        rows.map((row) => {
-          const actionId = `delete-grade-levels-${row.id}`;
-
-          return (
-            <tr
-              key={row.id}
-              className="border-b border-slate-100 transition hover:bg-slate-50"
-            >
-              <td className="px-5 py-4 text-sm font-medium text-slate-900">
-                {row.name || "-"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.academic_unit?.name || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.academic_program?.name || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.sort_order ?? 0}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.sections_count || 0}
-              </td>
-
-              <td className="px-5 py-4">
-                <Status active={row.is_active} />
-              </td>
-
-              <td className="px-5 py-4 text-right">
-                <DeleteButton
-                  loading={pendingActionId === actionId}
-                  disabled={Boolean(pendingActionId)}
-                  onClick={() => onDelete("grade-levels", row.id, row.name)}
-                />
-              </td>
-            </tr>
-          );
-        })
-      ) : (
-        <EmptyRow columns={7} label="grade levels" />
-      )}
-    </tbody>
-  </table>
-);
-
-/* =========================================================
-   SECTION TABLE
-========================================================= */
-
-const SectionTable = ({
-  rows,
-  teachers,
-  onDelete,
-  onToggleTeacher,
-  pendingActionId,
-}) => (
-  <table className="w-full min-w-[1100px] border-collapse text-left">
-    <thead>
-      <tr className="border-b border-slate-100 bg-slate-50">
-        <TableHeader label="Grade / Section" />
-        <TableHeader label="School Year" />
-        <TableHeader label="Capacity" />
-        <TableHeader label="Teachers" />
-        <TableHeader label="Status" />
-        <TableHeader label="Action" align="right" />
-      </tr>
-    </thead>
-
-    <tbody>
-      {rows.length > 0 ? (
-        rows.map((row) => {
-          const deleteActionId = `delete-sections-${row.id}`;
-
-          return (
-            <tr
-              key={row.id}
-              className="border-b border-slate-100 transition hover:bg-slate-50"
-            >
-              <td className="px-5 py-4">
-                <p className="text-sm font-medium text-slate-900">
-                  {row.grade_level?.name || "Grade"} - {row.name}
-                </p>
-
-                <p className="mt-1 text-xs font-normal text-slate-400">
-                  {row.grade_level?.academic_program?.name ||
-                    row.grade_level?.academic_unit?.name ||
-                    "—"}
-                </p>
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.school_year?.name || "—"}
-              </td>
-
-              <td className="px-5 py-4 text-sm font-normal text-slate-600">
-                {row.capacity || "—"}
-              </td>
-
-              <td className="min-w-[360px] px-5 py-4">
-                <div className="flex flex-wrap gap-1.5">
-                  {teachers.length > 0 ? (
-                    teachers.map((teacher) => {
-                      const selected = (row.teachers || []).some(
-                        (item) => String(item.id) === String(teacher.id),
-                      );
-
-                      const name = teacher.staff_profile?.first_name
-                        ? `${teacher.staff_profile.first_name} ${
-                            teacher.staff_profile.last_name || ""
-                          }`.trim()
-                        : teacher.username;
-
-                      const actionId = `teacher-${row.id}-${teacher.id}`;
-
-                      const loading = pendingActionId === actionId;
-
-                      return (
-                        <button
-                          key={teacher.id}
-                          type="button"
-                          disabled={Boolean(pendingActionId)}
-                          title={selected ? "Remove teacher" : "Assign teacher"}
-                          onClick={() => onToggleTeacher(row, teacher.id)}
-                          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                            selected
-                              ? "bg-cyan-600 text-white hover:bg-cyan-700"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          }`}
-                        >
-                          {loading && <FiLoader className="animate-spin" />}
-
-                          {name}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <span className="text-sm font-normal text-slate-400">
-                      No active teacher accounts
-                    </span>
-                  )}
+              {index < steps.length - 1 && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none flex h-6 items-center"
+                >
+                  <span className="ml-4 h-full w-px bg-slate-100" />
+                  <FiChevronDown
+                    size={11}
+                    className="academic-rail-arrow -ml-[6px] text-[#01B8E5]/60"
+                  />
                 </div>
-              </td>
-
-              <td className="px-5 py-4">
-                <Status active={row.is_active} />
-              </td>
-
-              <td className="px-5 py-4 text-right">
-                <DeleteButton
-                  loading={pendingActionId === deleteActionId}
-                  disabled={Boolean(pendingActionId)}
-                  onClick={() => onDelete("sections", row.id, row.name)}
-                />
-              </td>
-            </tr>
+              )}
+            </div>
           );
-        })
+        })}
+      </nav>
+    </aside>
+  );
+};
+
+/* =========================================================
+   WORKSPACE CONTEXT HEADER
+========================================================= */
+
+const WorkspaceContextBar = ({
+  activeCard,
+  activeView,
+  contextItems,
+  activeSchoolYear,
+  hasContext,
+  showAdvancedFilters,
+  loading,
+  submitting,
+  addLabel,
+  onExport,
+  onAdd,
+  onBackToSections,
+  onToggleAdvancedFilters,
+  onClearContext,
+}) => (
+  <section className="rounded-md border border-slate-100 bg-white px-4 py-4 shadow-sm">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="min-w-0">
+        <p className="text-[15px] font-medium text-slate-900">
+          {activeCard.label}
+        </p>
+
+        <p className="mt-1 text-[10px] text-[#94a3b8]">
+          {activeCard.description}
+        </p>
+
+        {(contextItems.length > 0 || activeSchoolYear) && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#94a3b8]">
+              Context
+            </span>
+
+            {contextItems.map((item, index) => (
+              <span
+                key={`${item}-${index}`}
+                className="inline-flex items-center gap-1.5"
+              >
+                {index > 0 && (
+                  <FiChevronRight size={11} className="text-slate-300" />
+                )}
+
+                <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] text-[#69768b]">
+                  {item}
+                </span>
+              </span>
+            ))}
+
+            {activeSchoolYear && (
+              <span className="inline-flex items-center gap-1.5">
+                {contextItems.length > 0 && (
+                  <FiChevronRight size={11} className="text-slate-300" />
+                )}
+
+                <span className="rounded-md bg-cyan-50 px-2 py-1 text-[10px] text-[#019BC2]">
+                  {activeSchoolYear.name}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {activeView !== "academicUnits" && activeView !== "schoolYears" && (
+          <button
+            type="button"
+            onClick={onToggleAdvancedFilters}
+            className={`h-9 rounded-md px-3 text-[10px] font-medium transition ${
+              showAdvancedFilters
+                ? "bg-cyan-50 text-[#019BC2]"
+                : "text-[#69768b] hover:bg-slate-100"
+            }`}
+          >
+            {showAdvancedFilters ? "Hide filters" : "Advanced filters"}
+          </button>
+        )}
+
+        {hasContext && (
+          <button
+            type="button"
+            onClick={onClearContext}
+            className="h-9 rounded-md px-3 text-[10px] font-medium text-[#69768b] transition hover:bg-slate-100"
+          >
+            Clear context
+          </button>
+        )}
+
+        {onBackToSections && (
+          <button
+            type="button"
+            onClick={onBackToSections}
+            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-[10px] text-[#69768b] transition hover:bg-slate-50"
+          >
+            Back to Sections
+          </button>
+        )}
+
+        <button
+          type="button"
+          disabled={loading}
+          onClick={onExport}
+          className="h-9 rounded-md border border-slate-200 bg-white px-3.5 text-[10px] text-[#69768b] transition hover:border-[#01B8E5]/40 hover:text-[#01B8E5] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Export
+        </button>
+
+        <button
+          type="button"
+          disabled={submitting || loading}
+          onClick={onAdd}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-[#01B8E5] px-3.5 text-[10px] font-medium text-white transition hover:bg-[#019BC2] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <FiPlus />
+          {addLabel}
+        </button>
+      </div>
+    </div>
+  </section>
+);
+
+/* =========================================================
+   ACADEMIC STRUCTURE LIST
+   - Not a table
+   - No pagination
+   - Minimal parent / child rows
+========================================================= */
+
+const AcademicStructureList = ({
+  rows,
+  loading,
+  search,
+  statusFilter,
+  expandedUnitIds,
+  pendingActionId,
+  onSearchChange,
+  onStatusFilterChange,
+  onReset,
+  onToggle,
+  onExpandAll,
+  onCollapseAll,
+  onDelete,
+  onSelect,
+}) => {
+  if (loading) {
+    return <AcademicStructureSkeleton />;
+  }
+
+  const hasFilter = Boolean(search.trim()) || statusFilter !== "All";
+
+  const activateRow = (row) => {
+    if (row.hasChildren) {
+      onToggle(row.id);
+      return;
+    }
+
+    onSelect(row);
+  };
+
+  const handleRowKeyDown = (event, row) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    activateRow(row);
+  };
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+      <div className="border-b border-slate-100 p-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search academic structure..."
+              className="h-10 w-full rounded-md border border-slate-200 bg-white pl-11 pr-4 text-[11px] font-normal text-[#69768b] outline-none focus:border-[#01B8E5]"
+            />
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(event) => onStatusFilterChange(event.target.value)}
+            className="h-10 rounded-md border border-slate-200 bg-white px-3 text-[11px] font-normal text-[#69768b] outline-none lg:w-[145px]"
+          >
+            <option value="All">All Status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onExpandAll}
+              className="h-10 rounded-md px-3 text-[10px] font-normal text-[#69768b] transition hover:bg-slate-100"
+            >
+              Expand all
+            </button>
+
+            <button
+              type="button"
+              onClick={onCollapseAll}
+              className="h-10 rounded-md px-3 text-[10px] font-normal text-[#69768b] transition hover:bg-slate-100"
+            >
+              Collapse all
+            </button>
+
+            {hasFilter && (
+              <button
+                type="button"
+                onClick={onReset}
+                className="h-10 rounded-md bg-slate-100 px-3 text-[10px] font-normal text-[#69768b] transition hover:bg-slate-200"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {rows.length > 0 ? (
+        <AnimatePresence initial={false}>
+          {rows.map((row) => {
+            const expanded = expandedUnitIds.has(normalizeId(row.id));
+            const actionId = `delete-academic-units-${row.id}`;
+
+            return (
+              <motion.div
+                key={row.id}
+                layout
+                initial={{ opacity: 0, height: 0, y: -4 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -4 }}
+                transition={{
+                  height: {
+                    duration: 0.22,
+                    ease: [0.22, 1, 0.36, 1],
+                  },
+                  opacity: {
+                    duration: 0.16,
+                  },
+                  y: {
+                    duration: 0.18,
+                  },
+                  layout: {
+                    duration: 0.22,
+                    ease: [0.22, 1, 0.36, 1],
+                  },
+                }}
+                className="overflow-hidden border-b border-slate-100 last:border-b-0"
+              >
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => activateRow(row)}
+                  onKeyDown={(event) => handleRowKeyDown(event, row)}
+                  aria-expanded={row.hasChildren ? expanded : undefined}
+                  className={`group flex min-h-[62px] cursor-pointer items-center gap-2 px-4 outline-none transition hover:bg-slate-50/70 focus-visible:bg-slate-50 ${
+                    row.hierarchyDepth === 0 ? "bg-slate-50/20" : "bg-white"
+                  }`}
+                  style={{
+                    paddingLeft: `${
+                      18 + Math.min(row.hierarchyDepth || 0, 6) * 42
+                    }px`,
+                  }}
+                >
+                  {row.hasChildren && (
+                    <motion.span
+                      aria-hidden="true"
+                      animate={{
+                        rotate: expanded ? 0 : -90,
+                      }}
+                      transition={{
+                        duration: 0.2,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center text-slate-400"
+                    >
+                      <FiChevronDown size={13} />
+                    </motion.span>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`truncate leading-5 text-slate-900 ${
+                        row.hierarchyDepth === 0
+                          ? "text-[13px] font-medium"
+                          : "text-[12px] font-normal"
+                      }`}
+                    >
+                      {row.name || "-"}
+                    </p>
+
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] font-normal leading-4">
+                      <span className="text-[#94a3b8]">
+                        {titleCase(row.type)}
+                      </span>
+
+                      <span className="text-slate-300">·</span>
+
+                      <span
+                        className={
+                          row.is_active ? "text-emerald-600" : "text-slate-400"
+                        }
+                      >
+                        {row.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    className="shrink-0"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <DeleteButton
+                      loading={pendingActionId === actionId}
+                      disabled={Boolean(pendingActionId)}
+                      onClick={() =>
+                        onDelete("academic-units", row.id, row.name)
+                      }
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       ) : (
-        <EmptyRow columns={6} label="sections" />
+        <div className="px-5 py-12 text-center">
+          <p className="text-[12px] font-normal text-[#69768b]">
+            No academic units found.
+          </p>
+          <p className="mt-1 text-[10px] font-normal text-[#94a3b8]">
+            Try another search or add a new academic unit.
+          </p>
+        </div>
       )}
-    </tbody>
-  </table>
+    </section>
+  );
+};
+
+const AcademicStructureSkeleton = () => (
+  <div className="overflow-hidden rounded-md border border-slate-100 bg-white shadow-sm">
+    <div className="border-b border-slate-100 p-3">
+      <div className="flex gap-2">
+        <Skeleton className="h-10 flex-1 rounded-md" />
+        <Skeleton className="h-10 w-[145px] rounded-md" />
+        <Skeleton className="h-10 w-36 rounded-md" />
+      </div>
+    </div>
+
+    <div>
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="flex min-h-[62px] items-center gap-3 border-b border-slate-100 px-4 last:border-b-0"
+          style={{
+            paddingLeft: `${18 + (index === 0 || index === 4 ? 0 : 42)}px`,
+          }}
+        >
+          {(index === 0 || index === 4) && (
+            <Skeleton className="h-6 w-6 rounded-md" />
+          )}
+
+          <div>
+            <Skeleton className={`h-3 ${index % 2 === 0 ? "w-32" : "w-40"}`} />
+            <Skeleton className="mt-2 h-2.5 w-20" />
+          </div>
+
+          <Skeleton className="ml-auto h-8 w-8 rounded-md" />
+        </div>
+      ))}
+    </div>
+  </div>
 );
 
 /* =========================================================
    STATUS
 ========================================================= */
 
-const Status = ({ active }) => (
+const Status = ({ active, compact = false }) => (
   <span
-    className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-normal ${
+    className={`inline-flex shrink-0 items-center rounded-md ${
+      compact ? "gap-1 px-2 py-1 text-[8px]" : "gap-2 px-3 py-1.5 text-[10px]"
+    } ${
       active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
     }`}
   >
-    {active ? <FiCheckCircle /> : <FiXCircle />}
-
+    {!compact && (active ? <FiCheckCircle /> : <FiXCircle />)}
     {active ? "Active" : "Inactive"}
   </span>
 );
@@ -1591,213 +2753,22 @@ const DeleteButton = ({ onClick, loading = false, disabled = false }) => (
     aria-label="Delete"
     disabled={disabled}
     onClick={onClick}
-    className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-red-50 text-red-600 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+    className="
+      inline-flex
+      h-9
+      w-9
+      items-center
+      justify-center
+      rounded-md
+      bg-red-50
+      text-red-600
+      transition
+      hover:bg-red-600
+      hover:text-white
+      disabled:cursor-not-allowed
+      disabled:opacity-40
+    "
   >
     {loading ? <FiLoader className="animate-spin" /> : <FiTrash2 />}
   </button>
-);
-
-/* =========================================================
-   EMPTY STATE
-========================================================= */
-
-const EmptyRow = ({ columns, label }) => (
-  <tr>
-    <td colSpan={columns}>
-      <div className="px-5 py-14 text-center">
-        <p className="text-sm font-normal text-slate-600">No {label} found.</p>
-
-        <p className="mt-1 text-xs font-normal text-slate-400">
-          Try adjusting your search or add a new record.
-        </p>
-      </div>
-    </td>
-  </tr>
-);
-
-/* =========================================================
-   PAGINATION FOOTER
-========================================================= */
-
-const PaginationFooter = ({
-  currentPage,
-  totalPages,
-  rowsPerPage,
-  totalRows,
-  showingStart,
-  showingEnd,
-  onRowsPerPageChange,
-  onPageChange,
-}) => (
-  <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
-    {/* LEFT */}
-
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-normal text-slate-500">Show</span>
-
-        <select
-          value={rowsPerPage}
-          onChange={(event) => onRowsPerPageChange(Number(event.target.value))}
-          className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-700 outline-none transition focus:border-cyan-500 focus:ring-4 focus:ring-cyan-50"
-        >
-          {rowsPerPageOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-
-        <span className="text-sm font-normal text-slate-500">entries</span>
-      </div>
-
-      <p className="text-sm font-normal text-slate-500">
-        Showing {showingStart} to {showingEnd} of {totalRows} records
-      </p>
-    </div>
-
-    {/* RIGHT */}
-
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        disabled={currentPage === 1}
-        onClick={() => onPageChange(currentPage - 1)}
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-70"
-      >
-        <FiChevronLeft />
-
-        <span className="hidden sm:inline">Prev</span>
-      </button>
-
-      <div className="whitespace-nowrap rounded-md bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
-        Page {currentPage} of {totalPages}
-      </div>
-
-      <button
-        type="button"
-        disabled={currentPage === totalPages || totalRows === 0}
-        onClick={() => onPageChange(currentPage + 1)}
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-70"
-      >
-        <span className="hidden sm:inline">Next</span>
-
-        <FiChevronRight />
-      </button>
-    </div>
-  </div>
-);
-
-/* =========================================================
-   SKELETON
-========================================================= */
-
-const Skeleton = ({ className = "" }) => (
-  <div className={`animate-pulse rounded bg-slate-200 ${className}`} />
-);
-
-/* =========================================================
-   PAGE SKELETON
-========================================================= */
-
-const PageSkeleton = () => (
-  <div className="space-y-5 [font-family:'Poppins',sans-serif]">
-    {/* HEADER */}
-
-    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-      <div>
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="mt-2 h-4 w-full max-w-md" />
-      </div>
-
-      <div className="flex gap-2">
-        <Skeleton className="h-10 w-24 rounded-md" />
-        <Skeleton className="h-10 w-36 rounded-md" />
-      </div>
-    </div>
-
-    {/* SUMMARY CARDS */}
-
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="rounded-md bg-white p-4 shadow-sm">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="mt-3 h-7 w-10" />
-        </div>
-      ))}
-    </div>
-
-    {/* TABLE */}
-
-    <div className="overflow-hidden rounded-md bg-white shadow-sm">
-      <div className="border-b border-slate-100 p-4">
-        <Skeleton className="h-5 w-36" />
-
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px]">
-          <Skeleton className="h-11 w-full rounded-md" />
-          <Skeleton className="h-11 w-full rounded-md" />
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1000px]">
-          <thead>
-            <tr className="border-b border-slate-100 bg-slate-50">
-              {Array.from({ length: 7 }).map((_, index) => (
-                <th key={index} className="px-5 py-4">
-                  <Skeleton className="h-3 w-20" />
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {Array.from({ length: 6 }).map((_, rowIndex) => (
-              <tr key={rowIndex} className="border-b border-slate-100">
-                <td className="px-5 py-5">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="mt-2 h-3 w-16" />
-                </td>
-                <td className="px-5 py-5">
-                  <Skeleton className="h-4 w-28" />
-                </td>
-                <td className="px-5 py-5">
-                  <Skeleton className="h-4 w-20" />
-                </td>
-                <td className="px-5 py-5">
-                  <Skeleton className="h-4 w-32" />
-                </td>
-                <td className="px-5 py-5">
-                  <Skeleton className="h-7 w-24 rounded-md" />
-                </td>
-                <td className="px-5 py-5">
-                  <Skeleton className="h-7 w-20 rounded-md" />
-                </td>
-                <td className="px-5 py-5">
-                  <div className="flex justify-end">
-                    <Skeleton className="h-9 w-9 rounded-md" />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex flex-col gap-4 border-t border-slate-100 px-4 py-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-4 w-8" />
-          <Skeleton className="h-9 w-16" />
-          <Skeleton className="h-4 w-12" />
-          <Skeleton className="h-4 w-44" />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-20" />
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-20" />
-        </div>
-      </div>
-    </div>
-  </div>
 );
