@@ -831,7 +831,7 @@ export default function AcademicSetup() {
     }
 
     if (activeView === "academicPrograms") {
-      return data.academicPrograms.filter(
+      const rows = data.academicPrograms.filter(
         (row) =>
           matchesSearch([
             row.code,
@@ -850,6 +850,41 @@ export default function AcademicSetup() {
               ? !row.parent_id
               : String(row.parent_id) === hierarchyFilters.parentProgramId)),
       );
+
+      const textCompare = (left, right) =>
+        String(left || "").localeCompare(String(right || ""), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+
+      return rows.sort((left, right) => {
+        const sortBy = hierarchyFilters.sortBy || "academicUnit";
+
+        if (sortBy === "name") {
+          return textCompare(left.name, right.name);
+        }
+
+        if (sortBy === "offeringType") {
+          return (
+            textCompare(left.program_type, right.program_type) ||
+            textCompare(left.name, right.name)
+          );
+        }
+
+        const leftUnit = `${left.academic_unit?.parent?.name || ""} ${
+          left.academic_unit?.name || ""
+        }`;
+        const rightUnit = `${right.academic_unit?.parent?.name || ""} ${
+          right.academic_unit?.name || ""
+        }`;
+
+        return (
+          textCompare(leftUnit, rightUnit) ||
+          textCompare(left.program_type, right.program_type) ||
+          textCompare(left.parent?.name, right.parent?.name) ||
+          textCompare(left.name, right.name)
+        );
+      });
     }
 
     if (activeView === "schoolYears") {
@@ -863,7 +898,7 @@ export default function AcademicSetup() {
     }
 
     if (activeView === "gradeLevels") {
-      return data.gradeLevels.filter(
+      const rows = data.gradeLevels.filter(
         (row) =>
           matchesSearch([
             row.name,
@@ -880,6 +915,44 @@ export default function AcademicSetup() {
               : String(row.academic_program_id) ===
                 hierarchyFilters.academicProgramId)),
       );
+
+      const textCompare = (left, right) =>
+        String(left || "").localeCompare(String(right || ""), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+
+      return rows.sort((left, right) => {
+        const sortBy = hierarchyFilters.sortBy || "academicUnit";
+
+        if (sortBy === "name") {
+          return textCompare(left.name, right.name);
+        }
+
+        if (sortBy === "levelOrder") {
+          return (
+            Number(left.sort_order || 0) - Number(right.sort_order || 0) ||
+            textCompare(left.name, right.name)
+          );
+        }
+
+        const leftUnit = `${left.academic_unit?.parent?.name || ""} ${
+          left.academic_unit?.name || ""
+        }`;
+        const rightUnit = `${right.academic_unit?.parent?.name || ""} ${
+          right.academic_unit?.name || ""
+        }`;
+
+        return (
+          textCompare(leftUnit, rightUnit) ||
+          textCompare(
+            left.academic_program?.name,
+            right.academic_program?.name,
+          ) ||
+          Number(left.sort_order || 0) - Number(right.sort_order || 0) ||
+          textCompare(left.name, right.name)
+        );
+      });
     }
 
     return data.sections.filter(
@@ -1776,7 +1849,12 @@ export default function AcademicSetup() {
                   { label: "Inactive", value: "Inactive" },
                 ],
               }}
-              extraFilters={showAdvancedFilters ? extraFilters : null}
+              extraFilters={
+                ["academicPrograms", "gradeLevels"].includes(activeView) ||
+                showAdvancedFilters
+                  ? extraFilters
+                  : null
+              }
               onReset={hasFilters ? resetViewFilters : undefined}
               pagination={{
                 currentPage,
@@ -2016,6 +2094,16 @@ const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
         </FilterSelect>
 
         <FilterSelect
+          label="Sort Programs and Tracks"
+          value={filters.sortBy || "academicUnit"}
+          onChange={(value) => onChange("sortBy", value)}
+        >
+          <option value="academicUnit">Sort by academic unit</option>
+          <option value="offeringType">Sort by offering type</option>
+          <option value="name">Sort by name</option>
+        </FilterSelect>
+
+        <FilterSelect
           label="Offering Type"
           value={filters.programType}
           onChange={(value) => onChange("programType", value)}
@@ -2066,6 +2154,16 @@ const HierarchyFilters = ({ activeView, data, filters, onChange }) => {
                 {item.name}
               </option>
             ))}
+        </FilterSelect>
+
+        <FilterSelect
+          label="Sort Grade Levels"
+          value={filters.sortBy || "academicUnit"}
+          onChange={(value) => onChange("sortBy", value)}
+        >
+          <option value="academicUnit">Sort by academic unit</option>
+          <option value="levelOrder">Sort by grade/year order</option>
+          <option value="name">Sort by name</option>
         </FilterSelect>
 
         <FilterSelect
